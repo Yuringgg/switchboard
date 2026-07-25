@@ -10,8 +10,17 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
  * works but warns on every boot.
  */
 
-/** Routes reachable without a session. Everything else requires one. */
-const PUBLIC_PATHS = ['/login', '/auth'];
+/**
+ * Routes reachable without a session. Everything else requires one.
+ *
+ * ⚠ `/api` is here deliberately. Google's Pub/Sub push and Meta's webhooks
+ * arrive with no cookie and no user — gating them on a session would redirect
+ * every delivery to /login, which providers read as a failure and eventually
+ * respond to by DISABLING the webhook. Those routes authenticate themselves,
+ * per request, by signature or bearer token; that is the correct boundary for
+ * machine callers. Anything added under /api must do its own auth.
+ */
+const PUBLIC_PATHS = ['/login', '/auth', '/api'];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
