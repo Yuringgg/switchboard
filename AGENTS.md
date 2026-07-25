@@ -101,8 +101,16 @@ feature that works and is understood beats a clever one that half-works.
   `packages/db/tests/tenant_isolation.sql`
 - `apps/console` — Next.js 16 + Tailwind + shadcn/ui foundation, **behind a
   working login**, rendering the "no messages yet" empty state
-- Git repository, with a **working pre-commit secret scan** (`.githooks/`,
-  wired via `core.hooksPath` by `pnpm install`)
+- `packages/db` — Drizzle schema verified against the live database, worker
+  client, generated Supabase types
+- `apps/worker` — queue consumer (`FOR UPDATE SKIP LOCKED`), self-contained
+  bundle, Dockerfile. **Deployed to Azure Container Apps, `minReplicas: 1`,
+  running warm in Malaysia West** — on a placeholder image, see blockers.
+- Ingest webhook routes, WhatsApp signature verification tested
+- Supabase keepalive as a daily Vercel cron
+- Git repository **pushed to https://github.com/Yuringgg/switchboard**, CI green,
+  with a **working pre-commit secret scan** (`.githooks/`, wired via
+  `core.hooksPath` by `pnpm install`)
 - `.env.example`, `.gitignore`, `.gitattributes`, CI workflow
 - Every not-yet-built directory holds a README naming what lands there and when
 
@@ -113,15 +121,27 @@ client, the Supabase keepalive, ingest routes, and the worker container.
 
 Do not skip ahead to integrations. The adapter contract exists now; use it.
 
-**Known live blockers:**
+**Known live blockers — all three need Yuri, none need code:**
 
-1. **No git remote**, so CI has nothing to run on and Vercel has nothing to build
-   from. `gh` is **not installed on this machine** — the repo has to be created
-   through the web UI, or `gh` installed first.
-2. Google, Meta, Gemini and Groq credentials still don't exist
-   (`docs/03-RESOURCES.md` §6). Supabase is done.
-3. **The Azure MCP is installed but timing out** — likely needs `az login` on the
-   host. Blocks the Container Apps work in Phase 0. See `docs/03-RESOURCES.md` §8.
+1. **The Vercel deploy needs the dashboard.** The Vercel MCP can read projects
+   but cannot create a git-connected one or set env vars, and there is no CLI
+   login. Steps are in `apps/console/README.md`; Root Directory must be
+   `apps/console` and the env vars must exist *before* the first build.
+2. **The worker runs a placeholder image.** Running our own needs a container
+   registry — ACR Basic (~$5/mo, unapproved) or ghcr.io (free). Cost decision.
+   See `infra/README.md`.
+3. **`DATABASE_URL` is not set anywhere.** It is the direct Postgres connection
+   string from the Supabase dashboard and contains the database password, so it
+   is deliberately not retrievable through tooling. The worker cannot reach the
+   database and `drizzle-kit` cannot run until it exists.
+
+Google, Meta, Gemini and Groq credentials still don't exist
+(`docs/03-RESOURCES.md` §6) — that's Phase 1 and later. Supabase is done.
+
+**Tooling notes:** the **Azure MCP still times out even after `az login`** — use
+the `az` CLI directly, at
+`C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd` (not on `PATH`).
+`gh` is not installed.
 
 **A dev account exists in the database:** `dev@switchboard.test`, seeded by
 `packages/db/seeds/dev_user.sql` so the sign-in flow could be tested without

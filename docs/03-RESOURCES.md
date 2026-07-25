@@ -350,16 +350,25 @@ Tested by calling each one, 2026-07-25:
 |---|---|---|
 | **Supabase** | ✅ working — org `Yuringgg's Org` | create project, apply migrations, generate TS types, read logs |
 | **Vercel** | ✅ working — team `Yuringgg` | deploy, read build logs, read runtime errors |
-| **Azure** | ⚠️ **installed but timing out** | resource groups, Container Apps, storage, pricing |
+| **Azure MCP** | ⚠️ **still times out — do not use** | superseded by the `az` CLI |
+| **`az` CLI** | ✅ working — `Azure for Students`, Mapúa tenant | resource groups, Container Apps, policy, deployment |
 | **Notion** | connected | write-up for Ms. Maria |
 | **GitHub** *(via Claude Code)* | — | repo, branches, PRs |
 
-**⚠ Azure MCP is not responding.** Two `subscription_list` calls timed out — not a
-cold start. The server authenticates through the Azure CLI credential chain, so
-the most likely fix is running **`az login`** on the host machine. Resolve this
-before Phase 0's Container Apps work. Note the directory lists the same Microsoft
-server under three entries; only one is needed, and the duplicates are not the
-problem.
+**⚠ The Azure MCP still times out even after `az login`** (2026-07-26), so
+`az login` was not the fix. **Use the `az` CLI directly instead** — it works, and
+all of Phase 0's Azure work was done with it. Don't spend more time on the MCP.
+
+`az` is not on `PATH` in this environment; it lives at
+`C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd`.
+
+**⚠ Region policy discovered 2026-07-26.** The student subscription enforces an
+**"Allowed resource deployment regions"** policy limiting deployments to
+`japaneast`, `malaysiawest`, `indonesiacentral`, `centralindia`, `koreacentral`.
+**`southeastasia` is blocked**, and the failure is `RequestDisallowedByAzure`,
+which reads like a quota problem. Switchboard's Azure resources are in
+**malaysiawest** — closest allowed region to both Manila and Supabase's
+Singapore instance. See `infra/README.md`.
 
 Prefer these over asking Yuri to click through portals — but **never** provision
 paid resources without explicit approval first.

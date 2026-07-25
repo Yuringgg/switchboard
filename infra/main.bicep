@@ -7,8 +7,35 @@
 // See infra/README.md for the cost rationale and the ADR-011 reasoning behind
 // minReplicas: 1.
 
-@description('Azure region. Southeast Asia is the closest Container Apps region to Manila.')
-param location string = 'southeastasia'
+/*
+  ⚠ REGION IS CONSTRAINED BY POLICY, not by preference.
+
+  The Azure for Students subscription carries an "Allowed resource deployment
+  regions" policy limiting deployments to exactly:
+
+      japaneast · malaysiawest · indonesiacentral · centralindia · koreacentral
+
+  `southeastasia` — the obvious choice for Manila, and where Supabase lives — is
+  NOT on that list. Deploying there fails with RequestDisallowedByAzure, which
+  reads like a quota or permissions problem and is neither.
+
+  malaysiawest (Kuala Lumpur) is the pick: closest allowed region to Manila, and
+  ~300km from Supabase's ap-southeast-1 in Singapore. That second point is the
+  one that matters — the worker queries the database continuously, so
+  worker-to-database latency is the number to minimise, not worker-to-user.
+
+  Check the policy before changing this:
+    az policy assignment list --disable-scope-strict-match
+*/
+@description('Azure region. Constrained by subscription policy — see the note above.')
+@allowed([
+  'malaysiawest'
+  'indonesiacentral'
+  'japaneast'
+  'koreacentral'
+  'centralindia'
+])
+param location string = 'malaysiawest'
 
 @description('Prefix for resource names.')
 param namePrefix string = 'switchboard'

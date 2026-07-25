@@ -37,19 +37,24 @@ wired.
       Two users, the same external contact, no bleed across reads, writes,
       ownership reassignment, or anonymous access. **Negative control run:
       the test fails when RLS is disabled**, so a pass means something.
-- [ ] `packages/db` — typed client, generated types *(migrations landed; the
-      Drizzle client is still to do)*
+- [x] `packages/db` — Drizzle schema (verified column-by-column against the live
+      database), worker client, and generated Supabase types
 - [x] `apps/console` — Next.js + Tailwind + shadcn foundation, behind a login,
       renders "no messages yet". Verified in a browser: renders, light **and**
       dark, mobile **and** desktop, production build passes.
-- [ ] Deploy the console to **Vercel** at a public URL *(held until the GitHub
-      repo exists, so Vercel builds on push rather than from local)*
-- [ ] Ingest webhook routes live **inside** the console app (`app/api/webhooks/`) — ADR-011
-- [ ] `apps/worker` — containerized hello-world → **Azure Container Apps, `minReplicas: 1`**
+- [ ] Deploy the console to **Vercel** at a public URL — *needs the dashboard;
+      the Vercel MCP cannot create a git-connected project or set env vars, and
+      there is no CLI login. Steps in `apps/console/README.md`.*
+- [x] Ingest webhook routes live **inside** the console app (`app/api/webhooks/`) — ADR-011.
+      WhatsApp verify-token + HMAC done and tested; Gmail OIDC verification is Phase 1.
+- [x] `apps/worker` — containerized, → **Azure Container Apps, `minReplicas: 1`**,
+      running warm in Malaysia West. *Runs a placeholder image: pushing our own
+      needs a registry, which is an unapproved cost. See `infra/README.md`.*
 - [x] `.env.example` and `.gitignore`
 - [x] Pre-commit secret scan — `.githooks/pre-commit`, installed via `core.hooksPath`.
       Verified: blocks a staged `.env.local` and a Groq-shaped key, passes clean commits.
-- [ ] **Supabase keepalive** — scheduled daily query (see `docs/02-ARCHITECTURE.md` §5)
+- [x] **Supabase keepalive** — `/api/cron/keepalive`, scheduled daily by
+      `vercel.json`. *Starts running when the Vercel deploy lands.*
 - [x] CI: typecheck + test on push — `.github/workflows/ci.yml`; *runs once a remote exists*
 
 **Done when:** the console is live at a public URL behind a login, the worker

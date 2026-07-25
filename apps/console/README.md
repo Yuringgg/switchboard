@@ -16,6 +16,34 @@ return 200.** No parsing, no enrichment, no API calls. The temptation to "just d
 a little normalization here" is exactly what the ingest/worker split exists to
 prevent.
 
+## Deploying to Vercel
+
+Not yet done — it needs the dashboard. The Vercel MCP can read projects and
+deployments but cannot create a git-connected project or set environment
+variables, and there is no CLI login on this machine.
+
+1. **Import** `Yuringgg/switchboard` at vercel.com/new.
+2. Set **Root Directory** to `apps/console`. This is a pnpm workspace monorepo;
+   without it Vercel builds the repository root and finds no Next.js app.
+3. Add environment variables **before the first deploy**, for Production,
+   Preview and Development:
+
+   | Name | Value |
+   |---|---|
+   | `NEXT_PUBLIC_SUPABASE_URL` | `https://ytrkpcryztwgflmbhfdu.supabase.co` |
+   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | from `apps/console/.env.local` |
+   | `CRON_SECRET` | any long random string — the keepalive refuses to run in production without it |
+
+   ⚠ If these are missing the build **fails**, and Next reports it as
+   `Failed to collect page data for /login`. The real reason is on the
+   `[cause]` line. That failure is intentional — better than deploying an app
+   that 500s on every request.
+
+4. Deploy. `vercel.json` registers the daily keepalive cron automatically.
+
+**Do not add `SUPABASE_SERVICE_ROLE_KEY` here.** It bypasses RLS, and this app
+ships code to a browser.
+
 ## State
 
 Built in Phase 0: the app shell and the "no messages yet" empty state, rendering
