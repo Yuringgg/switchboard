@@ -1,0 +1,40 @@
+# Secrets — never commit. If one ever lands in history, ROTATE it, don't just
+# delete the line. See docs/02-ARCHITECTURE.md §6.
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Test + coverage
+coverage/
+.vitest/
+
+# Local model cache — Transformers.js downloads ONNX weights here
+.cache/
+models/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Vercel / Azure local state
+.vercel
+.azure

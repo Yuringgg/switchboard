@@ -1,0 +1,14 @@
+{
+  "name": "@switchboard/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Adapter contract and canonical types. Shared by every layer.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

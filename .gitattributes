@@ -1,0 +1,25 @@
+# Normalize everything to LF in the repository and on checkout.
+#
+# This is not cosmetic. `.githooks/pre-commit` is a shell script: checked out
+# with CRLF endings it fails with "bad interpreter" on Linux and in CI, which
+# would silently disable the secret scan on exactly the machines where nobody
+# would notice.
+* text=auto eol=lf
+
+# Explicit, so the hook can never be reclassified by heuristics.
+.githooks/* text eol=lf
+*.sh        text eol=lf
+
+# Generated — collapse in diffs and don't count toward language stats.
+pnpm-lock.yaml linguist-generated=true -diff
+
+# Binary: never touch line endings.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.woff binary
+*.woff2 binary
+*.onnx binary

@@ -1,0 +1,116 @@
+#!/bin/sh
+#
+# Switchboard pre-commit secret scan.
+#
+# Deliberately dependency-free: no gitleaks binary, no npm package, no network.
+# It runs identically on a fresh clone, offline, on any machine. The patterns
+# below target the providers this project actually uses rather than a generic
+# ruleset, which is what keeps it useful without being noisy.
+#
+# Installed via `core.hooksPath`, so this file is version-controlled and shared
+# rather than hidden in .git/hooks where nobody can review it. `pnpm install`
+# wires it up (see the `prepare` script in package.json), or run it by hand:
+#
+#     git config core.hooksPath .githooks
+#
+# See docs/02-ARCHITECTURE.md §6.
+
+set -u
+
+violations=''
+add() {
+  violations="${violations}  $1
+"
+}
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+# `addedlines` is set per file by the loop and read by check().
+addedlines=''
+check() {
+  # check <ere> <label>
+  # -e is required: some patterns start with a dash and grep would read them
+  # as options.
+  if printf '%s\n' "$addedlines" | grep -Eq -e "$1"; then
+    add "$currentfile — $2"
+  fi
+}
+
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  currentfile="$f"
+  base=${f##*/}
+
+  # ── 1. Files that must never be committed at all ────────────────────────
+  case "$base" in
+    .env.example)
+      : # the template is the one env file that belongs in the repo
+      ;;
+    .env | .env.*)
+      add "$f — environment file; secrets live here"
+      continue
+      ;;
+  esac
+
+  case "$base" in
+    *.pem | *.key | *.p12 | *.pfx | id_rsa | id_ed25519)
+      add "$f — private key material"
+      continue
+      ;;
+  esac
+
+  # Google service-account JSON: distinctive and catastrophic to leak.
+  case "$base" in
+    *service-account*.json | *serviceaccount*.json)
+      add "$f — looks like a Google service-account key"
+      continue
+      ;;
+  esac
+
+  # Don't scan the scanner — it contains the patterns it looks for.
+  [ "$f" = ".githooks/pre-commit" ] && continue
+
+  # ── 2. Secret-shaped content on ADDED lines only ────────────────────────
+  addedlines=$(git diff --cached -U0 -- "$f" | grep '^+' | grep -v '^+++')
+  [ -z "$addedlines" ] && continue
+
+  check 'AIza[0-9A-Za-z_-]{35}'                         'Google API key (Gemini)'
+  check 'GOCSPX-[0-9A-Za-z_-]{20,}'                     'Google OAuth client secret'
+  check 'gsk_[0-9A-Za-z]{40,}'                          'Groq API key'
+  check '(sbp_[0-9a-f]{40}|sb_secret_[0-9A-Za-z_-]{20,})' 'Supabase access or secret key'
+  check 'eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}' 'JWT — Supabase anon or service_role key'
+  check 'EAA[0-9A-Za-z]{40,}'                           'Meta / WhatsApp access token'
+  check '-----BEGIN [A-Z ]*PRIVATE KEY-----'            'private key block'
+  check 'AccountKey=[A-Za-z0-9+/]{40,}'                 'Azure Storage connection string'
+  check "(SERVICE_ROLE_KEY|CLIENT_SECRET|ACCESS_TOKEN|APP_SECRET|API_KEY|CREDENTIALS_KEY|VERIFY_TOKEN|CONNECTION_STRING)[[:space:]]*[:=][[:space:]]*[\"']?[A-Za-z0-9+/_-]{16,}" \
+        'a secret-shaped value assigned to a credential variable'
+done <<EOF
+$staged
+EOF
+
+[ -z "$violations" ] && exit 0
+
+cat >&2 <<'BANNER'
+
+  ┌────────────────────────────────────────────────────────────────┐
+  │  COMMIT BLOCKED — possible secret in staged changes            │
+  └────────────────────────────────────────────────────────────────┘
+
+BANNER
+
+printf '%s\n' "$violations" >&2
+
+cat >&2 <<'FOOTER'
+  Unstage the file, or move the value into .env.local (gitignored).
+
+  If this is a false positive, commit with --no-verify. Do that
+  deliberately, not reflexively.
+
+  ⚠  If a real credential already reached a commit, deleting the line
+     is NOT enough — it stays in history. ROTATE the credential.
+     docs/02-ARCHITECTURE.md §6.
+
+FOOTER
+
+exit 1
