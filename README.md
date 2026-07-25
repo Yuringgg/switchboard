@@ -46,7 +46,7 @@ channels → ingest (verify, queue, ack fast) → worker (normalize, embed, extr
 
 | Layer | Technology | Host |
 |---|---|---|
-| Console + ingest webhooks | Next.js 15 · Tailwind · shadcn/ui | Vercel |
+| Console + ingest webhooks | Next.js 16 · Tailwind · shadcn/ui | Vercel |
 | Worker | Node · TypeScript, containerized, always warm | Azure Container Apps |
 | Database | Postgres · pgvector · Realtime · Auth · RLS | Supabase |
 | Attachments | Blob storage | Azure |

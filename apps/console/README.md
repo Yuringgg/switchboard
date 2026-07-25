@@ -1,6 +1,6 @@
 # apps/console
 
-Next.js 15 (App Router) + Tailwind + shadcn/ui → **Vercel**.
+Next.js 16 (App Router) + Tailwind + shadcn/ui → **Vercel**.
 
 Two things live here, and the boundary between them matters:
 
@@ -16,4 +16,16 @@ return 200.** No parsing, no enrichment, no API calls. The temptation to "just d
 a little normalization here" is exactly what the ingest/worker split exists to
 prevent.
 
-Scaffolded in Phase 0 (`docs/04-ROADMAP.md`) — currently a placeholder.
+## State
+
+Built in Phase 0: the app shell and the "no messages yet" empty state, rendering
+light and dark, mobile and desktop. `pnpm dev` serves it on port 3100.
+
+Not here yet: the Vercel deploy, Supabase auth and the sign-in flow, the ingest
+routes under `app/api/webhooks/`, and every surface behind a `soon` nav item
+(Contacts, Assistant, Channels). Those flip on by setting `ready: true` in
+`src/lib/nav.ts` once a route exists.
+
+The shadcn/ui foundation is in place — `components.json`, the `cn` helper, and
+the CSS variable theme — so `pnpm dlx shadcn@latest add <component>` works
+without rework.

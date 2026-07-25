@@ -137,17 +137,15 @@ were in use. `ageni-academy` was paused on 2026-07-25 to free a slot. Create
 Switchboard in **`ap-southeast-1` (Singapore)** — closest to Manila, and region
 is immutable after creation. Full state in `docs/03-RESOURCES.md` §9.
 
-**Still unconfirmed with the mentor:** whether "monitoring" means a dedicated
-business channel (achievable) or existing personal conversations (only achievable
-for email). Q1 in `docs/06-OPEN-QUESTIONS.md`. It doesn't block building — it
-blocks writing the demo narrative.
+**Nothing is blocked on the mentor.** Scope, channels, and what the tool monitors
+are all settled — see the resolved list in `docs/06-OPEN-QUESTIONS.md`.
 
 ---
 
 ## 6. Stack summary (details in `docs/02-ARCHITECTURE.md`)
 
 - **Language:** TypeScript end to end, pnpm workspaces monorepo
-- **Console + ingest webhooks:** Next.js 15 App Router + Tailwind + shadcn/ui →
+- **Console + ingest webhooks:** Next.js 16 App Router + Tailwind + shadcn/ui →
   **Vercel**. Webhooks are serverless routes in the same app (ADR-011).
 - **Worker:** containerized Node → **Azure Container Apps, `minReplicas: 1`**.
   Stays warm because it holds ONNX embedding weights in memory.
