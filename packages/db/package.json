@@ -1,0 +1,22 @@
+{
+  "name": "@switchboard/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Schema, migrations, and the worker-side typed client.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "postgres": "^3.4.9"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.9.3"
+  }
+}

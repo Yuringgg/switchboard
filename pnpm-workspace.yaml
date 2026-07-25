@@ -7,4 +7,8 @@ allowBuilds:
   # sharp powers next/image optimization. Nothing in the console uses next/image
   # yet, and Vercel optimizes images on its own edge, so its native build step
   # buys us nothing today. Flip to true the moment we actually render images.
+  # esbuild ships a native binary and its install script is what puts it in
+  # place. drizzle-kit runs on esbuild, so without this the migration tooling
+  # is simply broken.
+  esbuild: true
   sharp: false

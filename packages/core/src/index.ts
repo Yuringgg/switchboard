@@ -8,3 +8,5 @@ export {
   type ContactIdentityRef,
   type RawEvent,
 } from './adapter';
+
+export { safeEqual, verifyHubSignature } from './webhook';
