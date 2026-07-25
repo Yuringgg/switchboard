@@ -494,7 +494,8 @@ with a reason.
 | Concern | Choice | Why this one |
 |---|---|---|
 | Package manager | **pnpm** workspaces | Fast, strict, the standard for TS monorepos |
-| Framework | **Next.js 15**, App Router | Console and ingest webhooks in one deployable |
+| Language | **TypeScript 5.x** — pinned, see below | 7.x breaks the toolchain |
+| Framework | **Next.js 16**, App Router | Console and ingest webhooks in one deployable |
 | Styling | **Tailwind + shadcn/ui** | Fastest route to a UI that looks deliberate |
 | DB — console | **supabase-js** (anon key + user session) | Goes through RLS. The user's own permissions apply. |
 | DB — worker | **Drizzle** (service_role) | Typed SQL, good `SKIP LOCKED` and pgvector support. Lighter than Prisma and less awkward with RLS. |
@@ -508,6 +509,22 @@ with a reason.
 | Dates | **date-fns** + **date-fns-tz** | PH is UTC+8 with no DST — store UTC, render Asia/Manila |
 | Blob storage | **@azure/storage-blob** | Official SDK |
 | Infra as code | **Bicep** | Native Azure, less ceremony than Terraform here |
+
+**Two deviations from the original plan, both found by building it (2026-07-26):**
+
+*Next.js 16, not 15.* 16 was current when the console was scaffolded. The ADR-011
+rationale — console and ingest webhooks in one deployable, App Router — is
+unchanged by the major version, so this is a version bump rather than a decision
+being revisited.
+
+*TypeScript is pinned to `^5`, and this pin is load-bearing.* TypeScript 7 is the
+native Go port, and it ships a **different package**: its `exports` map points
+`"."` at a version stub, with the real compiler API moved to `./unstable/*`. Any
+tool that consumes the classic TypeScript JS API — including `next build`'s type
+check — fails against it, with an unhelpful error (`The "id" argument must be of
+type string`). `tsc --noEmit` works fine either way, so **the workspace can
+typecheck green and still fail to build.** Do not unpin this until the ecosystem
+catches up.
 
 **Two notes that matter more than they look:**
 
@@ -524,4 +541,4 @@ job to retry, not a row to insert.
 
 ---
 
-*Last updated: 2026-07-25 · Planning session 1*
+*Last updated: 2026-07-26 · §8 amended during build session 2*

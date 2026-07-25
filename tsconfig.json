@@ -4,12 +4,13 @@
     "noEmit": true,
     "types": ["node"]
   },
+  // Apps are excluded on purpose: the console needs bundler resolution, JSX and
+  // DOM libs, which would be wrong for everything else. It typechecks itself via
+  // its own tsconfig, which `pnpm typecheck` invokes with `pnpm -r`.
   "include": [
     "packages/**/src/**/*.ts",
     "packages/**/test/**/*.ts",
-    "apps/**/src/**/*.ts",
-    "apps/**/test/**/*.ts",
     "vitest.config.ts"
   ],
-  "exclude": ["**/node_modules", "**/dist", "**/.next"]
+  "exclude": ["**/node_modules", "**/dist", "**/.next", "apps"]
 }

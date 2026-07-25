@@ -6,7 +6,7 @@ import {
   type CanonicalMessage,
   type ChannelAdapter,
   type RawEvent,
-} from '../src/index.js';
+} from '../src/index';
 
 describe('isChannelType', () => {
   it('accepts every channel in scope', () => {

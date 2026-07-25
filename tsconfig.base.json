@@ -3,8 +3,20 @@
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+
+    // `preserve` (which implies bundler resolution) rather than NodeNext.
+    //
+    // Packages here are consumed as TypeScript SOURCE, not built output —
+    // that's what `transpilePackages` in the console does. NodeNext would
+    // require writing `./adapter.js` for a file that is `adapter.ts` on disk;
+    // tsc understands that mapping, but bundlers take the specifier literally
+    // and fail to resolve it. Typecheck passes, the app 500s.
+    //
+    // ⚠ Consequence for apps/worker: it must be bundled or transpiled (tsup,
+    // tsx) rather than run as raw Node ESM, because extensionless relative
+    // imports are not valid Node ESM at runtime. Decide that deliberately when
+    // the worker is built; don't discover it in a container.
+    "module": "preserve",
 
     "strict": true,
     "noUncheckedIndexedAccess": true,

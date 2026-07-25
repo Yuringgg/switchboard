@@ -32,13 +32,17 @@ wired.
 - [ ] **`owner_id` on every table + RLS policies + `force row level security`**
 - [ ] **Two-tenant isolation test** — same external contact, two users, assert no bleed
 - [ ] `packages/db` — typed client, generated types
-- [ ] `apps/console` — Next.js + Tailwind + shadcn → **Vercel**, renders "no messages yet"
+- [x] `apps/console` — Next.js + Tailwind + shadcn foundation, renders "no messages yet".
+      Verified in a browser: renders, light **and** dark, mobile **and** desktop,
+      production build passes. *Not yet deployed to Vercel.*
+- [ ] Deploy the console to **Vercel** at a public URL
 - [ ] Ingest webhook routes live **inside** the console app (`app/api/webhooks/`) — ADR-011
 - [ ] `apps/worker` — containerized hello-world → **Azure Container Apps, `minReplicas: 1`**
 - [x] `.env.example` and `.gitignore`
-- [ ] Pre-commit secret scan — *blocked: the repo has not been `git init`ed yet*
+- [x] Pre-commit secret scan — `.githooks/pre-commit`, installed via `core.hooksPath`.
+      Verified: blocks a staged `.env.local` and a Groq-shaped key, passes clean commits.
 - [ ] **Supabase keepalive** — scheduled daily query (see `docs/02-ARCHITECTURE.md` §5)
-- [x] CI: typecheck + test on push — `.github/workflows/ci.yml` written; *inert until the repo exists and has a remote*
+- [x] CI: typecheck + test on push — `.github/workflows/ci.yml`; *runs once a remote exists*
 
 **Done when:** the console is live at a public URL behind a login, the worker
 container is running warm, a migration applies cleanly from a fresh checkout, and

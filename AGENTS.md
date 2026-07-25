@@ -90,17 +90,24 @@ feature that works and is understood beats a clever one that half-works.
 
 **Phase: 0 — Foundation, in progress.** The monorepo skeleton exists.
 
-**What is built** (build session 1, 2026-07-26):
+**What is built** (build sessions 1–2, 2026-07-26):
 
 - pnpm workspace + TypeScript strict, directory tree per `docs/02-ARCHITECTURE.md` §7
 - `packages/core` — the `ChannelAdapter` contract and canonical types, no
-  implementations. Tested: `pnpm typecheck` clean, `pnpm test` green.
-- `.env.example`, `.gitignore`, CI workflow
+  implementations
+- `apps/console` — Next.js 16 + Tailwind + the shadcn/ui foundation, rendering
+  the "no messages yet" empty state. Verified in a browser, light and dark,
+  mobile and desktop; production build passes.
+- Git repository, with a **working pre-commit secret scan** (`.githooks/`,
+  wired via `core.hooksPath` by `pnpm install`)
+- `.env.example`, `.gitignore`, `.gitattributes`, CI workflow
 - Every not-yet-built directory holds a README naming what lands there and when
 
+`pnpm check` (typecheck + test) is green. `pnpm dev` serves the console on 3100.
+
 **What is not:** everything requiring a credential or a cloud service — Supabase
-project and first migration, Auth, RLS, the console app, ingest routes, the
-worker container. Those are the remaining Phase 0 items in `docs/04-ROADMAP.md`.
+project and first migration, Auth, RLS, the two-tenant isolation test, the Vercel
+deploy, ingest routes, the worker container.
 
 Do not skip ahead to integrations. The adapter contract exists now; use it.
 
@@ -110,13 +117,20 @@ Do not skip ahead to integrations. The adapter contract exists now; use it.
    exist yet. Phase 0 needs the ★ items.
 2. **The Azure MCP is installed but timing out** — likely needs `az login` on the
    host. Blocks the Container Apps work in Phase 0. See `docs/03-RESOURCES.md` §8.
-3. **The repo is not under version control yet.** No `git init` has been run, so
-   the pre-commit secret scan can't be installed and CI can't fire. `.gitignore`
-   is already in place, so initializing is safe whenever Yuri wants it.
+3. **No git remote.** The repo is local-only, so CI has nothing to run on.
 
-**Environment note for builders:** Node 25+ unbundled corepack, so `pnpm` was
-installed globally via `npm i -g pnpm` on 2026-07-26. TypeScript resolved to 7.x
-and Vitest to 4.x.
+**Environment notes for builders** — both cost time to rediscover:
+
+- Node 25+ unbundled corepack, so `pnpm` was installed globally with
+  `npm i -g pnpm`.
+- **TypeScript is pinned to `^5` and must stay there.** 7.x is the native Go
+  port and exposes no classic compiler API, which breaks `next build`'s type
+  check with a misleading error. `tsc --noEmit` passes either way, so the
+  workspace can look green and still fail to build. See
+  `docs/02-ARCHITECTURE.md` §8.
+- Packages are consumed as **source**, not built output, so `tsconfig.base.json`
+  uses `module: preserve` (bundler resolution) rather than NodeNext. The worker
+  will therefore need bundling (tsup/tsx) rather than raw `node`.
 
 **Environment note:** Supabase's free tier caps at 2 active projects and both
 were in use. `ageni-academy` was paused on 2026-07-25 to free a slot. Create

@@ -2,3 +2,9 @@ packages:
   - 'apps/*'
   - 'packages/*'
   - 'packages/adapters/*'
+# Dependency build scripts, allowlisted explicitly rather than run by default.
+allowBuilds:
+  # sharp powers next/image optimization. Nothing in the console uses next/image
+  # yet, and Vercel optimizes images on its own edge, so its native build step
+  # buys us nothing today. Flip to true the moment we actually render images.
+  sharp: false

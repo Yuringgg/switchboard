@@ -7,4 +7,4 @@ export {
   type ChannelType,
   type ContactIdentityRef,
   type RawEvent,
-} from './adapter.js';
+} from './adapter';

@@ -82,12 +82,14 @@ Full detail: [`docs/02-ARCHITECTURE.md`](./docs/02-ARCHITECTURE.md).
 Node 22+ and pnpm. Nothing here needs a credential yet.
 
 ```bash
-pnpm install && pnpm check
+pnpm install && pnpm dev
 ```
 
-`pnpm check` runs typecheck and tests. Copy `.env.example` to `.env.local` when
-you start connecting services — the credentials checklist is
-[`docs/03-RESOURCES.md`](./docs/03-RESOURCES.md) §6.
+The console comes up on <http://localhost:3100>, empty. `pnpm check` runs
+typecheck and tests. `pnpm install` also installs the pre-commit secret scan.
+
+Copy `.env.example` to `.env.local` when you start connecting services — the
+credentials checklist is [`docs/03-RESOURCES.md`](./docs/03-RESOURCES.md) §6.
 
 Full setup instructions land in Phase 5, written against a verified clean clone.
 
