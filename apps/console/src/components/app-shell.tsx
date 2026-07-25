@@ -1,6 +1,8 @@
+import { LogOut } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+import { signOut } from '@/app/login/actions';
 import { CHANNELS } from '@/lib/channels';
 import { NAV_ITEMS } from '@/lib/nav';
 import { cn } from '@/lib/utils';
@@ -15,10 +17,12 @@ import { cn } from '@/lib/utils';
 export function AppShell({
   title,
   description,
+  userEmail,
   children,
 }: {
   title: string;
   description?: string;
+  userEmail: string;
   children: ReactNode;
 }) {
   return (
@@ -95,6 +99,21 @@ export function AppShell({
               </li>
             ))}
           </ul>
+
+          <div className="mt-5 border-t border-border pt-3.5">
+            <p className="truncate text-xs text-muted-foreground" title={userEmail}>
+              {userEmail}
+            </p>
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="mt-1.5 -ml-1 flex items-center gap-1.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="size-3" aria-hidden />
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
       </aside>
 

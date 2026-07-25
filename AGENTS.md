@@ -90,14 +90,17 @@ feature that works and is understood beats a clever one that half-works.
 
 **Phase: 0 — Foundation, in progress.** The monorepo skeleton exists.
 
-**What is built** (build sessions 1–2, 2026-07-26):
+**What is built** (build sessions 1–3, 2026-07-26):
 
 - pnpm workspace + TypeScript strict, directory tree per `docs/02-ARCHITECTURE.md` §7
 - `packages/core` — the `ChannelAdapter` contract and canonical types, no
   implementations
-- `apps/console` — Next.js 16 + Tailwind + the shadcn/ui foundation, rendering
-  the "no messages yet" empty state. Verified in a browser, light and dark,
-  mobile and desktop; production build passes.
+- **Supabase project `switchboard`** (`ap-southeast-1`, ref `ytrkpcryztwgflmbhfdu`),
+  full schema, pgvector, and **RLS forced on all ten tables**
+- **The two-tenant isolation test passes, and fails when RLS is disabled** —
+  `packages/db/tests/tenant_isolation.sql`
+- `apps/console` — Next.js 16 + Tailwind + shadcn/ui foundation, **behind a
+  working login**, rendering the "no messages yet" empty state
 - Git repository, with a **working pre-commit secret scan** (`.githooks/`,
   wired via `core.hooksPath` by `pnpm install`)
 - `.env.example`, `.gitignore`, `.gitattributes`, CI workflow
@@ -105,19 +108,24 @@ feature that works and is understood beats a clever one that half-works.
 
 `pnpm check` (typecheck + test) is green. `pnpm dev` serves the console on 3100.
 
-**What is not:** everything requiring a credential or a cloud service — Supabase
-project and first migration, Auth, RLS, the two-tenant isolation test, the Vercel
-deploy, ingest routes, the worker container.
+**What is not:** the Vercel deploy, the GitHub remote, `packages/db`'s Drizzle
+client, the Supabase keepalive, ingest routes, and the worker container.
 
 Do not skip ahead to integrations. The adapter contract exists now; use it.
 
 **Known live blockers:**
 
-1. None of the accounts in the credentials checklist (`docs/03-RESOURCES.md` §6)
-   exist yet. Phase 0 needs the ★ items.
-2. **The Azure MCP is installed but timing out** — likely needs `az login` on the
+1. **No git remote**, so CI has nothing to run on and Vercel has nothing to build
+   from. `gh` is **not installed on this machine** — the repo has to be created
+   through the web UI, or `gh` installed first.
+2. Google, Meta, Gemini and Groq credentials still don't exist
+   (`docs/03-RESOURCES.md` §6). Supabase is done.
+3. **The Azure MCP is installed but timing out** — likely needs `az login` on the
    host. Blocks the Container Apps work in Phase 0. See `docs/03-RESOURCES.md` §8.
-3. **No git remote.** The repo is local-only, so CI has nothing to run on.
+
+**A dev account exists in the database:** `dev@switchboard.test`, seeded by
+`packages/db/seeds/dev_user.sql` so the sign-in flow could be tested without
+sending confirmation email. **Delete it before the system holds anything real.**
 
 **Environment notes for builders** — both cost time to rediscover:
 

@@ -281,8 +281,10 @@ flagging if iOzera ever wants to run this internally for real.
 **Nothing on this list exists yet.** Phase 1 needs the ★ items.
 
 **Phase 0 — foundation**
-- [ ] ★ Supabase project + URL + anon key + service_role key
-- [ ] ★ Supabase Auth enabled (identity + `auth.uid()` as the tenant key)
+- [x] ★ Supabase project + URL + publishable key — in `apps/console/.env.local`.
+      **service_role deliberately not fetched**: nothing needs it until the
+      worker exists, and it bypasses RLS. Get it from the dashboard then.
+- [x] ★ Supabase Auth enabled (identity + `auth.uid()` as the tenant key)
 - [ ] ★ Encryption key for `channels.credentials` (generate, store in env, never commit)
 - [ ] ★ Vercel project linked to the repo
 - [ ] ★ Azure resource group + Container Apps environment
@@ -373,10 +375,15 @@ Discovered 2026-07-25 while verifying connectors.
 |---|---|---|
 | `safehands` | `ap-southeast-1` (Singapore) | active — leave alone |
 | `ageni-academy` | `ap-southeast-2` (Sydney) | **paused 2026-07-25** to free a slot for Switchboard. Data retained; resumable from the dashboard any time. |
-| *Switchboard* | `ap-southeast-1` recommended | **not yet created** |
+| `switchboard` | `ap-southeast-1` (Singapore) | **created 2026-07-26**, ref `ytrkpcryztwgflmbhfdu`. Schema + RLS applied. |
 
-**Use `ap-southeast-1` (Singapore)** for Switchboard — closest region to Manila,
-and it's what `safehands` already uses. Region cannot be changed after creation.
+Switchboard was created in `ap-southeast-1` (Singapore) — closest region to
+Manila, and what `safehands` already uses. Region cannot be changed after
+creation, so this is now fixed.
+
+**The two active slots are both in use again** (`safehands`, `switchboard`).
+`ageni-academy` stays paused. Anything needing a third project means pausing one
+of these first.
 
 ⚠ **Do not create a third active project.** If a slot is needed later, pause
 rather than delete.

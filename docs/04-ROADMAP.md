@@ -27,15 +27,23 @@ wired.
 
 - [x] Init monorepo — pnpm workspaces, TypeScript strict, per layout in `docs/02-ARCHITECTURE.md` §7
 - [x] `packages/core` — adapter interface and canonical types, no implementations
-- [ ] Supabase project; first migration with the full schema; `pgvector` enabled
-- [ ] **Supabase Auth + sign-in flow in the console**
-- [ ] **`owner_id` on every table + RLS policies + `force row level security`**
-- [ ] **Two-tenant isolation test** — same external contact, two users, assert no bleed
-- [ ] `packages/db` — typed client, generated types
-- [x] `apps/console` — Next.js + Tailwind + shadcn foundation, renders "no messages yet".
-      Verified in a browser: renders, light **and** dark, mobile **and** desktop,
-      production build passes. *Not yet deployed to Vercel.*
-- [ ] Deploy the console to **Vercel** at a public URL
+- [x] Supabase project (`ap-southeast-1`); first migration with the full schema; `pgvector` enabled
+- [x] **Supabase Auth + sign-in flow in the console** — email/password, session in
+      cookies, route gate in `proxy.ts`. Verified end to end in a browser:
+      unauthenticated → `/login`, sign in → console, sign out → `/login`.
+- [x] **`owner_id` on every table + RLS policies + `force row level security`** —
+      all ten tables, verified by querying `pg_class`/`pg_policy` directly
+- [x] **Two-tenant isolation test** — `packages/db/tests/tenant_isolation.sql`.
+      Two users, the same external contact, no bleed across reads, writes,
+      ownership reassignment, or anonymous access. **Negative control run:
+      the test fails when RLS is disabled**, so a pass means something.
+- [ ] `packages/db` — typed client, generated types *(migrations landed; the
+      Drizzle client is still to do)*
+- [x] `apps/console` — Next.js + Tailwind + shadcn foundation, behind a login,
+      renders "no messages yet". Verified in a browser: renders, light **and**
+      dark, mobile **and** desktop, production build passes.
+- [ ] Deploy the console to **Vercel** at a public URL *(held until the GitHub
+      repo exists, so Vercel builds on push rather than from local)*
 - [ ] Ingest webhook routes live **inside** the console app (`app/api/webhooks/`) — ADR-011
 - [ ] `apps/worker` — containerized hello-world → **Azure Container Apps, `minReplicas: 1`**
 - [x] `.env.example` and `.gitignore`
