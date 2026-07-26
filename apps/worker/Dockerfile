@@ -3,18 +3,25 @@
 # ── build ───────────────────────────────────────────────────────────────────
 # Built from the REPOSITORY ROOT, not from apps/worker:
 #   docker build -f apps/worker/Dockerfile .
-# The worker depends on @switchboard/db and @switchboard/core as workspace
-# packages, so the build context has to include them.
+# The worker depends on several workspace packages, so the build context has to
+# include the whole repo, not just apps/worker.
 FROM node:22-slim AS build
 
 WORKDIR /repo
 RUN corepack enable || npm install -g pnpm@11.17.0
 
-# Manifests first, so a code change does not invalidate the dependency layer.
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY packages/core/package.json      packages/core/
-COPY packages/db/package.json        packages/db/
-COPY apps/worker/package.json        apps/worker/
+# The whole packages tree, not an enumerated list of manifests.
+#
+# This previously copied packages/core and packages/db by name, which broke the
+# moment the worker took a dependency on packages/adapters/gmail: pnpm could not
+# resolve a workspace package whose manifest was not in the image, and the build
+# failed in CI rather than anywhere near the change that caused it.
+#
+# Enumerating buys a slightly tighter dependency layer and costs a broken build
+# every time a package is added. Copying the tree is worth the extra seconds.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages packages
+COPY apps/worker/package.json apps/worker/
 
 # Scripts are NOT skipped, deliberately. `--ignore-scripts` looks like the
 # careful choice here, but esbuild's install script is what puts its native
@@ -28,10 +35,7 @@ COPY apps/worker/package.json        apps/worker/
 # sharp no.
 RUN pnpm install --frozen-lockfile --filter @switchboard/worker...
 
-COPY packages/core packages/core
-COPY packages/db   packages/db
-COPY apps/worker   apps/worker
-COPY tsconfig.base.json ./
+COPY apps/worker apps/worker
 
 # tsup bundles the workspace dependencies in, which is what makes the runtime
 # image independent of the pnpm symlink farm.
