@@ -499,7 +499,7 @@ with a reason.
 | Styling | **Tailwind + shadcn/ui** | Fastest route to a UI that looks deliberate |
 | DB — console | **supabase-js** (anon key + user session) | Goes through RLS. The user's own permissions apply. |
 | DB — worker | **Drizzle** (service_role) | Typed SQL, good `SKIP LOCKED` and pgvector support. Lighter than Prisma and less awkward with RLS. |
-| Migrations | **Drizzle Kit**, checked into git | Schema in version control, reviewable |
+| Migrations | ⚠ **hand-written SQL** — see below | Drizzle Kit turned out to be unsafe here |
 | Validation | **Zod** | Every webhook payload is untrusted input — parse, don't cast |
 | Testing | **Vitest** | Fast, native TS/ESM, works across the monorepo |
 | Email parsing | **mailparser** | Mature; MIME is not worth writing yourself |
@@ -510,7 +510,31 @@ with a reason.
 | Blob storage | **@azure/storage-blob** | Official SDK |
 | Infra as code | **Bicep** | Native Azure, less ceremony than Terraform here |
 
-**Two deviations from the original plan, both found by building it (2026-07-26):**
+**⚠ PROPOSED AMENDMENT — needs Yuri's decision: drop Drizzle Kit for migrations.**
+
+This section originally specified Drizzle Kit. Running `drizzle-kit generate`
+against the live database on 2026-07-26 produced a migration that would have
+**disabled row level security on all ten tables, dropped all ten
+`tenant_isolation` policies**, and dropped every unique, check and foreign-key
+constraint — including the `(channel_id, external_id)` idempotency guard.
+
+It is not a Drizzle bug. `packages/db/src/schema.ts` does not model RLS,
+policies or check constraints, so the differ correctly concluded the database
+had drifted and proposed removing everything the schema does not declare.
+
+Making the schema faithful is possible — `.enableRLS()`, `pgPolicy()`,
+`check()`, explicit constraint names, and an `auth.users` definition for the
+`owner_id` foreign keys — but every expression must match the database
+*textually* or the differ keeps emitting diffs. A small plausible-looking diff
+is more dangerous than an obviously wrong one, because someone might apply it.
+
+**Current state:** migrations are hand-written SQL in `packages/db/migrations/`,
+applied through Supabase and reviewed as SQL. Drizzle remains the ORM for typed
+queries, which is unaffected and is where its value is here. `drizzle.config.ts`
+points `out` at a gitignored scratch directory so a stray `generate` cannot drop
+a destructive file into the folder someone later runs.
+
+**Two other deviations from the original plan, both found by building it (2026-07-26):**
 
 *Next.js 16, not 15.* 16 was current when the console was scaffolded. The ADR-011
 rationale — console and ingest webhooks in one deployable, App Router — is

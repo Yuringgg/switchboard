@@ -105,7 +105,7 @@ feature that works and is understood beats a clever one that half-works.
   client, generated Supabase types
 - `apps/worker` — queue consumer (`FOR UPDATE SKIP LOCKED`), self-contained
   bundle, Dockerfile. **Deployed to Azure Container Apps, `minReplicas: 1`,
-  running warm in Malaysia West** — on a placeholder image, see blockers.
+  running warm in Malaysia West, on the real ghcr image pinned by digest.**
 - Ingest webhook routes, WhatsApp signature verification tested
 - Supabase keepalive as a daily Vercel cron
 - Git repository **pushed to https://github.com/Yuringgg/switchboard**, CI green,
@@ -121,22 +121,29 @@ client, the Supabase keepalive, ingest routes, and the worker container.
 
 Do not skip ahead to integrations. The adapter contract exists now; use it.
 
-**Known live blockers — all three need Yuri, none need code:**
+**⚠ NEVER RUN `drizzle-kit generate` OR `drizzle-kit migrate`.** Run against the
+live database on 2026-07-26, `generate` proposed disabling RLS on all ten tables
+and dropping all ten `tenant_isolation` policies — silently dismantling the
+security boundary. Migrations are hand-written SQL in `packages/db/migrations/`.
+Full reasoning in `packages/db/drizzle.config.ts`. Drizzle-as-ORM is fine and
+unaffected. `drizzle-kit pull` is safe.
+
+**Known live blockers:**
 
 1. **The Vercel deploy needs the dashboard.** The Vercel MCP can read projects
    but cannot create a git-connected one or set env vars, and there is no CLI
    login. Steps are in `apps/console/README.md`; Root Directory must be
    `apps/console` and the env vars must exist *before* the first build.
-2. **The worker runs a placeholder image.** Running our own needs a container
-   registry — ACR Basic (~$5/mo, unapproved) or ghcr.io (free). Cost decision.
-   See `infra/README.md`.
-3. **`DATABASE_URL` is not set anywhere.** It is the direct Postgres connection
-   string from the Supabase dashboard and contains the database password, so it
-   is deliberately not retrievable through tooling. The worker cannot reach the
-   database and `drizzle-kit` cannot run until it exists.
+That is the only one left. The worker now runs the **real image** from
+`ghcr.io/yuringgg/switchboard-worker`, pinned by digest, and was verified end to
+end: an event inserted into Supabase in Singapore was claimed and completed by
+the container in Malaysia West.
 
-Google, Meta, Gemini and Groq credentials still don't exist
-(`docs/03-RESOURCES.md` §6) — that's Phase 1 and later. Supabase is done.
+Credentials: **Supabase is fully configured** — `apps/worker/.env` holds
+`DATABASE_URL` (Supavisor session mode, port 5432 — the direct connection is
+IPv6-only and Container Apps egresses IPv4) and `SUPABASE_SERVICE_ROLE_KEY`.
+Google, Meta, Gemini and Groq don't exist yet (`docs/03-RESOURCES.md` §6) —
+that's Phase 1 and later.
 
 **Tooling notes:** the **Azure MCP still times out even after `az login`** — use
 the `az` CLI directly, at

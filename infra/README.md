@@ -42,47 +42,48 @@ Verify the policy before changing regions:
 az policy assignment list --disable-scope-strict-match
 ```
 
-## ⚠ The worker is running a PLACEHOLDER image
+## The image
 
-`mcr.microsoft.com/k8se/quickstart` — not `apps/worker`.
+`ghcr.io/yuringgg/switchboard-worker`, built by
+`.github/workflows/worker-image.yml` on every push that touches the worker or
+its workspace dependencies. Free, and the package inherited public visibility
+from the repo via `org.opencontainers.image.source`, so Container Apps pulls it
+anonymously — no registry credentials, and no ACR to pay for.
 
-That satisfies the Phase 0 milestone as written ("containerized hello-world →
-Container Apps, `minReplicas: 1`") and proves the environment, the warm replica,
-the health probe and the secret plumbing all work. It does **not** run our code.
-
-Running the real image needs a container registry, and that is a **cost decision
-that has not been approved**:
-
-| Option | Cost | Notes |
-|---|---|---|
-| Azure Container Registry, Basic | **~$5/month** | `az acr build` builds from the Dockerfile in the cloud — no local Docker needed. Comes out of the $100 credit. |
-| GitHub Container Registry | free | The repo is public, so the image can be too. Needs a GitHub token with `write:packages` to push. |
-
-`docs/03-RESOURCES.md` §8 says never provision paid resources without approval,
-and ADR-004 says don't spend credit on something available free — which points
-at ghcr.io. Raise it with Yuri before creating a registry.
-
-Once an image exists:
-
-```bash
-az containerapp update -g rg-switchboard -n switchboard-worker \
-  --image <registry>/switchboard-worker:<tag> \
-  --set-env-vars DATABASE_URL=secretref:database-url
-```
-
-## ⚠ DATABASE_URL is not set yet
-
-The worker cannot reach Postgres until it is. It is the **direct connection
-string** from the Supabase dashboard (Settings → Database) — not the project API
-URL, and not a publishable key. It contains the database password.
+**Deployed by digest, not by tag.** `:latest` is mutable, which makes "which
+code is running?" unanswerable, and Container Apps will not re-pull an unchanged
+tag — so a `:latest` deploy can silently keep running old code.
 
 ```bash
 az deployment group create -g rg-switchboard -f infra/main.bicep \
-  -p databaseUrl='postgresql://...'
+  -p workerImage='ghcr.io/yuringgg/switchboard-worker@sha256:<digest>' \
+     databaseUrl='<connection string>'
 ```
 
-The template stores it as a Container Apps **secret** and injects it by
-`secretRef`, so it is never a plain environment variable on the revision.
+Get the digest of the newest build:
+
+```bash
+TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:yuringgg/switchboard-worker:pull&service=ghcr.io" | jq -r .token)
+curl -sI -H "Authorization: Bearer $TOKEN" \
+  -H "Accept: application/vnd.oci.image.index.v1+json" \
+  https://ghcr.io/v2/yuringgg/switchboard-worker/manifests/latest | grep -i docker-content-digest
+```
+
+## DATABASE_URL
+
+Passed as a template parameter and stored as a Container Apps **secret**,
+injected by `secretRef` — never a plain environment variable on the revision.
+
+It must be the **Supavisor shared pooler in session mode (port 5432)**. Not the
+direct connection: that is IPv6-only, and Container Apps egresses IPv4, so the
+worker cannot reach it at all. Not transaction mode (6543) either: session mode
+keeps postgres.js prepared statements working.
+
+## Verified end to end, 2026-07-26
+
+A `raw_events` row inserted into Supabase in Singapore was claimed and marked
+`done` by the container running in Malaysia West — so the image, the pooler
+connection, the secret injection and the queue loop all work in production.
 
 ## Cost
 

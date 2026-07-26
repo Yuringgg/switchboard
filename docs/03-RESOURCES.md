@@ -281,9 +281,14 @@ flagging if iOzera ever wants to run this internally for real.
 **Nothing on this list exists yet.** Phase 1 needs the ★ items.
 
 **Phase 0 — foundation**
-- [x] ★ Supabase project + URL + publishable key — in `apps/console/.env.local`.
-      **service_role deliberately not fetched**: nothing needs it until the
-      worker exists, and it bypasses RLS. Get it from the dashboard then.
+- [x] ★ Supabase project + URL + publishable key — in `apps/console/.env.local`
+- [x] ★ `DATABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` — in `apps/worker/.env`.
+      **Use the Supavisor shared pooler in SESSION mode (port 5432)**, not
+      transaction mode (6543) and not the direct connection: direct is IPv6-only
+      and Azure Container Apps egresses IPv4, so the worker cannot reach it.
+      Session mode also keeps postgres.js prepared statements working.
+      *An earlier service_role key was exposed and revoked; the current one is
+      its replacement. Neither has ever been in this repo or its history.*
 - [x] ★ Supabase Auth enabled (identity + `auth.uid()` as the tenant key)
 - [ ] ★ Encryption key for `channels.credentials` (generate, store in env, never commit)
 - [ ] ★ Vercel project linked to the repo

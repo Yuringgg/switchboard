@@ -48,8 +48,14 @@ wired.
 - [x] Ingest webhook routes live **inside** the console app (`app/api/webhooks/`) — ADR-011.
       WhatsApp verify-token + HMAC done and tested; Gmail OIDC verification is Phase 1.
 - [x] `apps/worker` — containerized, → **Azure Container Apps, `minReplicas: 1`**,
-      running warm in Malaysia West. *Runs a placeholder image: pushing our own
-      needs a registry, which is an unapproved cost. See `infra/README.md`.*
+      running warm in Malaysia West. Verified against the live database: it
+      claims a seeded event, marks it done, and — the invariant that matters —
+      takes `owner_id` from the **channel** even when the event names a
+      different tenant. *Still on a placeholder image until the ghcr package is
+      made public.*
+- [x] Worker image build → **ghcr**, via `GITHUB_TOKEN` (no PAT). Package is
+      public (inherited from the repo), so Container Apps pulls anonymously —
+      no ACR, no cost. Container App runs the **real image, pinned by digest**.
 - [x] `.env.example` and `.gitignore`
 - [x] Pre-commit secret scan — `.githooks/pre-commit`, installed via `core.hooksPath`.
       Verified: blocks a staged `.env.local` and a Groq-shaped key, passes clean commits.
