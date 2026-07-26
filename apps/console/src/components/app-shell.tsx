@@ -18,11 +18,21 @@ export function AppShell({
   title,
   description,
   userEmail,
+  /**
+   * Which nav entry is the current page.
+   *
+   * Separate from `ready`: `ready` means the route exists, `activeHref` means
+   * you are on it. Conflating them made every built route claim
+   * `aria-current="page"`, which tells a screen-reader user they are on several
+   * pages at once.
+   */
+  activeHref,
   children,
 }: {
   title: string;
   description?: string;
   userEmail: string;
+  activeHref: string;
   children: ReactNode;
 }) {
   return (
@@ -50,19 +60,25 @@ export function AppShell({
                 </>
               );
 
+              const isActive = ready && href === activeHref;
+
               const className = cn(
                 'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm whitespace-nowrap',
                 'focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none',
-                ready
-                  ? 'bg-accent text-accent-foreground font-medium'
-                  : 'text-muted-foreground',
+                isActive && 'bg-accent text-accent-foreground font-medium',
+                ready && !isActive && 'text-foreground hover:bg-accent/50',
+                !ready && 'text-muted-foreground',
               );
 
               return (
                 <li key={label} className="shrink-0 md:shrink">
                   {ready ? (
                     // Routes that exist are real links. Phase 3 flips `ready`.
-                    <Link href={href} className={className} aria-current="page">
+                    <Link
+                      href={href}
+                      className={className}
+                      aria-current={isActive ? 'page' : undefined}
+                    >
                       {content}
                     </Link>
                   ) : (

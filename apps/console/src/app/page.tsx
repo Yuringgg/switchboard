@@ -22,6 +22,7 @@ export default async function TimelinePage() {
       title="Timeline"
       description="Every message, every channel, in order."
       userEmail={user.email ?? 'Signed in'}
+      activeHref="/"
     >
       <NoMessagesYet />
     </AppShell>

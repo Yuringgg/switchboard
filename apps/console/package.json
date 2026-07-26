@@ -16,6 +16,7 @@
     "@switchboard/adapter-gmail": "workspace:*",
     "@switchboard/core": "workspace:*",
     "clsx": "^2.1.1",
+    "google-auth-library": "^10.9.1",
     "lucide-react": "^1.26.0",
     "next": "^16.2.11",
     "react": "^19.2.8",
@@ -29,6 +30,7 @@
     "@types/react-dom": "^19.2.3",
     "postcss": "^8.5.23",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.1",
     "typescript": "^5.9.3"
   }
 }

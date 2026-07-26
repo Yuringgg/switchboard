@@ -14,5 +14,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Timeline', href: '/', icon: MessagesSquare, ready: true },
   { label: 'Contacts', href: '/contacts', icon: Users, ready: false },
   { label: 'Assistant', href: '/assistant', icon: Sparkles, ready: false },
-  { label: 'Channels', href: '/channels', icon: Plug, ready: false },
+  { label: 'Channels', href: '/channels', icon: Plug, ready: true },
 ];
