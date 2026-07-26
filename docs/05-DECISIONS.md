@@ -454,6 +454,65 @@ queue processing and model loading impractical).
 
 ---
 
+## ADR-012 — Hand-written SQL migrations; Drizzle Kit not used
+
+**Status:** Accepted · 2026-07-26 · *Amends `docs/02-ARCHITECTURE.md` §8*
+
+**Context.** §8 originally specified Drizzle Kit for migrations. On 2026-07-26,
+`drizzle-kit generate` run against the live database produced a 116-line
+migration that would have **disabled row level security on all ten tables,
+dropped all ten `tenant_isolation` policies**, and dropped every unique, check
+and foreign-key constraint — including the `(channel_id, external_id)`
+idempotency guard. It was quarantined, never applied, and the database verified
+intact afterwards.
+
+**This is not a Drizzle bug.** `packages/db/src/schema.ts` doesn't model RLS,
+policies or check constraints, so the differ correctly concluded the database had
+drifted and proposed removing everything the schema doesn't declare. Drizzle did
+exactly what it was asked to do.
+
+**Decision.** Migrations are **hand-written SQL** in `packages/db/migrations/`,
+applied through Supabase and reviewed as SQL. **Drizzle stays as the ORM** for
+typed queries — unaffected, and where its value actually is here (ADR-002, §8).
+
+**Why not just make `schema.ts` faithful.** It's possible — `.enableRLS()`,
+`pgPolicy()`, `check()`, explicit constraint names, plus an `auth.users`
+definition for the `owner_id` foreign keys. Three reasons not to:
+
+1. **Every expression must match the database textually** or the differ keeps
+   emitting diffs forever. Partial fidelity is the worst state: it produces
+   *small, plausible-looking* diffs. **A plausible wrong diff is more dangerous
+   than an obviously wrong one, because someone will apply it.** The 116-line
+   DROP-everything migration was the *safe* version of this failure.
+2. **`auth.users` belongs to Supabase.** Modelling a table we don't own, purely
+   so a differ won't try to drop our foreign keys, is fighting the platform.
+3. **RLS policies are the security boundary of a multi-tenant system.** The blast
+   radius of getting this wrong is every tenant reading every other tenant's
+   private client communications (ADR-009). Security-critical DDL should be
+   reviewed *as SQL*, by a human, not emitted by a differ. Hand-writing it is an
+   upgrade here, not a concession.
+
+**Consequences.** Schema changes are written by hand — slower, and the schema
+lives in two places (`migrations/` as truth, `schema.ts` as the typed mirror).
+That mirror can drift silently, which is the real cost of this decision.
+
+**Mitigations, in order of strength:**
+
+- `drizzle.config.ts` points `out` at a gitignored scratch directory, so a stray
+  `generate` cannot drop a destructive file where someone might run it.
+- `drizzle-kit pull` introspects the live database for drift-checking. It works
+  cleanly — 75 columns, 18 indexes, 20 FKs, 10 policies, 6 check constraints.
+- **TODO — add a CI assertion** that all ten tables still report `rowsecurity`,
+  `forcerowsecurity`, and at least one policy. Cheap, and it catches this exact
+  class of disaster automatically rather than relying on anyone's vigilance.
+  This is the mitigation that actually matters; the other two rely on discipline.
+
+**Rejected:** modelling RLS in `schema.ts` (reasons above); keeping `generate`
+with a rule to review diffs manually (depends on someone being careful forever,
+on the one file where being careless is unrecoverable).
+
+---
+
 ## Template for new ADRs
 
 ```markdown

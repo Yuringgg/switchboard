@@ -25,3 +25,36 @@ jobs:
       - run: pnpm typecheck
 
       - run: pnpm test
+
+  tenant-isolation:
+    name: tenant isolation (RLS)
+    runs-on: ubuntu-latest
+
+    # ADR-012's mitigation. Migrations are hand-written SQL and src/schema.ts is
+    # a mirror that can drift silently — this is what catches the drift that
+    # matters. On 2026-07-26 `drizzle-kit generate` proposed disabling RLS on
+    # all ten tables and dropping all ten policies; had it been applied, nothing
+    # else in the pipeline would have noticed.
+    #
+    # A separate job from typecheck+test on purpose: when this is what's red,
+    # it should be unmistakable which thing broke.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Assert RLS enabled, forced, and policed on all ten tables
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # No `if:` guard on the secret, deliberately. Skipping when the secret
+        # is absent would turn the one check that doesn't rely on vigilance into
+        # one that silently stops running the moment a secret is rotated away.
+        # It fails instead, loudly, and the fix is to set the secret.
+        run: pnpm --filter @switchboard/db assert-rls

@@ -20,10 +20,15 @@ size.
 
 ---
 
-## Phase 0 — Foundation
+## Phase 0 — Foundation ✅ COMPLETE (2026-07-26)
 
 **Goal:** an empty but fully deployed system. Nothing works yet; everything is
 wired.
+
+**Done.** The console is live at
+<https://switchboard-console-beryl.vercel.app> behind a login, the worker runs
+warm on Container Apps, both migrations are applied, and the isolation test
+passes — with a CI job that keeps checking it.
 
 - [x] Init monorepo — pnpm workspaces, TypeScript strict, per layout in `docs/02-ARCHITECTURE.md` §7
 - [x] `packages/core` — adapter interface and canonical types, no implementations
@@ -42,17 +47,23 @@ wired.
 - [x] `apps/console` — Next.js + Tailwind + shadcn foundation, behind a login,
       renders "no messages yet". Verified in a browser: renders, light **and**
       dark, mobile **and** desktop, production build passes.
-- [ ] Deploy the console to **Vercel** at a public URL — *needs the dashboard;
-      the Vercel MCP cannot create a git-connected project or set env vars, and
-      there is no CLI login. Steps in `apps/console/README.md`.*
+- [x] **CI assertion: all ten tables still have RLS + force RLS + a policy**
+      (ADR-012). `packages/db/scripts/assert-rls.ts`, its own CI job. Also
+      asserts every policy has USING **and** WITH CHECK — a policy missing
+      WITH CHECK leaves writes unrestricted, which reads as "RLS is on".
+      Negative control run: with RLS disabled on one table it exits 1 and names
+      it, so a pass means something. **Requires the `DATABASE_URL` repo secret;
+      it fails rather than skips without one.**
+- [x] Deploy the console to **Vercel** at a public URL —
+      <https://switchboard-console-beryl.vercel.app>, auth gate verified from
+      outside the browser (307 → `/login`)
 - [x] Ingest webhook routes live **inside** the console app (`app/api/webhooks/`) — ADR-011.
       WhatsApp verify-token + HMAC done and tested; Gmail OIDC verification is Phase 1.
 - [x] `apps/worker` — containerized, → **Azure Container Apps, `minReplicas: 1`**,
       running warm in Malaysia West. Verified against the live database: it
       claims a seeded event, marks it done, and — the invariant that matters —
       takes `owner_id` from the **channel** even when the event names a
-      different tenant. *Still on a placeholder image until the ghcr package is
-      made public.*
+      different tenant.
 - [x] Worker image build → **ghcr**, via `GITHUB_TOKEN` (no PAT). Package is
       public (inherited from the repo), so Container Apps pulls anonymously —
       no ACR, no cost. Container App runs the **real image, pinned by digest**.
@@ -65,7 +76,7 @@ wired.
 
 **Done when:** the console is live at a public URL behind a login, the worker
 container is running warm, a migration applies cleanly from a fresh checkout, and
-the isolation test passes.
+the isolation test passes. — **All four met.**
 
 > **Auth and RLS belong here, not later.** This is the whole reason ADR-009 was
 > decided before any code exists: adding `owner_id` and policies to nine tables

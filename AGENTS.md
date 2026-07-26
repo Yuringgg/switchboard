@@ -88,9 +88,13 @@ feature that works and is understood beats a clever one that half-works.
 
 ## 5. Current status
 
-**Phase: 0 — Foundation, in progress.** The monorepo skeleton exists.
+**Phase: 0 — Foundation ✅ COMPLETE (2026-07-26). Phase 1 (Gmail) is next.**
 
-**What is built** (build sessions 1–3, 2026-07-26):
+The console is live at <https://switchboard-console-beryl.vercel.app> behind a
+login, the worker runs warm on Container Apps, and CI keeps checking that tenant
+isolation is intact.
+
+**What is built** (build sessions 1–4, 2026-07-26):
 
 - pnpm workspace + TypeScript strict, directory tree per `docs/02-ARCHITECTURE.md` §7
 - `packages/core` — the `ChannelAdapter` contract and canonical types, no
@@ -99,8 +103,15 @@ feature that works and is understood beats a clever one that half-works.
   full schema, pgvector, and **RLS forced on all ten tables**
 - **The two-tenant isolation test passes, and fails when RLS is disabled** —
   `packages/db/tests/tenant_isolation.sql`
+- **A CI job asserts the boundary on every push** (ADR-012) —
+  `packages/db/scripts/assert-rls.ts`. All ten tables must report
+  `rowsecurity`, `forcerowsecurity`, and a policy carrying USING **and**
+  WITH CHECK. Negative-controlled: it exits 1 and names the table when RLS is
+  disabled. Needs the `DATABASE_URL` repo secret and **fails rather than skips**
+  without one.
 - `apps/console` — Next.js 16 + Tailwind + shadcn/ui foundation, **behind a
-  working login**, rendering the "no messages yet" empty state
+  working login**, rendering the "no messages yet" empty state. **Deployed to
+  Vercel** from `apps/console` as the root directory.
 - `packages/db` — Drizzle schema verified against the live database, worker
   client, generated Supabase types
 - `apps/worker` — queue consumer (`FOR UPDATE SKIP LOCKED`), self-contained
@@ -116,10 +127,11 @@ feature that works and is understood beats a clever one that half-works.
 
 `pnpm check` (typecheck + test) is green. `pnpm dev` serves the console on 3100.
 
-**What is not:** the Vercel deploy, the GitHub remote, `packages/db`'s Drizzle
-client, the Supabase keepalive, ingest routes, and the worker container.
+**What is not:** anything channel-specific. No Gmail, no WhatsApp, no adapters,
+no assistant. The pipeline is wired end to end but nothing flows through it yet —
+`messages` has never held a row.
 
-Do not skip ahead to integrations. The adapter contract exists now; use it.
+Do not skip ahead. The adapter contract exists now; use it.
 
 **⚠ NEVER RUN `drizzle-kit generate` OR `drizzle-kit migrate`.** Run against the
 live database on 2026-07-26, `generate` proposed disabling RLS on all ten tables
@@ -130,14 +142,13 @@ unaffected. `drizzle-kit pull` is safe.
 
 **Known live blockers:**
 
-1. **The Vercel deploy needs the dashboard.** The Vercel MCP can read projects
-   but cannot create a git-connected one or set env vars, and there is no CLI
-   login. Steps are in `apps/console/README.md`; Root Directory must be
-   `apps/console` and the env vars must exist *before* the first build.
-That is the only one left. The worker now runs the **real image** from
-`ghcr.io/yuringgg/switchboard-worker`, pinned by digest, and was verified end to
-end: an event inserted into Supabase in Singapore was claimed and completed by
-the container in Malaysia West.
+1. **The `DATABASE_URL` repo secret is not set on GitHub**, so the
+   tenant-isolation CI job fails. That failure is by design — the check refuses
+   to skip — but it means CI stays red until the secret is added at
+   Settings → Secrets and variables → Actions. Use the same Supavisor
+   session-mode URL as `apps/worker/.env`.
+2. **Google Cloud does not exist yet.** Phase 1 cannot start without it; see
+   `docs/03-RESOURCES.md` §6.
 
 Credentials: **Supabase is fully configured** — `apps/worker/.env` holds
 `DATABASE_URL` (Supavisor session mode, port 5432 — the direct connection is

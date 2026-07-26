@@ -499,7 +499,7 @@ with a reason.
 | Styling | **Tailwind + shadcn/ui** | Fastest route to a UI that looks deliberate |
 | DB — console | **supabase-js** (anon key + user session) | Goes through RLS. The user's own permissions apply. |
 | DB — worker | **Drizzle** (service_role) | Typed SQL, good `SKIP LOCKED` and pgvector support. Lighter than Prisma and less awkward with RLS. |
-| Migrations | ⚠ **hand-written SQL** — see below | Drizzle Kit turned out to be unsafe here |
+| Migrations | **hand-written SQL**, applied via Supabase | Drizzle Kit's differ would drop RLS and policies — ADR-012 |
 | Validation | **Zod** | Every webhook payload is untrusted input — parse, don't cast |
 | Testing | **Vitest** | Fast, native TS/ESM, works across the monorepo |
 | Email parsing | **mailparser** | Mature; MIME is not worth writing yourself |
@@ -510,7 +510,7 @@ with a reason.
 | Blob storage | **@azure/storage-blob** | Official SDK |
 | Infra as code | **Bicep** | Native Azure, less ceremony than Terraform here |
 
-**⚠ PROPOSED AMENDMENT — needs Yuri's decision: drop Drizzle Kit for migrations.**
+**✅ ACCEPTED 2026-07-26 — Drizzle Kit is not used for migrations. See ADR-012.**
 
 This section originally specified Drizzle Kit. Running `drizzle-kit generate`
 against the live database on 2026-07-26 produced a migration that would have
