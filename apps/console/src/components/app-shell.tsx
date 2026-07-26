@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 
 import { signOut } from '@/lib/auth-actions';
 import { CHANNELS } from '@/lib/channels';
+import { createClient } from '@/lib/supabase/server';
 import { NAV_ITEMS } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 
@@ -14,7 +15,7 @@ import { cn } from '@/lib/utils';
  * JavaScript. On narrow widths the sidebar becomes a horizontally scrollable
  * strip above the content rather than a hamburger menu.
  */
-export function AppShell({
+export async function AppShell({
   title,
   description,
   userEmail,
@@ -35,6 +36,11 @@ export function AppShell({
   activeHref: string;
   children: ReactNode;
 }) {
+  // RLS scopes this to the signed-in user, so no owner filter is needed.
+  const supabase = await createClient();
+  const { data } = await supabase.from('channels').select('type, status');
+  const channelStates: { type: string; status: string }[] = data ?? [];
+
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <aside className="flex shrink-0 flex-col border-b border-border md:w-60 md:border-r md:border-b-0">
@@ -103,18 +109,40 @@ export function AppShell({
             Channels
           </p>
           <ul className="mt-2.5 space-y-2">
-            {CHANNELS.map(({ type, label, dotClass }) => (
-              <li key={type} className="flex items-center gap-2 text-sm">
-                <span
-                  className={cn('size-1.5 rounded-full opacity-40', dotClass)}
-                  aria-hidden
-                />
-                <span className="text-muted-foreground">{label}</span>
-                <span className="ml-auto text-xs text-muted-foreground/70">
-                  Not connected
-                </span>
-              </li>
-            ))}
+            {CHANNELS.map(({ type, label, dotClass }) => {
+              // Read from the database, not hardcoded. This said "Not
+              // connected" beside a channel that WAS connected, which is worse
+              // than showing nothing: it sends you looking for a broken
+              // connection instead of the actual problem.
+              const connected = channelStates.filter((c) => c.type === type);
+              const anyError = connected.some((c) => c.status === 'error');
+
+              return (
+                <li key={type} className="flex items-center gap-2 text-sm">
+                  <span
+                    className={cn(
+                      'size-1.5 rounded-full',
+                      dotClass,
+                      connected.length > 0 ? 'opacity-100' : 'opacity-40',
+                    )}
+                    aria-hidden
+                  />
+                  <span className="text-muted-foreground">{label}</span>
+                  <span
+                    className={cn(
+                      'ml-auto text-xs',
+                      anyError ? 'text-destructive' : 'text-muted-foreground/70',
+                    )}
+                  >
+                    {connected.length === 0
+                      ? 'Not connected'
+                      : anyError
+                        ? 'Needs attention'
+                        : 'Connected'}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
 
           <div className="mt-5 border-t border-border pt-3.5">

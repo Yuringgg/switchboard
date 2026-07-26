@@ -28,5 +28,19 @@ export async function GET(request: NextRequest) {
 
   if (!user) return new NextResponse('Unauthorized', { status: 401 });
 
-  return NextResponse.json(buildConfigReport(process.env, request.nextUrl.origin));
+  return NextResponse.json({
+    /*
+     * Which commit is actually serving.
+     *
+     * Vercel sets these automatically. Without them, "did my change deploy?"
+     * can only be answered by inference — and inferring it from behaviour is
+     * how an hour goes into debugging code that was never running.
+     */
+    deployment: {
+      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'unknown (not on Vercel)',
+      message: process.env.VERCEL_GIT_COMMIT_MESSAGE?.split('\n')[0] ?? null,
+      env: process.env.VERCEL_ENV ?? 'local',
+    },
+    ...buildConfigReport(process.env, request.nextUrl.origin),
+  });
 }
