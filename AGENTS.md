@@ -88,7 +88,7 @@ feature that works and is understood beats a clever one that half-works.
 
 ## 5. Current status
 
-**Phase: 0 — Foundation ✅ COMPLETE (2026-07-26). Phase 1 (Gmail) is next.**
+**Phase 0 ✅ COMPLETE (2026-07-26). Phase 1 (Gmail) IN PROGRESS (2026-07-27).**
 
 The console is live at <https://switchboard-console-beryl.vercel.app> behind a
 login, the worker runs warm on Container Apps, and CI keeps checking that tenant
@@ -127,11 +127,32 @@ isolation is intact.
 
 `pnpm check` (typecheck + test) is green. `pnpm dev` serves the console on 3100.
 
-**What is not:** anything channel-specific. No Gmail, no WhatsApp, no adapters,
-no assistant. The pipeline is wired end to end but nothing flows through it yet —
-`messages` has never held a row.
+**Phase 1 so far** (2026-07-27):
 
-Do not skip ahead. The adapter contract exists now; use it.
+- **Google Cloud fully configured** — project `switchboard-503613`, Gmail +
+  Calendar APIs, consent screen (External, Testing, `leiruychua@gmail.com`
+  allowlisted, both scopes), OAuth client, topic `gmail-push` with Gmail granted
+  Publisher, push subscription `gmail-push-sub` authenticated via
+  `gmail-push-invoker@…` with matching audience
+- Credential encryption (`packages/core/src/crypto.ts`) — AES-256-GCM; console
+  encrypts, worker decrypts. `bytea` round-trip verified against the live
+  database through PostgREST
+- Gmail push verification + notification parsing (`packages/adapters/gmail`)
+- **OAuth connect flow** — `/channels` with a Gmail Connect button, CSRF `state`
+  in an httpOnly cookie compared timing-safely before the code exchange,
+  `access_type=offline` + `prompt=consent` so a refresh token always comes back,
+  partial scope grants refused up front, `users.getProfile` used to prove the
+  token works before anything persists
+- Migration 0003: `unique (owner_id, type, display_name)` on `channels`, so a
+  reconnect can't create a second row for the same mailbox and double every message
+- `GET /api/health/config` — the diagnostic for the live blocker below
+
+**What is not:** `users.watch` registration (`historyId` + `expires_at` into
+`sync_state`) and the renewal cron. **Nothing is registered with Gmail yet, so
+Gmail is publishing nothing** — the topic and subscription exist but sit idle.
+`messages` has never held a row. No WhatsApp, no assistant.
+
+Do not skip ahead. The adapter contract exists; use it.
 
 **⚠ NEVER RUN `drizzle-kit generate` OR `drizzle-kit migrate`.** Run against the
 live database on 2026-07-26, `generate` proposed disabling RLS on all ten tables
@@ -140,30 +161,53 @@ security boundary. Migrations are hand-written SQL in `packages/db/migrations/`.
 Full reasoning in `packages/db/drizzle.config.ts`. Drizzle-as-ORM is fine and
 unaffected. `drizzle-kit pull` is safe.
 
-**Known live blockers:**
+**🔴 THE ONE LIVE BLOCKER (2026-07-27): a Google env var is missing on Vercel.**
 
-1. **The `DATABASE_URL` repo secret is not set on GitHub**, so the
-   tenant-isolation CI job fails. That failure is by design — the check refuses
-   to skip — but it means CI stays red until the secret is added at
-   Settings → Secrets and variables → Actions. Use the same Supavisor
-   session-mode URL as `apps/worker/.env`.
-2. **Google Cloud does not exist yet.** Phase 1 cannot start without it; see
-   `docs/03-RESOURCES.md` §6.
+Clicking **Connect** on `/channels` returns **HTTP 500** from
+`/api/auth/google/start`. Diagnosed by probing production:
 
-Credentials: **Supabase is fully configured** — `apps/worker/.env` holds
-`DATABASE_URL` (Supavisor session mode, port 5432 — the direct connection is
-IPv6-only and Container Apps egresses IPv4) and `SUPABASE_SERVICE_ROLE_KEY`.
-Google, Meta, Gemini and Groq don't exist yet (`docs/03-RESOURCES.md` §6) —
-that's Phase 1 and later.
+| Probe | Result | Meaning |
+|---|---|---|
+| `/api/auth/google/start` (no session) | 307 → `/login` | Route loads; the 500 is *after* the session check |
+| `/api/webhooks/gmail` | 503 | The "not configured" branch — a Google var is genuinely absent |
+| `/signup` | 200 | Deployment is current |
+| `/channels` | 307 | Deployment has the newest commit |
+| `/api/cron/keepalive` | 401 | `CRON_SECRET` did arrive |
+
+So: not a stale deployment, and not *all* env vars — **specifically the Google
+ones.** The only code between the session check and the redirect is
+`createOAuthClient()`, reading `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+`GOOGLE_OAUTH_REDIRECT_URI`. One of those three is missing or empty.
+
+**Leading hypothesis:** Vercel binds env vars **when a deployment is created**, so
+a variable added afterwards does nothing until the next build — and redeploying
+with "Use existing Build Cache" can reuse the prior build's environment. Also
+worth confirming the vars landed on **`switchboard-console`** and not
+`ageni-academy`, the only other project in the account.
+
+**Diagnostic shipped:** `GET /api/health/config` — signed-in only, reports
+presence and shape but **never values**, so its output is safe to paste
+anywhere. `/start` no longer 500s on bad config; it redirects to `/channels`
+naming the missing variable.
+
+**→ Next action:** Yuri signs in, opens `/api/health/config`, pastes the JSON.
+`missing` and `malformed` name the culprit outright.
+
+Credentials: **Supabase and Google Cloud are both fully configured.**
+`apps/worker/.env` holds `DATABASE_URL` (Supavisor session mode, port 5432 — the
+direct connection is IPv6-only and Container Apps egresses IPv4) and
+`SUPABASE_SERVICE_ROLE_KEY`. Google project `switchboard-503613` exists with both
+APIs, consent screen, OAuth client, topic and push subscription — see
+`docs/03-RESOURCES.md`. Meta, Gemini and Groq don't exist yet — Phase 2 and later.
 
 **Tooling notes:** the **Azure MCP still times out even after `az login`** — use
 the `az` CLI directly, at
 `C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd` (not on `PATH`).
 `gh` is not installed.
 
-**A dev account exists in the database:** `dev@switchboard.test`, seeded by
-`packages/db/seeds/dev_user.sql` so the sign-in flow could be tested without
-sending confirmation email. **Delete it before the system holds anything real.**
+**Accounts:** `dev@switchboard.test` was deleted on 2026-07-26 along with its
+seed file. `leiruychua@gmail.com` is now the only user, created through the
+normal signup flow.
 
 **Environment notes for builders** — both cost time to rediscover:
 
@@ -178,10 +222,10 @@ sending confirmation email. **Delete it before the system holds anything real.**
   uses `module: preserve` (bundler resolution) rather than NodeNext. The worker
   will therefore need bundling (tsup/tsx) rather than raw `node`.
 
-**Environment note:** Supabase's free tier caps at 2 active projects and both
-were in use. `ageni-academy` was paused on 2026-07-25 to free a slot. Create
-Switchboard in **`ap-southeast-1` (Singapore)** — closest to Manila, and region
-is immutable after creation. Full state in `docs/03-RESOURCES.md` §9.
+**Environment note:** Supabase's free tier caps at 2 active projects. Both slots
+are in use — `switchboard` (`ap-southeast-1`, active) and `ageni-academy`
+(paused 2026-07-25 to free the slot). **Do not create a third.** Full state in
+`docs/03-RESOURCES.md` §9.
 
 **Nothing is blocked on the mentor.** Scope, channels, and what the tool monitors
 are all settled — see the resolved list in `docs/06-OPEN-QUESTIONS.md`.

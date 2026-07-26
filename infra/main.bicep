@@ -43,9 +43,23 @@ param namePrefix string = 'switchboard'
 @description('Container image for the worker. Defaults to a public placeholder so the environment can be stood up before a registry exists.')
 param workerImage string = 'mcr.microsoft.com/k8se/quickstart:latest'
 
-@description('Direct Postgres connection string. Stored as a Container Apps secret, never as a plain env var.')
+@description('Postgres connection string (Supavisor SESSION mode, port 5432). Stored as a Container Apps secret, never a plain env var.')
 @secure()
 param databaseUrl string = ''
+
+@description('AES-256-GCM key for channels.credentials. MUST match the console byte for byte, or stored credentials cannot be decrypted.')
+@secure()
+param channelCredentialsKey string = ''
+
+@description('Google OAuth client secret, used to mint access tokens from stored refresh tokens.')
+@secure()
+param googleClientSecret string = ''
+
+@description('Google OAuth client id. Not secret, but pointless without the secret.')
+param googleClientId string = ''
+
+@description('Full Pub/Sub topic name: projects/<project>/topics/<topic>.')
+param googlePubsubTopic string = ''
 
 var logAnalyticsName = '${namePrefix}-logs'
 var environmentName = '${namePrefix}-env'
@@ -97,12 +111,14 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
         transport: 'http'
         allowInsecure: false
       }
-      secrets: empty(databaseUrl) ? [] : [
-        {
-          name: 'database-url'
-          value: databaseUrl
-        }
-      ]
+      // Secrets are injected by reference, so no value appears on the revision
+      // or in `az containerapp show`. Empty parameters are omitted rather than
+      // stored blank — the worker's own checks then report them as missing.
+      secrets: concat(
+        empty(databaseUrl) ? [] : [{ name: 'database-url', value: databaseUrl }],
+        empty(channelCredentialsKey) ? [] : [{ name: 'channel-credentials-key', value: channelCredentialsKey }],
+        empty(googleClientSecret) ? [] : [{ name: 'google-client-secret', value: googleClientSecret }]
+      )
     }
     template: {
       containers: [
@@ -116,12 +132,16 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
             cpu: json('0.25')
             memory: '0.5Gi'
           }
-          env: empty(databaseUrl) ? [] : [
-            {
-              name: 'DATABASE_URL'
-              secretRef: 'database-url'
-            }
-          ]
+          env: concat(
+            empty(databaseUrl) ? [] : [{ name: 'DATABASE_URL', secretRef: 'database-url' }],
+            // Needed for Gmail watch renewal. Without all four the worker logs
+            // that renewal is disabled and every watch dies after 7 days,
+            // stopping ingestion with no other signal.
+            empty(channelCredentialsKey) ? [] : [{ name: 'CHANNEL_CREDENTIALS_KEY', secretRef: 'channel-credentials-key' }],
+            empty(googleClientSecret) ? [] : [{ name: 'GOOGLE_CLIENT_SECRET', secretRef: 'google-client-secret' }],
+            empty(googleClientId) ? [] : [{ name: 'GOOGLE_CLIENT_ID', value: googleClientId }],
+            empty(googlePubsubTopic) ? [] : [{ name: 'GOOGLE_PUBSUB_TOPIC', value: googlePubsubTopic }]
+          )
           probes: [
             {
               type: 'Liveness'

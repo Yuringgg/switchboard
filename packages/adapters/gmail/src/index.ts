@@ -10,3 +10,12 @@ export {
   type GmailNotification,
   type ParseResult,
 } from './notification';
+
+export {
+  parseWatchResponse,
+  refreshAccessToken,
+  registerWatch,
+  type AccessTokenResult,
+  type WatchRegistration,
+  type WatchResult,
+} from './watch';

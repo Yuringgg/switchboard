@@ -95,13 +95,14 @@ Gmail goes first because it reads a **genuine existing inbox** with no recipient
 caps — it's the channel that actually demonstrates the product thesis, and Yuri
 already has the account.
 
-- [ ] Google Cloud project; **Gmail API + Calendar API** both enabled
-- [ ] OAuth consent screen in **testing mode**, Yuri allowlisted as a test user
-- [ ] Request Gmail **and** `calendar.events` scopes in the same consent — one
+- [x] Google Cloud project; **Gmail API + Calendar API** both enabled — `switchboard-503613`
+- [x] OAuth consent screen in **testing mode**, Yuri allowlisted as a test user
+- [x] Request Gmail **and** `calendar.events` scopes in the same consent — one
       flow now saves a second consent screen in Phase 5
-- [ ] OAuth flow in the console; refresh token **encrypted** into `channels`,
+- [x] OAuth flow in the console; refresh token **encrypted** into `channels`,
       scoped to the signed-in user
-- [ ] Pub/Sub topic + push subscription; grant publish rights to `gmail-api-push@system.gserviceaccount.com`
+- [x] Pub/Sub topic `gmail-push` + push subscription `gmail-push-sub`, authenticated;
+      publish rights granted to `gmail-api-push@system.gserviceaccount.com`
 - [ ] `users.watch` registration; store `historyId` and `expires_at` in `sync_state`
 - [ ] **Watch renewal cron** — daily, renews at T-2 days, alerts on failure
 - [ ] `packages/adapters/gmail` — `poll` via `history.list`, `normalize` (MIME, threads, HTML→text)

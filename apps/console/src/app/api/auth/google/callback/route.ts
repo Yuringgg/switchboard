@@ -1,3 +1,4 @@
+import { registerWatch } from '@switchboard/adapter-gmail';
 import { encryptSecret } from '@switchboard/core';
 import { NextResponse, type NextRequest } from 'next/server';
 
@@ -89,25 +90,86 @@ export async function GET(request: NextRequest) {
   // Written through supabase-js on the user's session, so RLS applies and this
   // row cannot be created for anyone but the signed-in user — the WITH CHECK
   // clause enforces owner_id = auth.uid() regardless of what is sent.
-  const { error } = await supabase.from('channels').upsert(
-    {
-      owner_id: user.id,
-      type: 'gmail',
-      display_name: mailbox,
-      credentials,
-      status: 'active',
-      last_error: null,
-    },
-    // Reconnecting the same mailbox refreshes the credential rather than
-    // creating a second channel that would ingest everything twice.
-    { onConflict: 'owner_id,type,display_name' },
-  );
+  const { data: channel, error } = await supabase
+    .from('channels')
+    .upsert(
+      {
+        owner_id: user.id,
+        type: 'gmail',
+        display_name: mailbox,
+        credentials,
+        status: 'active',
+        last_error: null,
+      },
+      // Reconnecting the same mailbox refreshes the credential rather than
+      // creating a second channel that would ingest everything twice.
+      { onConflict: 'owner_id,type,display_name' },
+    )
+    .select('id')
+    .single();
 
-  if (error) {
-    console.error(`[auth/google] failed to store channel: ${error.message}`);
+  if (error || !channel) {
+    console.error(`[auth/google] failed to store channel: ${error?.message ?? 'no row returned'}`);
     return back(request, { error: 'Could not save the connection.' });
   }
 
-  console.info(`[auth/google] connected gmail channel for user=${user.id}`);
+  // ── Register the watch ────────────────────────────────────────────────────
+  // Without this Gmail never publishes. The topic and subscription can be
+  // perfectly configured and the mailbox stays silent, with nothing anywhere
+  // indicating why — so it happens here, at connect time, rather than being
+  // left as a separate step someone has to remember.
+  const topic = process.env.GOOGLE_PUBSUB_TOPIC;
+  if (!topic) {
+    console.error('[auth/google] GOOGLE_PUBSUB_TOPIC is not set');
+    return back(request, {
+      connected: mailbox,
+      error: 'Connected, but no Pub/Sub topic is configured, so no mail will arrive yet.',
+    });
+  }
+
+  const watch = await registerWatch(exchanged.tokens.accessToken, topic);
+
+  if (!watch.ok) {
+    // The credential is saved and valid; only the subscription failed. Say so
+    // on the channel rather than discarding a working connection — reconnecting
+    // retries the watch.
+    console.error(`[auth/google] watch registration failed: ${watch.reason}`);
+    await supabase
+      .from('channels')
+      .update({ status: 'error', last_error: watch.reason })
+      .eq('id', channel.id);
+
+    return back(request, {
+      connected: mailbox,
+      error: `Connected, but Gmail would not start sending updates: ${watch.reason}`,
+    });
+  }
+
+  // sync_state is keyed by channel_id, so reconnecting moves the cursor rather
+  // than accumulating stale ones.
+  const { error: syncError } = await supabase.from('sync_state').upsert(
+    {
+      channel_id: channel.id,
+      owner_id: user.id,
+      cursor: watch.watch.historyId,
+      expires_at: watch.watch.expiresAt.toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'channel_id' },
+  );
+
+  if (syncError) {
+    // The watch is live but we have no cursor and no expiry, so nothing could
+    // renew it and history polling has no starting point. Not a usable state.
+    console.error(`[auth/google] failed to store sync state: ${syncError.message}`);
+    return back(request, {
+      connected: mailbox,
+      error: 'Connected, but the sync cursor could not be saved. Please reconnect.',
+    });
+  }
+
+  console.info(
+    `[auth/google] connected gmail channel=${channel.id} watch expires ${watch.watch.expiresAt.toISOString()}`,
+  );
   return back(request, { connected: mailbox });
 }

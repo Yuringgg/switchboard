@@ -4,6 +4,7 @@ import { createDbClient } from '@switchboard/db';
 
 import { claimNextEvent, markDone, markFailed } from './claim';
 import { DATABASE_URL, IDLE_POLL_MS, MAX_ATTEMPTS, PORT } from './env';
+import { readGmailWatchConfig, renewExpiringWatches } from './gmail-watch';
 
 /**
  * The worker.
@@ -86,6 +87,50 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Gmail watch renewal, every 6 hours.
+ *
+ * Not daily: a watch lasts 7 days and is renewed at T-2, so four attempts a day
+ * means a transient Google outage or a worker restart cannot consume the whole
+ * margin. The cost is one indexed query against a handful of rows.
+ */
+const WATCH_SWEEP_MS = 6 * 60 * 60 * 1000;
+
+async function watchRenewalLoop(): Promise<void> {
+  while (running) {
+    const config = readGmailWatchConfig();
+
+    if (!config) {
+      // Loud on purpose, every cycle. An unrenewed watch fails SILENTLY — Gmail
+      // just stops publishing — so a quiet skip here would reproduce exactly
+      // the failure this loop exists to prevent.
+      console.error(
+        '[watch] renewal DISABLED: needs CHANNEL_CREDENTIALS_KEY, GOOGLE_CLIENT_ID, ' +
+          'GOOGLE_CLIENT_SECRET and GOOGLE_PUBSUB_TOPIC. Gmail watches will expire ' +
+          'after 7 days and ingestion will stop with no other warning.',
+      );
+    } else {
+      try {
+        const result = await renewExpiringWatches(db, config);
+        if (result.checked > 0) {
+          console.info(
+            `[watch] sweep: checked=${result.checked} renewed=${result.renewed} failed=${result.failed}`,
+          );
+        }
+      } catch (error) {
+        console.error(
+          '[watch] sweep errored:',
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+
+    // Broken into short sleeps so SIGTERM is not waited out for six hours.
+    const wakeAt = Date.now() + WATCH_SWEEP_MS;
+    while (running && Date.now() < wakeAt) await sleep(1_000);
+  }
+}
+
+/**
  * Container Apps sends SIGTERM before replacing a revision. Finishing the
  * current event first is what stops a deploy from stranding a row in
  * 'processing' — where nothing will ever pick it up again.
@@ -112,3 +157,4 @@ server.listen(PORT, () => {
 });
 
 void loop();
+void watchRenewalLoop();

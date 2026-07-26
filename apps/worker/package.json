@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@switchboard/worker",
   "version": "0.0.0",
   "private": true,
@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@switchboard/adapter-gmail": "workspace:*",
     "@switchboard/core": "workspace:*",
     "@switchboard/db": "workspace:*",
     "drizzle-orm": "^0.45.2",

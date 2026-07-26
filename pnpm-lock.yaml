@@ -81,6 +81,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@switchboard/adapter-gmail':
+        specifier: workspace:*
+        version: link:../../packages/adapters/gmail
       '@switchboard/core':
         specifier: workspace:*
         version: link:../../packages/core
