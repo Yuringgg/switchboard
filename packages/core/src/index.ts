@@ -10,3 +10,4 @@ export {
 } from './adapter';
 
 export { safeEqual, verifyHubSignature } from './webhook';
+export { decryptSecret, encryptSecret, secretsEqual } from './crypto';

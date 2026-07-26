@@ -13,6 +13,7 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.8",
+    "@switchboard/adapter-gmail": "workspace:*",
     "@switchboard/core": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^1.26.0",

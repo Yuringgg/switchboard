@@ -1,0 +1,17 @@
+{
+  "name": "@switchboard/adapter-gmail",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Gmail channel adapter: Pub/Sub push verification, history polling, normalize.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@switchboard/core": "workspace:*",
+    "google-auth-library": "^10.9.1"
+  }
+}
