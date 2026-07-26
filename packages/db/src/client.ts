@@ -18,14 +18,30 @@ import * as schema from './schema';
  * Never import this from `apps/console`. The console uses supabase-js with the
  * publishable key so that RLS applies to the signed-in user.
  */
+/**
+ * Supavisor's transaction mode (port 6543) multiplexes one server connection
+ * across many clients, so a prepared statement created on one request may not
+ * exist on the next — prepared statements must be off. Session mode (5432)
+ * holds a dedicated connection, so they work and are worth having.
+ *
+ * Derived from the port rather than hardcoded: getting this wrong produces
+ * intermittent "prepared statement does not exist" errors under load, which
+ * look like anything but a pooling-mode mismatch.
+ */
+function supportsPreparedStatements(connectionString: string): boolean {
+  try {
+    return new URL(connectionString).port !== '6543';
+  } catch {
+    return false; // Unparseable: assume the safer of the two.
+  }
+}
+
 export function createDbClient(connectionString: string) {
   const sql = postgres(connectionString, {
     // The worker is one long-lived process consuming a queue; it does not need
     // a wide pool, and Supabase's free tier has a modest connection ceiling.
     max: 5,
-    // `prepare: false` is required when connecting through Supabase's pooler in
-    // transaction mode — prepared statements are not supported there.
-    prepare: false,
+    prepare: supportsPreparedStatements(connectionString),
   });
 
   return { db: drizzle(sql, { schema }), sql };

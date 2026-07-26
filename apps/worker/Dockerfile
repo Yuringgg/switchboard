@@ -16,10 +16,17 @@ COPY packages/core/package.json      packages/core/
 COPY packages/db/package.json        packages/db/
 COPY apps/worker/package.json        apps/worker/
 
-# --ignore-scripts skips the `prepare` hook, which runs `git config` and would
-# fail in a container with no repository.
-RUN pnpm install --frozen-lockfile --ignore-scripts \
-      --filter @switchboard/worker...
+# Scripts are NOT skipped, deliberately. `--ignore-scripts` looks like the
+# careful choice here, but esbuild's install script is what puts its native
+# binary in place, and tsup runs on esbuild — so the build fails later, at
+# bundling, for a reason that points nowhere near dependency installation.
+#
+# The root `prepare` hook runs `git config` and this image has no git, but it
+# ends in `|| exit 0`, so it is a no-op rather than a failure.
+#
+# pnpm-workspace.yaml's allowBuilds decides which scripts may run: esbuild yes,
+# sharp no.
+RUN pnpm install --frozen-lockfile --filter @switchboard/worker...
 
 COPY packages/core packages/core
 COPY packages/db   packages/db

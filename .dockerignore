@@ -1,0 +1,41 @@
+# ⚠ SECRETS FIRST — this is the important part.
+#
+# Docker does NOT respect .gitignore. Without these lines, `docker build .`
+# from a developer's machine copies apps/worker/.env — DATABASE_URL and the
+# service_role key — straight into an image layer, where it survives even if a
+# later layer deletes the file, and gets pushed to a registry.
+#
+# CI never had the problem (the files are gitignored so they are not in a
+# checkout); a local build absolutely would.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Build artefacts and dependency trees — rebuilt inside the image, and copying
+# a Windows/macOS node_modules into a Linux image would break native binaries.
+**/node_modules
+**/dist
+**/.next
+**/build
+**/coverage
+.pnpm-store
+
+# Not needed to build the worker.
+.git
+.github
+.githooks
+.claude
+docs
+correspondence
+apps/console
+infra
+fixtures
+**/*.md
+!apps/worker/README.md
+
+# Local tooling output
+.drizzle-introspect
+**/*.tsbuildinfo
+**/*.log

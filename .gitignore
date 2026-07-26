@@ -24,6 +24,10 @@ next-env.d.ts
 coverage/
 .vitest/
 
+# drizzle-kit introspection output — a scratch copy of the live schema, never
+# the source of truth. See packages/db/drizzle.config.ts.
+.drizzle-introspect/
+
 # Local model cache — Transformers.js downloads ONNX weights here
 .cache/
 models/
