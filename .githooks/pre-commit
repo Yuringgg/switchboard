@@ -68,6 +68,20 @@ while IFS= read -r f; do
       ;;
   esac
 
+  # ── 1b. UTF-8 BOM in JSON ───────────────────────────────────────────────
+  # PowerShell's `Out-File -Encoding utf8` writes a BOM. Most tools tolerate
+  # it, so tsc, vitest, pnpm and CI all stay green — but a `package.json` with
+  # an `exports` map must be parsed strictly, and the BOM makes that parse
+  # fail. The result is a bundler resolving the package as "not found" and a
+  # deploy that errors while every local check passes.
+  case "$base" in
+    *.json)
+      if [ -f "$f" ] && [ "$(head -c 3 "$f" | od -An -tx1 | tr -d ' \n')" = "efbbbf" ]; then
+        add "$f — starts with a UTF-8 BOM; rewrite it without one"
+      fi
+      ;;
+  esac
+
   # Don't scan the scanner — it contains the patterns it looks for.
   [ "$f" = ".githooks/pre-commit" ] && continue
 
