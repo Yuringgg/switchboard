@@ -2,7 +2,7 @@ import { LogOut } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-import { signOut } from '@/app/login/actions';
+import { signOut } from '@/lib/auth-actions';
 import { CHANNELS } from '@/lib/channels';
 import { NAV_ITEMS } from '@/lib/nav';
 import { cn } from '@/lib/utils';
@@ -52,6 +52,7 @@ export function AppShell({
 
               const className = cn(
                 'flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm whitespace-nowrap',
+                'focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none',
                 ready
                   ? 'bg-accent text-accent-foreground font-medium'
                   : 'text-muted-foreground',
@@ -107,7 +108,7 @@ export function AppShell({
             <form action={signOut}>
               <button
                 type="submit"
-                className="mt-1.5 -ml-1 flex items-center gap-1.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+                className="mt-1.5 -ml-1 flex items-center gap-1.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
               >
                 <LogOut className="size-3" aria-hidden />
                 Sign out

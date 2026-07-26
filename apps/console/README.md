@@ -49,10 +49,23 @@ ships code to a browser.
 Built in Phase 0: the app shell and the "no messages yet" empty state, rendering
 light and dark, mobile and desktop. `pnpm dev` serves it on port 3100.
 
-Not here yet: the Vercel deploy, Supabase auth and the sign-in flow, the ingest
-routes under `app/api/webhooks/`, and every surface behind a `soon` nav item
-(Contacts, Assistant, Channels). Those flip on by setting `ready: true` in
-`src/lib/nav.ts` once a route exists.
+Auth is `/login` and `/signup` — **two routes, one primary action each**.
+
+They were briefly one page with two submit buttons, where "Create an account"
+was a second `formAction` on the sign-in form. It read as a link to a signup
+page, so clicking it with empty fields produced the browser's required-field
+tooltip and nothing else; you had to deduce that it wanted the fields above
+filled in first. A control that reads as navigation should navigate. Splitting
+them also lets the password field carry the right `autocomplete` per context —
+`current-password` on sign-in, `new-password` on signup, which is what makes a
+password manager offer to *generate* one rather than fill an existing one.
+
+⚠ Both routes must stay in `PUBLIC_PATHS` in `src/proxy.ts`. Miss one and the
+gate redirects it to `/login`, which for `/signup` is an infinite bounce.
+
+Not here yet: every surface behind a `soon` nav item (Contacts, Assistant,
+Channels). Those flip on by setting `ready: true` in `src/lib/nav.ts` once a
+route exists.
 
 The shadcn/ui foundation is in place — `components.json`, the `cn` helper, and
 the CSS variable theme — so `pnpm dlx shadcn@latest add <component>` works

@@ -20,7 +20,10 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
  * per request, by signature or bearer token; that is the correct boundary for
  * machine callers. Anything added under /api must do its own auth.
  */
-const PUBLIC_PATHS = ['/login', '/auth', '/api'];
+const PUBLIC_PATHS = ['/login', '/signup', '/auth', '/api'];
+
+/** Signing in or up while already signed in should just go to the console. */
+const AUTH_PAGES = ['/login', '/signup'];
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -63,7 +66,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && pathname === '/login') {
+  if (user && AUTH_PAGES.includes(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
     url.search = '';
