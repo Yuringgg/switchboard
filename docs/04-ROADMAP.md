@@ -87,7 +87,13 @@ the isolation test passes. — **All four met.**
 
 ---
 
-## Phase 1 — Gmail, end to end
+## Phase 1 — Gmail, end to end ✅ COMPLETE (2026-07-28)
+
+**Done.** A real email arrives in Gmail and appears in the deployed console
+within seconds, with no refresh — watch registered and auto-renewing, webhook
+verifying and queueing, worker normalizing and upserting, timeline rendering
+live. 12 real messages ingested unattended by the deployed worker.
+
 
 **Goal:** the "it's real" moment. An email arrives and appears on screen.
 
@@ -153,7 +159,11 @@ already has the account.
       message column scrolls; the shell streams ahead of the messages behind a
       `<Suspense>` skeleton, and `channels` is fetched once per request instead
       of twice.
-- [ ] Idempotency test: replay the same notification 3×, assert exactly one row
+- [x] Idempotency test: replay the same notification 3×, assert exactly one row —
+      `packages/db/tests/idempotency.sql`. Covers all four guards: `raw_events`,
+      `messages`, `conversations` and `contact_identities`, plus a reply reusing
+      its thread without creating a second conversation or overwriting the
+      subject with a "Re:" prefix. Self-verifying, rolls back.
 
 **Done when:** you send yourself an email and it appears in the deployed console.
 **This is the milestone worth screenshotting for Ms. Maria.**

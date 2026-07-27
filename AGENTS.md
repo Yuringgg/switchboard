@@ -88,11 +88,19 @@ feature that works and is understood beats a clever one that half-works.
 
 ## 5. Current status
 
-**Phase 0 ✅ COMPLETE (2026-07-26). Phase 1 (Gmail) IN PROGRESS (2026-07-27).**
+**Phase 0 ✅ COMPLETE (2026-07-26). Phase 1 ✅ COMPLETE (2026-07-28).
+Phase 2 (WhatsApp) is next.**
 
-The console is live at <https://switchboard-console-beryl.vercel.app> behind a
-login, the worker runs warm on Container Apps, and CI keeps checking that tenant
-isolation is intact.
+> **Joining cold? Read `correspondence/2026-07-28-phase-1-complete-handoff.md`
+> after this file.** It carries the whole picture: what is deployed where, the
+> seven rules that are not negotiable, the failure modes that are silent, why
+> each guard exists, and what Phase 2 already has waiting.
+
+**An email arriving in Gmail now appears in the deployed console within
+seconds, without a refresh.** The console is live at
+<https://switchboard-console-beryl.vercel.app> behind a login, the worker runs
+warm on Container Apps ingesting real mail, Realtime pushes new rows to the
+timeline, and CI asserts tenant isolation on every push.
 
 **What is built** (build sessions 1–4, 2026-07-26):
 
