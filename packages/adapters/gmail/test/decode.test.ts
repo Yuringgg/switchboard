@@ -142,6 +142,46 @@ describe('normalize with real encodings', () => {
     expect(result.message.attachments[0]?.filename).toBe('Kontrata ñ.pdf');
   });
 
+  describe('a comma inside an encoded display name', () => {
+    // RFC 2047 §5: an encoded-word in a display-name is an atom. Decoding
+    // before the list split turns its comma into a separator and invents a
+    // recipient.
+    const result = normalizeGmailMessage(fixture('encoded-comma-name'), MAILBOX);
+
+    it('normalizes', () => {
+      expect(result.ok).toBe(true);
+    });
+
+    it('keeps the sender display name whole', () => {
+      // Decoded-then-split, this truncates to "Maria".
+      if (!result.ok) throw new Error(result.reason);
+      expect(result.message.sender.displayName).toBe('Dela Cruz, Maria ñ');
+      expect(result.message.sender.externalId).toBe('maria@example.com');
+    });
+
+    it('does NOT invent a phantom recipient from the encoded comma', () => {
+      // The damaging case. A display name of "noreply@acme.com, Team" splits,
+      // and the orphaned fragment HAS an @ — so it parses as a real address
+      // and writes a junk contact_identities row. Those rows are what Phase 3's
+      // manual identity merge operates on, so the mess outlives the message.
+      if (!result.ok) throw new Error(result.reason);
+
+      const addresses = result.message.recipients.map((r) => r.externalId);
+      expect(addresses).toEqual([
+        'team@example.com',
+        'lei@example.com',
+        'second@example.com',
+      ]);
+      expect(addresses).not.toContain('noreply@acme.com');
+    });
+
+    it('keeps recipient display names whole', () => {
+      if (!result.ok) throw new Error(result.reason);
+      expect(result.message.recipients[0]?.displayName).toBe('noreply@acme.com, Team');
+      expect(result.message.recipients[1]?.displayName).toBe('Chua, Lei');
+    });
+  });
+
   it('leaves ASCII fixtures byte-identical', () => {
     // The decode path must not disturb the common case.
     const result = normalizeGmailMessage(fixture('multipart-alternative'), MAILBOX);

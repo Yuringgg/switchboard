@@ -97,8 +97,23 @@ function decodePartBody(part: GmailPart): string {
 /**
  * Parse an address list into identity references.
  *
- * Handles `Name <a@b.c>`, bare `a@b.c`, and quoted display names containing
- * commas — `"Chua, Lei" <lei@x.com>` must not split into two recipients.
+ * ⚠ TAKES THE RAW HEADER. Do not decode encoded-words before calling this.
+ *
+ * RFC 2047 §5: an encoded-word in a display-name is an ATOM — commas inside it
+ * are not list separators. Decode first and that structure is destroyed:
+ * `=?UTF-8?B?…?=` holding "Dela Cruz, Maria" becomes a bare comma the splitter
+ * treats as a separator.
+ *
+ * The mild outcome is a truncated display name. The damaging one is a display
+ * name that itself contains an address — `Chua, Lei (lei@x.com)` or
+ * `noreply@acme, Team` — where the orphaned fragment still has an `@`, parses
+ * as a real recipient, and writes a junk `contact_identities` row. Those rows
+ * are what Phase 3's manual identity merge operates on, so the mess outlives
+ * the message that caused it.
+ *
+ * So the order is: split on raw commas → strip quotes → decode the display
+ * name. Quoted names containing commas (`"Chua, Lei" <lei@x.com>`) keep
+ * working, because the splitter already respects quotes.
  */
 export function parseAddressList(value: string | undefined): ContactIdentityRef[] {
   if (!value) return [];
@@ -139,6 +154,9 @@ function parseAddress(raw: string): ContactIdentityRef | null {
   if (displayName.startsWith('"') && displayName.endsWith('"') && displayName.length >= 2) {
     displayName = displayName.slice(1, -1);
   }
+  // Decoded HERE, after the split — never before it. See parseAddressList.
+  // Addresses themselves are always ASCII, so only the display name needs it.
+  displayName = decodeEncodedWords(displayName) ?? displayName;
 
   return {
     channelType: 'gmail',
@@ -215,12 +233,15 @@ export function normalizeGmailMessage(
   // conversion is what keeps ingestion working on the majority case.
   const bodyText = text || (html ? htmlToText(html) : '');
 
-  const sender = parseAddressList(header(payload, 'From'))[0];
+  // rawHeader, NOT header: address lists must be split on the wire form.
+  // Decoding first can turn an encoded comma into a list separator and invent
+  // a recipient. parseAddressList decodes each display name itself.
+  const sender = parseAddressList(rawHeader(payload, 'From'))[0];
   if (!sender) return { ok: false, reason: 'message has no parseable From address' };
 
   const recipients = [
-    ...parseAddressList(header(payload, 'To')),
-    ...parseAddressList(header(payload, 'Cc')),
+    ...parseAddressList(rawHeader(payload, 'To')),
+    ...parseAddressList(rawHeader(payload, 'Cc')),
   ];
 
   // internalDate is Gmail's own receipt time in ms. Preferred over the `Date`

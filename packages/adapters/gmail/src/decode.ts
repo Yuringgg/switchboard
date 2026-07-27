@@ -88,7 +88,11 @@ export function decodeEncodedWords(value: string | undefined): string | undefine
   // RFC 2047 §6.2: whitespace BETWEEN two adjacent encoded-words is a
   // separator, not content, and must be dropped. Long subjects are split across
   // several words, and keeping the gaps injects spaces mid-word.
-  const joined = value.replace(/\?=[ \t]+=\?/g, '?==?');
+  //
+  // `\s` rather than `[ \t]` so a folded header — CRLF plus indent — is covered
+  // too. Gmail normally unfolds, but a header it passes through verbatim would
+  // otherwise re-introduce the gap this line exists to remove.
+  const joined = value.replace(/\?=\s+=\?/g, '?==?');
 
   return joined.replace(
     /=\?([^?]+)\?([BbQq])\?([^?]*)\?=/g,

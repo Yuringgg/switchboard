@@ -193,6 +193,24 @@ describe('parseAddressList', () => {
     );
   });
 
+  it('decodes the display name AFTER splitting, not before', () => {
+    // Given the raw wire form, the comma inside the encoded-word must not act
+    // as a list separator.
+    const encoded = `=?UTF-8?B?${Buffer.from('Dela Cruz, Maria').toString('base64')}?=`;
+    const parsed = parseAddressList(`${encoded} <maria@x.com>, bob@y.com`);
+
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]?.displayName).toBe('Dela Cruz, Maria');
+    expect(parsed[1]?.externalId).toBe('bob@y.com');
+  });
+
+  it('joins encoded-words split across a folded header', () => {
+    const a = `=?UTF-8?B?${Buffer.from('Dela ').toString('base64')}?=`;
+    const b = `=?UTF-8?B?${Buffer.from('Cruz').toString('base64')}?=`;
+    // \r\n + indent is how a folded header arrives if it is not unfolded.
+    expect(parseAddressList(`${a}\r\n ${b} <x@y.com>`)[0]?.displayName).toBe('Dela Cruz');
+  });
+
   it('returns empty for missing or junk input', () => {
     expect(parseAddressList(undefined)).toEqual([]);
     expect(parseAddressList('')).toEqual([]);
