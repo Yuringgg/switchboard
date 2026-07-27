@@ -26,6 +26,20 @@ jobs:
 
       - run: pnpm test
 
+      # `next build` is the ONLY step that resolves through package `exports`
+      # maps, and it is what Vercel actually runs. A UTF-8 BOM on
+      # packages/adapters/gmail/package.json broke it for two commits while
+      # typecheck and tests stayed green — Vercel kept serving the last good
+      # build, so the console looked fine while running week-old code.
+      #
+      # Env vars are dummies: this proves the build COMPILES and resolves, which
+      # is the failure mode being guarded. Real values live in Vercel.
+      - name: Build the console (catches what typecheck cannot)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+        run: pnpm --filter @switchboard/console build
+
   tenant-isolation:
     name: tenant isolation (RLS)
     runs-on: ubuntu-latest

@@ -1,4 +1,4 @@
-import { CHANNEL_TYPES } from '@switchboard/core';
+﻿import { CHANNEL_TYPES } from '@switchboard/core';
 import { Plug } from 'lucide-react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
