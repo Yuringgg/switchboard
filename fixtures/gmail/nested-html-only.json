@@ -1,0 +1,80 @@
+{
+  "id": "fixture0000000002",
+  "threadId": "fixturethread002",
+  "labelIds": [
+    "UNREAD",
+    "CATEGORY_UPDATES",
+    "INBOX"
+  ],
+  "internalDate": "1785000600000",
+  "payload": {
+    "mimeType": "multipart/mixed",
+    "headers": [
+      {
+        "name": "Delivered-To",
+        "value": "owner@example.com"
+      },
+      {
+        "name": "Date",
+        "value": "Sun, 27 Jul 2026 10:10:00 +0800"
+      },
+      {
+        "name": "From",
+        "value": "Notifications <no-reply@service.example>"
+      },
+      {
+        "name": "To",
+        "value": "owner@example.com"
+      },
+      {
+        "name": "Message-ID",
+        "value": "<fixture2@service.example>"
+      },
+      {
+        "name": "Subject",
+        "value": "Your weekly summary"
+      },
+      {
+        "name": "Mime-Version",
+        "value": "1.0"
+      },
+      {
+        "name": "Content-Type",
+        "value": "multipart/mixed; boundary=\"111\""
+      }
+    ],
+    "body": {
+      "size": 0
+    },
+    "parts": [
+      {
+        "partId": "0",
+        "mimeType": "multipart/related",
+        "filename": "",
+        "body": {
+          "size": 0
+        },
+        "parts": [
+          {
+            "partId": "0.0",
+            "mimeType": "text/html",
+            "filename": "",
+            "body": {
+              "size": 2010,
+              "data": "PGh0bWw-PGhlYWQ-PHN0eWxlPi54e2NvbG9yOnJlZH08L3N0eWxlPjwvaGVhZD48Ym9keT48cD5IZWxsbyZuYnNwO3RoZXJlLjwvcD48cD5SZWFkIHRoZSA8YSBocmVmPSJodHRwczovL3NlcnZpY2UuZXhhbXBsZS9yZXBvcnQiPmZ1bGwgcmVwb3J0PC9hPiBub3cuPC9wPjx1bD48bGk-Rmlyc3QgaXRlbTwvbGk-PGxpPlNlY29uZCBpdGVtPC9saT48L3VsPjwvYm9keT48L2h0bWw-"
+            }
+          },
+          {
+            "partId": "0.1",
+            "mimeType": "image/png",
+            "filename": "",
+            "body": {
+              "size": 512,
+              "attachmentId": "inline-logo-id"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

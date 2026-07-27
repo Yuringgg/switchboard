@@ -124,6 +124,55 @@ export interface ChannelAdapter {
 - `externalId` must be **stable and unique per channel**. It is the idempotency
   key — providers *will* redeliver webhooks and we must not double-insert.
 
+**Two normalization rules settled before Gmail's `normalize` was written
+(2026-07-27):**
+
+***`bodyText` is always populated. Synthesise it — never leave it unset.***
+`messages.body_text` is `not null` and **stays that way.** HTML-only email with
+no `text/plain` part is common and entirely legitimate, so `normalize` owns the
+fallback:
+
+```
+text/plain part  →  HTML converted to text  →  '' (empty string)
+```
+
+Empty string is a *correct* value for a genuinely bodiless message — an
+attachment-only mail, a bare calendar invite. `not null` forbids the **unknown**,
+not the **empty**: `''` means "we looked and there was nothing", where NULL would
+mean "normalize didn't populate this", and those two must never collapse into the
+same value.
+
+Why not simply make the column nullable: `body_text` is what Phase 3's full-text
+search and Phase 4's chunking and embedding both read. Nullable puts a null
+branch in every consumer, and the first one that forgets it yields a message
+that is silently unsearchable — indistinguishable from a ranking bug, which is
+precisely the failure mode ADR-003 spends a paragraph warning about.
+
+Implementation note: fetch with `format=RAW` and parse with **mailparser** (§8)
+rather than walking the `format=FULL` payload tree by hand — hand-rolling MIME
+is the thing §8 chose mailparser to avoid. mailparser's `text` is undefined when
+there is no `text/plain` part, so the HTML→text step is **required, not
+defensive**. Confirm both shapes against recorded fixtures; that is what
+`fixtures/gmail/` is for. `body_html` stays nullable — it is the fidelity copy,
+`body_text` is the machine-readable one.
+
+***Attachments: references in Phase 1, bytes in Phase 3.*** `normalize` is pure,
+so `AttachmentRef` carries **provider identifiers only** — Gmail's
+`attachmentId`, filename, MIME type, size. No URL, no bytes. That is correct as
+designed and does not change.
+
+**Phase 1 writes no `attachments` rows.** `attachments.blob_url` is `not null`
+and there is no blob until something downloads one; relaxing that constraint to
+store a placeholder row would trade a real guarantee for a half-truth. Nothing
+is lost by waiting — `messages.payload_raw` retains the whole provider payload,
+so every reference is recoverable whenever the download lands.
+
+Deferred because Phase 1's definition of done is *"you send yourself an email and
+it appears in the console"*, and attachments are not on that path. Downloading
+them pulls in an Azure Blob account and container (still unprovisioned), the
+storage SDK, and per-attachment retry semantics in the worker — real surface for
+no Phase 1 payoff. Moved to Phase 3 in `docs/04-ROADMAP.md`.
+
 **Channel taxonomy:**
 
 | Channel | Mechanism | Notes |
@@ -438,9 +487,29 @@ to the request. An unverified webhook body is attacker-controlled input: reject
 with 401, log the rejection, do not parse.
 
 **Database access.** Supabase Row Level Security **on**, from the first
-migration. The `service_role` key lives only in the worker's server-side
-environment — it bypasses RLS and must never reach the browser. The console uses
-the anon key plus a session.
+migration. The console uses the publishable key plus the user's session, so RLS
+applies and a user can only ever reach their own rows.
+
+**`service_role` — where it may live (amended 2026-07-27, ADR-013).** This
+paragraph previously said the key "lives only in the worker's server-side
+environment." That was wrong the moment ADR-011 put the ingest webhooks in the
+console: a Pub/Sub push arrives with no cookie and no user, so an RLS-scoped
+client sees nothing and cannot write the `raw_events` row the pipeline depends
+on. The corrected rule:
+
+- **Server-side only. Never in a browser bundle.** Never behind a `NEXT_PUBLIC_`
+  variable — those are inlined into client JavaScript at build time.
+- **In the worker:** unrestricted. That is what it is for.
+- **In the console: permitted only under `app/api/webhooks/`** — machine callers
+  with no session. Everything else has a signed-in user and must go through
+  `lib/supabase/server`.
+- **The confinement is enforced by a test**, not by discipline —
+  `apps/console/test/service-client-boundary.test.ts` fails if any other file
+  imports the service client or references a `NEXT_PUBLIC_*SERVICE*` variable.
+
+The risk this guards is not the browser. It is a future page using the service
+client for a user-facing query and silently returning every tenant's rows —
+which looks like working code. Reasoning and rejected alternatives in ADR-013.
 
 **Secrets hygiene.** `.env` is gitignored from commit one. A pre-commit secret
 scan is part of Phase 0. If a token ever lands in git history, rotate it — don't
@@ -550,6 +619,27 @@ type string`). `tsc --noEmit` works fine either way, so **the workspace can
 typecheck green and still fail to build.** Do not unpin this until the ecosystem
 catches up.
 
+**⚠ CI must run `next build`. Added 2026-07-27, after it cost two days.**
+Typecheck and tests are not sufficient, and the gap is structural rather than
+bad luck: `next build` is the **only** step that resolves through package
+`exports` maps, and the only step Vercel actually runs. Both production
+incidents on this project so far had the same shape — `pnpm check` green, both
+CI jobs green, deploy unable to build at all:
+
+| Incident | Invisible to typecheck and tests because |
+|---|---|
+| TypeScript 7 unpinned | `tsc --noEmit` uses the classic API path; `next build`'s type check does not |
+| UTF-8 BOM in `packages/adapters/gmail/package.json` | `tsc`, `vitest` and `pnpm` all tolerate a BOM; only a strict manifest parse through `exports` fails |
+
+The BOM one was the more expensive, and not because the fix was hard. **Vercel
+keeps serving the last deployment that built**, so the console stayed up on
+pre-watch-registration code while looking healthy — which produced a connected
+channel with no `sync_state` and no error, a signature that reads as an
+application bug and is not one. A failed build that silently pins production to
+old code is worse than an outage, because an outage is obvious. Guard the class,
+not the instance: CI runs `next build`, and the pre-commit hook rejects any
+staged `.json` beginning with a BOM.
+
 **Two notes that matter more than they look:**
 
 *The supabase-js / Drizzle split is a security boundary, not a preference.* The
@@ -565,4 +655,5 @@ job to retry, not a row to insert.
 
 ---
 
-*Last updated: 2026-07-26 · §8 amended during build session 2*
+*Last updated: 2026-07-27 · §2 normalization rules added, §6 amended by ADR-013,
+§8 gained the `next build` requirement*

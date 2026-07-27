@@ -8,6 +8,9 @@
 export const EXPECTED_VARS = [
   'NEXT_PUBLIC_SUPABASE_URL',
   'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+  // Ingest cannot persist without it: a Pub/Sub push has no session for RLS to
+  // scope. Server-side only — never prefixed NEXT_PUBLIC_.
+  'SUPABASE_SERVICE_ROLE_KEY',
   'CHANNEL_CREDENTIALS_KEY',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
@@ -46,6 +49,21 @@ export function inspectVar(name: string, raw: string | undefined, origin: string
   if (raw.length === 0) issues.push('set but empty');
   if (raw !== value) issues.push('has leading or trailing whitespace');
   if (/[\r\n]/.test(raw)) issues.push('contains a line break');
+
+  // ⚠ Wrapping quotes.
+  //
+  // apps/worker/.env quotes some values and dotenv strips them, so copying a
+  // line out of that file carries the quotes along. Vercel's dashboard does NOT
+  // strip them: the value becomes literally `"sb_secret_…"`, and the resulting
+  // failure reads as a rejected key rather than a malformed one — you go
+  // looking for a rotation problem that does not exist.
+  if (value.length >= 2) {
+    const first = value[0];
+    const last = value[value.length - 1];
+    if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+      issues.push('is wrapped in quotes — paste the value without them');
+    }
+  }
 
   switch (name) {
     case 'CHANNEL_CREDENTIALS_KEY': {
@@ -96,6 +114,20 @@ export function inspectVar(name: string, raw: string | undefined, origin: string
     case 'GOOGLE_PUBSUB_TOPIC': {
       if (value.length > 0 && !value.startsWith('projects/')) {
         issues.push('should be the full name: projects/<project>/topics/<topic>');
+      }
+      break;
+    }
+
+    case 'SUPABASE_SERVICE_ROLE_KEY': {
+      // Both formats are valid: `sb_secret_…` (current) and a JWT (legacy).
+      // What is NOT valid is the publishable key pasted here by mistake, which
+      // would make ingest fail with a permission error rather than a config one.
+      if (value.length > 0) {
+        if (value.startsWith('sb_publishable_')) {
+          issues.push('this is the PUBLISHABLE key, not the service role key');
+        } else if (!value.startsWith('sb_secret_') && !value.startsWith('eyJ')) {
+          issues.push('does not look like a Supabase service role key');
+        }
       }
       break;
     }

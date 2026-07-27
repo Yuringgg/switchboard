@@ -145,12 +145,41 @@ isolation is intact.
   token works before anything persists
 - Migration 0003: `unique (owner_id, type, display_name)` on `channels`, so a
   reconnect can't create a second row for the same mailbox and double every message
-- `GET /api/health/config` — the diagnostic for the live blocker below
+- `GET /api/health/config` — signed-in only, reports env presence and shape but
+  **never values**, plus `deployment.commit` so "did my change actually deploy?"
+  is answerable by reading rather than by inference
+- **`users.watch` registration** — in the OAuth callback, so a connect and a
+  watch cannot come apart. **Verified live: `sync_state` has a cursor and the
+  watch expires 2026-08-02 20:08:03 UTC.** Gmail is publishing.
+- **Watch renewal in the worker** — sweeps every 6 hours, renews at T-2 days, and
+  on failure sets `channels.status='error'` with the reason so it surfaces on
+  `/channels`. It lives in the worker rather than a Vercel cron because it must
+  decrypt every user's credentials. Proven in production against a probe channel
+  with a deliberately invalid refresh token.
+- **The webhook queues.** `/api/webhooks/gmail` verifies the OIDC token → looks
+  up the channel by notified address → inserts one `raw_events` row → 200.
+  `owner_id` comes from the channel, never the payload.
+- **Migration 0004** — `unique (channel_id, external_id)` on `raw_events`,
+  partial on `external_id is not null`. It was the only table on the ingest path
+  with no idempotency guard, and it is the first one a Pub/Sub redelivery touches.
+- **`service_role` now also lives in the console**, confined to
+  `app/api/webhooks/` and enforced by `test/service-client-boundary.test.ts`.
+  Read **ADR-013** before using it anywhere else — the answer is no.
+- **CI runs `next build`**, and the pre-commit hook rejects BOM'd JSON. Both
+  guard the same class of failure; see `docs/02-ARCHITECTURE.md` §8.
 
-**What is not:** `users.watch` registration (`historyId` + `expires_at` into
-`sync_state`) and the renewal cron. **Nothing is registered with Gmail yet, so
-Gmail is publishing nothing** — the topic and subscription exist but sit idle.
-`messages` has never held a row. No WhatsApp, no assistant.
+**What is not:** `history.list` polling and `normalize` in
+`packages/adapters/gmail`; the worker's upsert into `messages` (it claims events
+and marks them done without doing anything); contact identity resolution; and
+the timeline, which renders `<NoMessagesYet />` unconditionally and never queries
+`messages`. **So a notification arriving changes nothing visible** — those four
+links are what turn a verified notification into an email on screen. `messages`
+has never held a row. Attachments moved to Phase 3. No WhatsApp, no assistant.
+
+Two normalization rules were settled before `normalize` was written — read
+`docs/02-ARCHITECTURE.md` §2 first: **`bodyText` is always synthesised** (the
+column is `not null`, HTML-only email is common, `''` is a legal value), and
+**attachments are provider references only**, with no bytes downloaded in Phase 1.
 
 Do not skip ahead. The adapter contract exists; use it.
 
@@ -161,37 +190,66 @@ security boundary. Migrations are hand-written SQL in `packages/db/migrations/`.
 Full reasoning in `packages/db/drizzle.config.ts`. Drizzle-as-ORM is fine and
 unaffected. `drizzle-kit pull` is safe.
 
-**🔴 THE ONE LIVE BLOCKER (2026-07-27): a Google env var is missing on Vercel.**
+**✅ RESOLVED 2026-07-27 — two consecutive incidents, kept because the second
+misdiagnosis is instructive and the failure mode will recur.**
 
-Clicking **Connect** on `/channels` returns **HTTP 500** from
-`/api/auth/google/start`. Diagnosed by probing production:
+**Incident 1 — the Google env var.** `/api/auth/google/start` returned 500.
+Diagnosis was right: the Google variables were genuinely unbound on the
+then-current deployment, because **Vercel binds environment variables when a
+deployment is created**, so a variable added afterwards does nothing until the
+next build. A redeploy fixed it, and OAuth succeeded — the `channels` row was
+created at 19:43 UTC.
 
-| Probe | Result | Meaning |
-|---|---|---|
-| `/api/auth/google/start` (no session) | 307 → `/login` | Route loads; the 500 is *after* the session check |
-| `/api/webhooks/gmail` | 503 | The "not configured" branch — a Google var is genuinely absent |
-| `/signup` | 200 | Deployment is current |
-| `/channels` | 307 | Deployment has the newest commit |
-| `/api/cron/keepalive` | 401 | `CRON_SECRET` did arrive |
+**Incident 2 — the one that cost the time.** That successful connect produced an
+`active` channel with **empty `sync_state` and no error**. Read as "watch
+registration is broken" or "still a missing variable." It was neither. The two
+commits carrying watch registration had **ERRORED at build**, and **Vercel keeps
+serving the last deployment that built** — so production stayed on
+pre-watch-registration code while looking perfectly healthy. The build failure
+was a **UTF-8 BOM** in `packages/adapters/gmail/package.json`, written by
+PowerShell's `Out-File -Encoding utf8`. It detonated late: without an `exports`
+map a resolver never strictly parses the manifest, and adding `exports` forced
+the parse the BOM breaks. Fixed in `908dc87`; the next reconnect registered the
+watch at 20:08 UTC.
 
-So: not a stale deployment, and not *all* env vars — **specifically the Google
-ones.** The only code between the session check and the redirect is
-`createOAuthClient()`, reading `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
-`GOOGLE_OAUTH_REDIRECT_URI`. One of those three is missing or empty.
+Three lessons, all now guarded:
 
-**Leading hypothesis:** Vercel binds env vars **when a deployment is created**, so
-a variable added afterwards does nothing until the next build — and redeploying
-with "Use existing Build Cache" can reuse the prior build's environment. Also
-worth confirming the vars landed on **`switchboard-console`** and not
-`ageni-academy`, the only other project in the account.
+1. **A failed build that pins production to old code is worse than an outage**,
+   because the symptom is an application bug that doesn't exist. `active` channel
+   + empty `sync_state` + no error is a state *only the old code can produce* —
+   and it reads as a logic error in code that was never running.
+2. **`tsc`, `vitest` and `pnpm` all tolerate a BOM.** `pnpm check` and both CI
+   jobs were green while the deploy could not build at all. **CI now runs
+   `next build`**, the only step that resolves through `exports` maps.
+3. **Answer "which commit is serving?" by reading, not inferring.**
+   `/api/health/config` reports `deployment.commit`. The Vercel MCP cannot see
+   this project (`docs/03-RESOURCES.md` §8), so the dashboard is the fallback.
+   Equally: **check state against the live database before concluding from
+   code.** `sync_state` had a cursor for hours while the build session's notes
+   still said it was empty.
 
-**Diagnostic shipped:** `GET /api/health/config` — signed-in only, reports
-presence and shape but **never values**, so its output is safe to paste
-anywhere. `/start` no longer 500s on bad config; it redirects to `/channels`
-naming the missing variable.
+**✅ INGEST IS LIVE — first real notifications queued 2026-07-27 05:30 UTC.**
 
-**→ Next action:** Yuri signs in, opens `/api/health/config`, pastes the JSON.
-`missing` and `malformed` name the culprit outright.
+`SUPABASE_SERVICE_ROLE_KEY` is set on Vercel (Production + Preview, Sensitive).
+**Two `raw_events` rows landed from a real email**, correct `channel_id`, correct
+`owner_id`, `status='done'`, one attempt, no error. Gmail → Pub/Sub → OIDC
+verification → channel lookup → insert now works end to end for the first time.
+
+**⚠ Never prefix that variable with `NEXT_PUBLIC_`** — it would inline a key that
+bypasses every RLS policy into browser JavaScript. A test fails if anyone does.
+
+**Paste hygiene, learned the hard way:** `apps/worker/.env` wraps some values in
+double quotes and dotenv strips them, but **Vercel's dashboard stores the field
+verbatim** — so a value pasted with its quotes becomes `"sb_secret_…"` and every
+request fails auth in a way that reads as a bad key. Paste values unquoted.
+`/api/health/config` does not yet check this variable at all, and `inspectVar`
+does not yet flag wrapping quotes; both are worth adding next to the existing
+whitespace and line-break checks.
+
+**→ Next action: build `history.list` + `normalize`.** Nothing is blocked. Note
+that **the timeline still shows nothing and that is correct** — three links
+remain between a queued notification and a message on screen, and the worker
+currently claims each event and marks it done without doing anything.
 
 Credentials: **Supabase and Google Cloud are both fully configured.**
 `apps/worker/.env` holds `DATABASE_URL` (Supavisor session mode, port 5432 — the
@@ -203,7 +261,12 @@ APIs, consent screen, OAuth client, topic and push subscription — see
 **Tooling notes:** the **Azure MCP still times out even after `az login`** — use
 the `az` CLI directly, at
 `C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd` (not on `PATH`).
-`gh` is not installed.
+`gh` is not installed. **The Vercel MCP cannot see `switchboard-console`** — it
+authenticates to team `Yuringgg`, which holds only `ageni-academy`, while
+Switchboard is on the personal Hobby scope. Build and runtime logs are therefore
+dashboard-only; reproduce build failures with `pnpm --filter console build`.
+**The Supabase MCP is the one to reach for** — checking a claim against the live
+database has twice caught what reading the code did not.
 
 **Accounts:** `dev@switchboard.test` was deleted on 2026-07-26 along with its
 seed file. `leiruychua@gmail.com` is now the only user, created through the
@@ -269,4 +332,4 @@ scope entirely** — see ADR-008 before anyone suggests adding them.
 
 ---
 
-*Last updated: 2026-07-25 · Planning session 1*
+*Last updated: 2026-07-27 · Planning session 2 — after build session 5*

@@ -1,0 +1,67 @@
+{
+  "id": "fixture0000000001",
+  "threadId": "fixturethread001",
+  "labelIds": [
+    "UNREAD",
+    "IMPORTANT",
+    "SENT",
+    "INBOX"
+  ],
+  "internalDate": "1785000000000",
+  "payload": {
+    "mimeType": "multipart/alternative",
+    "headers": [
+      {
+        "name": "MIME-Version",
+        "value": "1.0"
+      },
+      {
+        "name": "Date",
+        "value": "Sun, 27 Jul 2026 10:00:00 +0800"
+      },
+      {
+        "name": "Message-ID",
+        "value": "<fixture1@mail.example>"
+      },
+      {
+        "name": "Subject",
+        "value": "Quarterly handover notes"
+      },
+      {
+        "name": "From",
+        "value": "Owner Person <owner@example.com>"
+      },
+      {
+        "name": "To",
+        "value": "Owner Person <owner@example.com>"
+      },
+      {
+        "name": "Content-Type",
+        "value": "multipart/alternative; boundary=\"000\""
+      }
+    ],
+    "body": {
+      "size": 0
+    },
+    "parts": [
+      {
+        "partId": "0",
+        "mimeType": "text/plain",
+        "filename": "",
+        "body": {
+          "size": 30,
+          "data": "UGxhaW4gcGFydC4KU2Vjb25kIGxpbmUu"
+        }
+      },
+      {
+        "partId": "1",
+        "mimeType": "text/html",
+        "filename": "",
+        "body": {
+          "size": 40,
+          "data": "PGRpdj5QbGFpbiBwYXJ0Ljxicj5TZWNvbmQgbGluZS48L2Rpdj4"
+        }
+      }
+    ]
+  }
+}

@@ -8,6 +8,9 @@ function good(): Record<string, string> {
   return {
     NEXT_PUBLIC_SUPABASE_URL: 'https://ytrkpcryztwgflmbhfdu.supabase.co',
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_xxxxxxxxxxxxxxxxxxxx',
+    // Short on purpose — long enough to carry the prefix the shape check looks
+    // for, short enough not to trip the pre-commit secret scan.
+    SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_fake',
     CHANNEL_CREDENTIALS_KEY: Buffer.alloc(32, 7).toString('base64'),
     GOOGLE_CLIENT_ID: '468794256088-abc.apps.googleusercontent.com',
     // Short on purpose: long enough to carry the GOCSPX- prefix the shape
@@ -116,6 +119,39 @@ describe('inspectVar', () => {
     expect(
       inspectVar('GOOGLE_CLIENT_SECRET', '123-abc.apps.googleusercontent.com', ORIGIN).issues.join(' '),
     ).toMatch(/does not look like a Google client secret/);
+  });
+
+  it('catches a value pasted with its surrounding quotes', () => {
+    // apps/worker/.env quotes values and dotenv strips them; Vercel's dashboard
+    // does not. The key then fails auth in a way that reads as a bad key rather
+    // than a badly pasted one.
+    const quoted = inspectVar('SUPABASE_SERVICE_ROLE_KEY', '"sb_secret_fake"', ORIGIN);
+    expect(quoted.issues.join(' ')).toMatch(/wrapped in quotes/);
+
+    const single = inspectVar('CRON_SECRET', "'a-long-random-value'", ORIGIN);
+    expect(single.issues.join(' ')).toMatch(/wrapped in quotes/);
+  });
+
+  it('does not mistake a value that merely contains a quote', () => {
+    expect(inspectVar('CRON_SECRET', 'abc"def', ORIGIN).issues).toEqual([]);
+    // A single character cannot be "wrapped".
+    expect(inspectVar('CRON_SECRET', '"', ORIGIN).issues).toEqual([]);
+  });
+
+  it('catches the publishable key pasted as the service role key', () => {
+    // Fails as a permission error at request time, which looks like an RLS
+    // problem rather than a config one.
+    const issues = inspectVar(
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'sb_publishable_xxxxxxxxxxxxxxxxxxxx',
+      ORIGIN,
+    ).issues;
+    expect(issues.join(' ')).toMatch(/PUBLISHABLE key/);
+  });
+
+  it('accepts both service role key formats', () => {
+    expect(inspectVar('SUPABASE_SERVICE_ROLE_KEY', 'sb_secret_fake', ORIGIN).issues).toEqual([]);
+    expect(inspectVar('SUPABASE_SERVICE_ROLE_KEY', 'eyJhbGciOiJIUzI1', ORIGIN).issues).toEqual([]);
   });
 
   it('catches a bare topic name instead of the full path', () => {

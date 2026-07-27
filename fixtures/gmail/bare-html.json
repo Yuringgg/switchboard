@@ -1,0 +1,55 @@
+{
+  "id": "fixture0000000003",
+  "threadId": "fixturethread003",
+  "labelIds": [
+    "UNREAD",
+    "CATEGORY_UPDATES",
+    "INBOX"
+  ],
+  "internalDate": "1785001200000",
+  "payload": {
+    "mimeType": "text/html",
+    "headers": [
+      {
+        "name": "Content-Transfer-Encoding",
+        "value": "quoted-printable"
+      },
+      {
+        "name": "Content-Type",
+        "value": "text/html; charset=utf-8"
+      },
+      {
+        "name": "Date",
+        "value": "Sun, 27 Jul 2026 10:20:00 +0800"
+      },
+      {
+        "name": "From",
+        "value": "Sender Co <hello@sender.example>"
+      },
+      {
+        "name": "Mime-Version",
+        "value": "1.0"
+      },
+      {
+        "name": "Message-ID",
+        "value": "<fixture3@sender.example>"
+      },
+      {
+        "name": "Subject",
+        "value": "A newsletter"
+      },
+      {
+        "name": "Reply-To",
+        "value": "reply@sender.example"
+      },
+      {
+        "name": "To",
+        "value": "owner@example.com"
+      }
+    ],
+    "body": {
+      "size": 93350,
+      "data": "PGRpdj5MaW5lIG9uZTxicj5MaW5lIHR3bzwvZGl2PjxzY3JpcHQ-dHJhY2soKTwvc2NyaXB0Pjx0YWJsZT48dHI-PHRkPkNlbGwgQTwvdGQ-PHRkPkNlbGwgQjwvdGQ-PC90cj48L3RhYmxlPg"
+    }
+  }
+}

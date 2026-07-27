@@ -278,7 +278,19 @@ flagging if iOzera ever wants to run this internally for real.
 
 ## 6. Credentials checklist
 
-**Nothing on this list exists yet.** Phase 1 needs the ★ items.
+*Updated 2026-07-27. Everything Phase 0 and Phase 1 need exists, with one
+exception called out below.*
+
+**🔴 The one outstanding item — ingest cannot persist without it**
+- [ ] ★ **`SUPABASE_SERVICE_ROLE_KEY` in the Vercel project** (Production **and**
+      Preview), same value as `apps/worker/.env`. A Pub/Sub push has no user
+      session, so the webhook writes `raw_events` with the service role
+      (ADR-013). Until this is set, `/api/webhooks/gmail` returns 500 — nothing
+      is *lost*, because Pub/Sub retries with backoff for days, but nothing is
+      queued either.
+      **⚠ Never prefix it with `NEXT_PUBLIC_`.** That inlines a key which
+      bypasses every RLS policy into browser JavaScript. There is a test that
+      fails if anyone does.
 
 **Phase 0 — foundation**
 - [x] ★ Supabase project + URL + publishable key — in `apps/console/.env.local`
@@ -290,17 +302,31 @@ flagging if iOzera ever wants to run this internally for real.
       *An earlier service_role key was exposed and revoked; the current one is
       its replacement. Neither has ever been in this repo or its history.*
 - [x] ★ Supabase Auth enabled (identity + `auth.uid()` as the tenant key)
-- [ ] ★ Encryption key for `channels.credentials` (generate, store in env, never commit)
-- [ ] ★ Vercel project linked to the repo
-- [ ] ★ Azure resource group + Container Apps environment
-- [ ] Azure Blob Storage account + container
+- [x] ★ `CHANNEL_CREDENTIALS_KEY` for `channels.credentials` — AES-256-GCM,
+      32 bytes base64. Set in Vercel and in the Azure worker. `/api/health/config`
+      reports a wrong decoded byte count, which is the failure a bad paste causes.
+- [x] ★ Vercel project linked to the repo — `switchboard-console`, root directory
+      `apps/console`
+- [x] ★ Azure resource group + Container Apps environment — `rg-switchboard`,
+      **malaysiawest** (see the region policy below)
+- [ ] Azure Blob Storage account + container — **not needed until Phase 3**;
+      attachments were moved there 2026-07-27 (`docs/04-ROADMAP.md`)
 
 **Phase 1 — Gmail (+ Calendar scopes, requested now to avoid a second consent later)**
-- [ ] ★ Google Cloud project; **Gmail API and Calendar API** both enabled
-- [ ] ★ OAuth consent screen (**testing mode**, users manually allowlisted) + OAuth client
-- [ ] ★ Scopes: Gmail read + `https://www.googleapis.com/auth/calendar.events`
-- [ ] ★ Pub/Sub topic + push subscription, with publish rights granted to
-      `gmail-api-push@system.gserviceaccount.com`
+- [x] ★ Google Cloud project; **Gmail API and Calendar API** both enabled —
+      `switchboard-503613`, number `468794256088`
+- [x] ★ OAuth consent screen (**External, testing mode**, `leiruychua@gmail.com`
+      allowlisted) + OAuth client. **Never publish it** — Gmail restricted scopes
+      trigger a CASA assessment.
+- [x] ★ Scopes: `gmail.readonly` + `https://www.googleapis.com/auth/calendar.events`
+- [x] ★ Pub/Sub topic `gmail-push` + push subscription `gmail-push-sub` →
+      `/api/webhooks/gmail`, OIDC-authenticated as
+      `gmail-push-invoker@switchboard-503613.iam.gserviceaccount.com` with the
+      endpoint URL as audience, backoff 10/600, ack 30s. Publish rights granted
+      to Gmail.
+- [x] ★ **A registered `users.watch`** — the piece that is easy to forget and
+      fails silently. Registered in the OAuth callback; expires **2026-08-02**,
+      renewed by the worker at T-2 days.
 
 **Phase 2 — WhatsApp**
 - [ ] Meta developer account + app with WhatsApp product added
@@ -353,16 +379,39 @@ Tested by calling each one, 2026-07-25:
 
 | MCP | Status | Use |
 |---|---|---|
-| **Supabase** | ✅ working — org `Yuringgg's Org` | create project, apply migrations, generate TS types, read logs |
-| **Vercel** | ✅ working — team `Yuringgg` | deploy, read build logs, read runtime errors |
+| **Supabase** | ✅ working — org `Yuringgg's Org` | create project, apply migrations, generate TS types, read logs. **The most useful tool on this project** — see the note below. |
+| **Vercel** | ⚠️ **cannot see `switchboard-console`** — corrected 2026-07-27 | of limited use; see below |
 | **Azure MCP** | ⚠️ **still times out — do not use** | superseded by the `az` CLI |
 | **`az` CLI** | ✅ working — `Azure for Students`, Mapúa tenant | resource groups, Container Apps, policy, deployment |
 | **Notion** | connected | write-up for Ms. Maria |
 | **GitHub** *(via Claude Code)* | — | repo, branches, PRs |
 
+**⚠ The Vercel MCP cannot reach the Switchboard project** (corrected 2026-07-27).
+It authenticates to team **`Yuringgg`** (`team_KUQXesLs2KU5zFVJ4rRBODbe`), whose
+only project is `ageni-academy`. **`switchboard-console` lives on the personal
+Hobby scope**, which the MCP does not enumerate — `list_projects` does not
+return it and `get_deployment` on the production hostname returns 404. So build
+logs, runtime logs and deployment status are **not readable from tooling**;
+they have to be read in the dashboard, or the failure reproduced locally with
+`pnpm --filter console build`.
+
+This is not cosmetic. It cost two days: the deploy-status question that the BOM
+incident turned on could only be answered by inference from behaviour, which is
+exactly the situation `/api/health/config`'s `deployment.commit` field was added
+to end. It is also why "did the env vars land on `switchboard-console` or
+`ageni-academy`?" was a live question at all — both projects exist under the same
+login. **Don't try the MCP again expecting it to work; check the dashboard.**
+
 **⚠ The Azure MCP still times out even after `az login`** (2026-07-26), so
 `az login` was not the fix. **Use the `az` CLI directly instead** — it works, and
 all of Phase 0's Azure work was done with it. Don't spend more time on the MCP.
+
+**The Supabase MCP is the highest-value verification tool here**, and it earned
+that on 2026-07-27: querying the live database directly is what established that
+the Gmail watch *was* registered when the build session had concluded it wasn't,
+and what caught `raw_events` shipping with no unique constraint while `messages`
+and `conversations` both had theirs. **Prefer checking a claim against the
+database over reading the code that makes it.**
 
 `az` is not on `PATH` in this environment; it lives at
 `C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd`.
@@ -404,5 +453,6 @@ rather than delete.
 
 ---
 
-*Verified 2026-07-25. Re-verify pricing and quota figures before relying on them
-after roughly 2026-10.*
+*Pricing and quota figures verified 2026-07-25 — re-verify before relying on them
+after roughly 2026-10. §6 (credentials) and §8 (MCP tooling) corrected 2026-07-27
+against the live system.*

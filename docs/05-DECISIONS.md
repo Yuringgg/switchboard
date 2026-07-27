@@ -513,6 +513,58 @@ on the one file where being careless is unrecoverable).
 
 ---
 
+## ADR-013 — `service_role` in the console, confined to ingest routes
+
+**Status:** Accepted · 2026-07-27 · *Amends `docs/02-ARCHITECTURE.md` §6*
+
+**Context.** §6 said the `service_role` key "lives only in the worker's
+server-side environment." ADR-011 put the ingest webhooks in the console. Those
+two cannot both hold, and building the `raw_events` insert is what forced the
+issue: **a Pub/Sub push carries no cookie and no user**, so a client scoped by
+RLS sees an empty database and cannot insert. The row it must write also carries
+`owner_id` and `channel_id` as NOT NULL, derived from a `channels` lookup the
+same client cannot perform.
+
+Credit where due: the builder flagged this rather than quietly redefining a
+documented decision. That is the behaviour this file exists to encourage.
+
+**Decision.** The console holds `SUPABASE_SERVICE_ROLE_KEY`, server-side, and
+uses it **only** under `app/api/webhooks/`. The rule is enforced by
+`apps/console/test/service-client-boundary.test.ts`, which fails if any other
+file imports the service client or references a `NEXT_PUBLIC_*SERVICE*`
+variable. §6 is amended to match.
+
+**Why.** §6's *intent* — never in a browser bundle — is intact and is now stated
+as the actual rule rather than approximated by "only in the worker." The real
+hazard was never the key's presence in a server process; it is a future page
+using that client for a user-facing query and returning every tenant's rows to
+whoever asks. That failure is silent and looks like working code, so **the
+guard has to be a test rather than a convention.** A rule nobody checks lasts
+until the first person in a hurry.
+
+**Consequences.** A second place in the system can bypass RLS, so the blast
+radius of a console bug is larger than it was. Mitigated by the boundary test,
+by the key being non-`NEXT_PUBLIC_`, and by ingest being a small, disciplined
+surface (ADR-011: verify, insert, return). Adding a channel adds a webhook under
+the same allowlisted directory, so the rule does not need revisiting per channel.
+
+**Rejected:**
+
+- **A `security definer` Postgres function called with the publishable key.**
+  Genuinely appealing — it would keep `service_role` out of the console
+  entirely. Rejected because the publishable key reaches the browser, so the
+  function would be callable by anyone: an attacker could forge `raw_events`
+  rows against any channel. Gating it with a shared secret argument is a
+  service-role key wearing a different hat.
+- **Forwarding the notification to the worker over HTTP.** Reintroduces exactly
+  the latency and cold-start exposure on the webhook path that ADR-011 exists to
+  remove, and adds a second network hop that can fail while Pub/Sub is waiting.
+- **Leaving §6 as written and building it anyway.** The option this project
+  most needs to refuse. A doc that contradicts the code is worse than either
+  one, because the next session trusts it.
+
+---
+
 ## Template for new ADRs
 
 ```markdown

@@ -1,0 +1,21 @@
+{
+  "id": "fixture0000000005",
+  "threadId": "fixturethread005",
+  "labelIds": [
+    "INBOX"
+  ],
+  "internalDate": "1785002400000",
+  "payload": {
+    "mimeType": "text/plain",
+    "headers": [
+      {
+        "name": "Subject",
+        "value": "No sender"
+      }
+    ],
+    "body": {
+      "size": 5,
+      "data": "Qm9keS4"
+    }
+  }
+}

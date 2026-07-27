@@ -1,0 +1,75 @@
+{
+  "id": "fixture0000000004",
+  "threadId": "fixturethread004",
+  "labelIds": [
+    "INBOX"
+  ],
+  "internalDate": "1785001800000",
+  "payload": {
+    "mimeType": "multipart/mixed",
+    "headers": [
+      {
+        "name": "From",
+        "value": "\"Chua, Lei\" <lei@example.com>"
+      },
+      {
+        "name": "To",
+        "value": "owner@example.com, \"Doe, Jane\" <jane@example.com>"
+      },
+      {
+        "name": "Cc",
+        "value": "cc-person@example.com"
+      },
+      {
+        "name": "Subject",
+        "value": "Contract, signed"
+      },
+      {
+        "name": "Date",
+        "value": "Sun, 27 Jul 2026 10:30:00 +0800"
+      }
+    ],
+    "body": {
+      "size": 0
+    },
+    "parts": [
+      {
+        "partId": "0",
+        "mimeType": "text/plain",
+        "filename": "",
+        "body": {
+          "size": 20,
+          "data": "U2VlIGF0dGFjaGVkLg"
+        }
+      },
+      {
+        "partId": "1",
+        "mimeType": "application/pdf",
+        "filename": "contract.pdf",
+        "body": {
+          "size": 84213,
+          "attachmentId": "attach-pdf-id"
+        }
+      },
+      {
+        "partId": "2",
+        "mimeType": "image/png",
+        "filename": "",
+        "body": {
+          "size": 900,
+          "attachmentId": "inline-sig-id"
+        }
+      },
+      {
+        "partId": "3",
+        "mimeType": "text/plain",
+        "filename": "notes.txt",
+        "body": {
+          "size": 40,
+          "attachmentId": "attach-txt-id",
+          "data": "VEhJUyBNVVNUIE5PVCBCRUNPTUUgVEhFIEJPRFk"
+        }
+      }
+    ]
+  }
+}

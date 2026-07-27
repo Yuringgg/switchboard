@@ -103,19 +103,49 @@ already has the account.
       scoped to the signed-in user
 - [x] Pub/Sub topic `gmail-push` + push subscription `gmail-push-sub`, authenticated;
       publish rights granted to `gmail-api-push@system.gserviceaccount.com`
-- [ ] `users.watch` registration; store `historyId` and `expires_at` in `sync_state`
-- [ ] **Watch renewal cron** — daily, renews at T-2 days, alerts on failure
-- [ ] `packages/adapters/gmail` — `poll` via `history.list`, `normalize` (MIME, threads, HTML→text)
-- [ ] Record real payloads into `fixtures/gmail/`; unit-test `normalize` against them
-- [ ] Ingest endpoint: verify Pub/Sub OIDC token → insert `raw_events` → 200. Nothing else.
-- [ ] Worker loop: claim with `FOR UPDATE SKIP LOCKED` → normalize → upsert `messages`
+- [x] `users.watch` registration; store `historyId` and `expires_at` in `sync_state` —
+      happens in the OAuth callback at connect time, not as a separate step
+      someone has to remember. **Verified live: cursor set, watch expires
+      2026-08-02 20:08:03 UTC.**
+- [x] **Watch renewal** — renews at T-2 days, sweeps every 6 hours, marks
+      `channels.status='error'` with the reason on failure so it surfaces on
+      `/channels`. Lives in the **worker**, not a Vercel cron: it must decrypt
+      every user's credentials, which needs `service_role`, which the console
+      must never hold for a user-facing path (ADR-009, ADR-013). Proven in
+      production against a probe channel with a deliberately invalid refresh
+      token — `status='error'`, correct reason, `cursor` untouched.
+- [x] Ingest endpoint: verify Pub/Sub OIDC token → look up the channel by
+      notified address → insert `raw_events` → 200. Nothing else.
+      **`owner_id` comes from the channel, never the payload.** Migration 0004
+      adds the `(channel_id, external_id)` idempotency guard that `raw_events`
+      was missing, so Pub/Sub redelivery cannot double-queue.
+- [ ] `packages/adapters/gmail` — `poll` via `history.list`, `normalize` (MIME, threads, HTML→text).
+      **See `docs/02-ARCHITECTURE.md` §2 for the two settled rules:** `bodyText`
+      is always synthesised (never null, `''` is legal), and attachments are
+      provider references only.
+- [ ] Record real payloads into `fixtures/gmail/`; unit-test `normalize` against them.
+      **Include an HTML-only email with no `text/plain` part** — it's common and
+      it's what the fallback chain exists for.
+- [ ] Worker loop: claim with `FOR UPDATE SKIP LOCKED` → `history.list` from the
+      stored cursor → normalize → upsert `messages` → advance the cursor
 - [ ] Contact identity resolution: create `contact_identities`, auto-create `contacts`
-- [ ] Attachments → Azure Blob; rows in `attachments`
-- [ ] Console: bare timeline reading from `messages`
+- [ ] Console: bare timeline reading from `messages`. **It must distinguish
+      "connected, waiting" from "nothing connected"** — today both render the
+      same empty state, which already cost one debugging session by pointing at
+      a connection problem when the connection was fine.
 - [ ] Idempotency test: replay the same notification 3×, assert exactly one row
 
 **Done when:** you send yourself an email and it appears in the deployed console.
 **This is the milestone worth screenshotting for Ms. Maria.**
+
+> **Attachments moved to Phase 3** (2026-07-27). `normalize` emits attachment
+> references from Phase 1, but nothing downloads bytes and no `attachments` rows
+> are written — `attachments.blob_url` is `not null` and there is no blob yet,
+> and relaxing that to store a placeholder would trade a real guarantee for a
+> half-truth. Nothing is lost: `messages.payload_raw` keeps the full payload, so
+> every reference is recoverable. Downloading pulls in an Azure Blob account and
+> container, the storage SDK, and per-attachment retry semantics — none of which
+> is on the path to the sentence above. Reasoning in `docs/02-ARCHITECTURE.md` §2.
 
 > Be aware this phase has no early visible payoff — OAuth, Pub/Sub, and watch
 > registration all have to work before a single message renders. That's the cost
@@ -161,6 +191,10 @@ to invest, and it's what makes the system feel finished.
 - [ ] Contact list; contact detail = merged cross-channel history
 - [ ] **Manual identity merge** — "this email address and this number are the same person"
 - [ ] Channel settings: connect, pause, disconnect, sync status, last error
+- [ ] **Attachments → Azure Blob; rows in `attachments`** — moved here from
+      Phase 1. Needs the Blob account and container provisioned first
+      (`docs/03-RESOURCES.md` §6). The references already exist in
+      `messages.payload_raw`, so this is a backfill, not a re-ingest.
 - [ ] Empty, loading, and error states everywhere
 - [ ] Responsive down to mobile width
 
@@ -257,4 +291,4 @@ a row, without intervention.
 
 ---
 
-*Last updated: 2026-07-25 · Planning session 1*
+*Last updated: 2026-07-27 · Phase 1 progress recorded; attachments moved to Phase 3*
