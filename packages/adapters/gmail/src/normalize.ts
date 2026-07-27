@@ -1,5 +1,11 @@
 import type { AttachmentRef, CanonicalMessage, ContactIdentityRef } from '@switchboard/core';
 
+import {
+  base64UrlToBuffer,
+  charsetFromContentType,
+  decodeBytes,
+  decodeEncodedWords,
+} from './decode';
 import { htmlToText } from './html-to-text';
 
 /**
@@ -51,16 +57,41 @@ export type NormalizeResult =
   | { ok: true; message: CanonicalMessage }
   | { ok: false; reason: string };
 
-/** Case-insensitive, first match wins — as RFC 5322 headers behave. */
+/**
+ * Case-insensitive, first match wins — as RFC 5322 headers behave — and
+ * RFC 2047 decoded.
+ *
+ * ⚠ The decode is not optional. Gmail returns header values exactly as they
+ * arrived, so any non-ASCII subject is an encoded-word: `=?UTF-8?B?…?=`. Left
+ * raw, that string is what lands in `messages.subject`, what the timeline
+ * shows, and what Phase 4 embeds — the message becomes unfindable by the words
+ * it contains. The corpus is Taglish, so this is the normal case.
+ */
 function header(payload: GmailPart | undefined, name: string): string | undefined {
   const wanted = name.toLowerCase();
-  return payload?.headers?.find((h) => h.name?.toLowerCase() === wanted)?.value;
+  const raw = payload?.headers?.find((h) => h.name?.toLowerCase() === wanted)?.value;
+  return decodeEncodedWords(raw);
 }
 
-function decodeBase64Url(data: string): string {
-  // Gmail uses base64url: `-` and `_` for `+` and `/`, padding omitted.
-  const normalised = data.replace(/-/g, '+').replace(/_/g, '/');
-  return Buffer.from(normalised, 'base64').toString('utf8');
+/** Undecoded, for cases that need the parameters rather than the text. */
+function rawHeader(part: GmailPart | undefined, name: string): string | undefined {
+  const wanted = name.toLowerCase();
+  return part?.headers?.find((h) => h.name?.toLowerCase() === wanted)?.value;
+}
+
+/**
+ * Decode a part's body using the charset IT declares.
+ *
+ * Each part carries its own Content-Type, and they differ within one message —
+ * a `text/plain` in windows-1252 beside a `text/html` in UTF-8 is ordinary for
+ * mail from older clients. Assuming UTF-8 throughout turns every accented
+ * character into a replacement glyph, silently.
+ */
+function decodePartBody(part: GmailPart): string {
+  const data = part.body?.data;
+  if (!data) return '';
+  const charset = charsetFromContentType(rawHeader(part, 'Content-Type'));
+  return decodeBytes(base64UrlToBuffer(data), charset);
 }
 
 /**
@@ -136,8 +167,8 @@ function collectBodies(payload: GmailPart | undefined): { text: string; html: st
     // Otherwise an attached .txt or .html silently becomes the message body.
     if (part.filename) return;
 
-    if (mime === 'text/plain' && !text) text = decodeBase64Url(data);
-    else if (mime === 'text/html' && !html) html = decodeBase64Url(data);
+    if (mime === 'text/plain' && !text) text = decodePartBody(part);
+    else if (mime === 'text/html' && !html) html = decodePartBody(part);
   });
 
   return { text, html };
@@ -155,7 +186,10 @@ function collectAttachments(payload: GmailPart | undefined): AttachmentRef[] {
 
     attachments.push({
       externalId: part.body.attachmentId,
-      filename: part.filename,
+      // Filenames are encoded-words too when they contain non-ASCII, so a
+      // document named in Filipino arrives as `=?UTF-8?B?…?=` and would be
+      // shown to the user exactly like that.
+      filename: decodeEncodedWords(part.filename) ?? part.filename,
       ...(part.mimeType ? { mimeType: part.mimeType } : {}),
       ...(typeof part.body.size === 'number' ? { sizeBytes: part.body.size } : {}),
     });

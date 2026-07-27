@@ -1,0 +1,52 @@
+{
+  "id": "fixture0000000008",
+  "threadId": "fixturethread008",
+  "labelIds": [
+    "INBOX"
+  ],
+  "internalDate": "1785004200000",
+  "payload": {
+    "mimeType": "multipart/mixed",
+    "headers": [
+      {
+        "name": "From",
+        "value": "Sender <sender@example.com>"
+      },
+      {
+        "name": "To",
+        "value": "owner@example.com"
+      },
+      {
+        "name": "Subject",
+        "value": "Documento"
+      },
+      {
+        "name": "Date",
+        "value": "Sun, 27 Jul 2026 11:20:00 +0800"
+      }
+    ],
+    "body": {
+      "size": 0
+    },
+    "parts": [
+      {
+        "partId": "0",
+        "mimeType": "text/plain",
+        "filename": "",
+        "body": {
+          "size": 10,
+          "data": "U2VlIGZpbGUu"
+        }
+      },
+      {
+        "partId": "1",
+        "mimeType": "application/pdf",
+        "filename": "=?UTF-8?B?S29udHJhdGEgw7EucGRm?=",
+        "body": {
+          "size": 1234,
+          "attachmentId": "attach-encoded-id"
+        }
+      }
+    ]
+  }
+}

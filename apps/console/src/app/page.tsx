@@ -17,6 +17,20 @@ export default async function TimelinePage() {
 
   if (!user) redirect('/login');
 
+  /*
+   * ⚠ WHEN THIS QUERIES `messages`, DO NOT FILTER BY DIRECTION.
+   *
+   * Phase 1's done-condition is "send yourself an email and it appears in the
+   * deployed console" — and a message you send yourself is `outbound`, because
+   * direction is decided by the From address and you are the sender.
+   *
+   * `docs/06-OPEN-QUESTIONS.md` R12 frames the product around messages received
+   * from other people, which makes `where direction = 'inbound'` look like the
+   * obviously correct query. It would make the demo email invisible, and the
+   * pipeline would read as broken when it is working perfectly.
+   *
+   * Render both directions. Distinguish them visually if useful; never filter.
+   */
   return (
     <AppShell
       title="Timeline"

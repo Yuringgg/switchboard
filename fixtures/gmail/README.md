@@ -28,8 +28,35 @@ of ordinary mail — and fails at insert time, far from the cause. `normalize`
 converts HTML when no text part exists, and `nested-html-only.json` and
 `bare-html.json` are what keep that honest.
 
+## ⚠ Scrub the content, keep the ENCODING
+
+The first version of these fixtures was scrubbed to clean ASCII, which quietly
+removed the cases they most needed to preserve — and two real bugs shipped
+behind that gap:
+
+- **RFC 2047 encoded-words were not decoded.** Gmail returns header values
+  exactly as they arrived, so any non-ASCII subject is `=?UTF-8?B?…?=`. No
+  fixture contained a `=?`, so nothing failed.
+- **Charset was ignored**, and every body was decoded as UTF-8. No fixture
+  declared anything else, so nothing failed.
+
+This corpus is **Taglish**. `ñ`, accented vowels and emoji are the normal case,
+not an exotic one, and both bugs produce mojibake rather than an error — which
+then gets embedded in Phase 4, making the message unfindable by the words it
+actually contains.
+
+So: a scrubbed subject keeps its encoded-word wrapper, and a scrubbed body keeps
+its declared charset. Replace the words, never the envelope.
+
+| Fixture | Encoding case it holds |
+|---|---|
+| `encoded-headers.json` | base64 and Q encoded-words, adjacent-word joining, emoji, `ñ` |
+| `latin1-body.json` | `ISO-8859-1` text part beside a `UTF-8` html part — different charsets in ONE message |
+| `encoded-filename.json` | attachment filename as an encoded-word |
+
 ## Adding a fixture
 
 Record from a real message, then scrub: addresses, display names, subject,
 body, `id`, `threadId`, `historyId`, `attachmentId`. Keep the part tree, mime
-types, header names and field types exactly as received — those are the point.
+types, header names, **`charset` parameters, and `=?…?=` wrappers** exactly as
+received — those are the point.

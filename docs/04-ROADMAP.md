@@ -129,7 +129,15 @@ already has the account.
 - [ ] Worker loop: claim with `FOR UPDATE SKIP LOCKED` → `history.list` from the
       stored cursor → normalize → upsert `messages` → advance the cursor
 - [ ] Contact identity resolution: create `contact_identities`, auto-create `contacts`
-- [ ] Console: bare timeline reading from `messages`. **It must distinguish
+- [ ] Console: bare timeline reading from `messages`.
+      **Render BOTH directions — do not filter to `inbound`.** The milestone
+      email is one you send yourself, which is `outbound` (direction comes from
+      the From address). R12 frames the product around messages received from
+      others, which makes an inbound-only filter look right; it would hide the
+      demo email and read as a broken pipeline.
+      Also: distinguish "connected, waiting" from "nothing connected" — the
+      empty state currently looks identical in both, which has already cost one
+      debugging session.. **It must distinguish
       "connected, waiting" from "nothing connected"** — today both render the
       same empty state, which already cost one debugging session by pointing at
       a connection problem when the connection was fine.

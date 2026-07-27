@@ -1,0 +1,42 @@
+{
+  "id": "fixture0000000006",
+  "threadId": "fixturethread006",
+  "labelIds": [
+    "INBOX",
+    "UNREAD"
+  ],
+  "internalDate": "1785003000000",
+  "payload": {
+    "mimeType": "text/plain",
+    "headers": [
+      {
+        "name": "From",
+        "value": "=?UTF-8?Q?Mar=C3=ADa_Santos?= <maria@example.com>"
+      },
+      {
+        "name": "To",
+        "value": "owner@example.com"
+      },
+      {
+        "name": "Subject",
+        "value": "=?UTF-8?B?VGFwb3MgbmEgYW5nIHVsYXQgw7Eg4oCUIFBhc2Vuc3lhIG5hIHBvIPCfmY8=?="
+      },
+      {
+        "name": "X-Split-Subject",
+        "value": "=?UTF-8?B?UGFhbGFsYTogYnVrYXMgYW5nIA==?= =?UTF-8?B?bWl0aW5nIHNhIG9waXNpbmE=?="
+      },
+      {
+        "name": "Content-Type",
+        "value": "text/plain; charset=\"UTF-8\""
+      },
+      {
+        "name": "Date",
+        "value": "Sun, 27 Jul 2026 11:00:00 +0800"
+      }
+    ],
+    "body": {
+      "size": 60,
+      "data": "U2FsYW1hdCBwbyBzYSB0dWxvbmcgbmlueW8uIEtpdGEta2l0cyBidWthcyE"
+    }
+  }
+}
