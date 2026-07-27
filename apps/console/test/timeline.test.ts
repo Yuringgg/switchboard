@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { groupByDay, preview, type TimelineMessage } from '../src/lib/timeline';
+import {
+  groupByDay,
+  newMessagesLabel,
+  preview,
+  type TimelineMessage,
+} from '../src/lib/timeline';
 
 function message(overrides: Partial<TimelineMessage> = {}): TimelineMessage {
   return {
@@ -44,6 +49,17 @@ describe('groupByDay', () => {
 
   it('returns nothing for no messages', () => {
     expect(groupByDay([])).toEqual([]);
+  });
+});
+
+describe('newMessagesLabel', () => {
+  it('is singular for one', () => {
+    expect(newMessagesLabel(1)).toBe('1 new message');
+  });
+
+  it('is plural for more than one', () => {
+    expect(newMessagesLabel(2)).toBe('2 new messages');
+    expect(newMessagesLabel(14)).toBe('14 new messages');
   });
 });
 

@@ -42,6 +42,25 @@
    */
   --channel-gmail: oklch(0.62 0.19 25);
   --channel-whatsapp: oklch(0.68 0.16 155);
+
+  /*
+   * The frame. One step off the background, so the sidebar and header read as
+   * the instrument and the message column reads as the record it is showing.
+   * Deliberately almost imperceptible — a console that stripes itself into
+   * panels is harder to read, not easier.
+   */
+  --panel: oklch(0.983 0 0);
+
+  /*
+   * Signal amber: something arrived and you have not seen it yet.
+   *
+   * The one saturated colour in the interface that is not a channel's own, and
+   * it appears in exactly two places — the live indicator and the new-message
+   * pill. Reserving a hue for "the board is live" is what stops "new" from
+   * competing with "which channel", which is the distinction the timeline
+   * exists to make.
+   */
+  --live: oklch(0.77 0.15 72);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -68,6 +87,11 @@
 
     --channel-gmail: oklch(0.7 0.17 25);
     --channel-whatsapp: oklch(0.75 0.15 155);
+
+    /* Lighter than the background in dark mode, darker in light — the frame
+       stays the surface nearest the viewer either way. */
+    --panel: oklch(0.185 0 0);
+    --live: oklch(0.81 0.15 76);
   }
 }
 
@@ -94,6 +118,17 @@
 
   --color-channel-gmail: var(--channel-gmail);
   --color-channel-whatsapp: var(--channel-whatsapp);
+  --color-panel: var(--panel);
+  --color-live: var(--live);
+
+  /* next/font sets the two variables in app/layout.tsx; the fallbacks are what
+     renders during the swap, so they are ordered to match the metrics of the
+     face they stand in for rather than being a generic list. */
+  --font-sans: var(--font-sans-instrument), ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji';
+  --font-mono: var(--font-mono-plex), ui-monospace, SFMono-Regular, 'SF Mono',
+    Menlo, Consolas, 'Liberation Mono', monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -107,11 +142,59 @@
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-family:
-      ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
-      Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    @apply bg-background font-sans text-foreground;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+  }
+
+  /* A column of times must not change width as the digits change. */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * The live indicator's lamp. Slow enough to read as "watching" rather than
+ * "alarming" — this thing is on screen the entire time the console is open.
+ */
+@keyframes lamp {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@utility animate-lamp {
+  animation: lamp 2.4s ease-in-out infinite;
+}
+
+/* A message that arrived while you were watching, marked for one beat so the
+   eye can find it, then left alone. */
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-arrive {
+  animation: arrive 0.28s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

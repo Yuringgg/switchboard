@@ -1,0 +1,43 @@
+-- 0005_realtime_messages
+--
+-- Publish `messages` to Supabase Realtime so the timeline updates without a
+-- navigation. Pulled forward from Phase 3 (docs/04-ROADMAP.md), where it is
+-- described as the highest ratio of demo impact to implementation cost in the
+-- project: watching a message land unprompted is what makes the pipeline look
+-- real.
+--
+-- Realtime is a logical-replication consumer. A table it is not subscribed to
+-- emits nothing, no matter what the client subscribes to — so this publication
+-- membership, not any console code, is what makes the feature exist at all.
+--
+-- ── Why only `messages` ──────────────────────────────────────────────────────
+-- Adding a table to the publication puts every write to it on the wire for
+-- Realtime to filter. `raw_events` churns on every Pub/Sub delivery and nothing
+-- in the console renders it; `channels` changes a few times in a channel's life
+-- and a status change already arrives with the navigation that caused it. Only
+-- `messages` both changes on its own and is on screen when it does.
+--
+-- ── Why this is safe with RLS ────────────────────────────────────────────────
+-- Realtime evaluates the subscriber's RLS policies against each change before
+-- delivering it, using the access token the client passes on the socket. The
+-- console subscribes with `lib/supabase/client` — the publishable key plus the
+-- user's session — so `tenant_isolation` applies to the stream exactly as it
+-- applies to a query, and a subscriber is delivered only rows where
+-- `owner_id = auth.uid()`. A subscription opened with `service_role` would
+-- bypass that; the console must never hold that key outside the ingest routes
+-- (ADR-013).
+--
+-- Replica identity is left at the default. It governs what a DELETE or UPDATE
+-- carries as its OLD row; an INSERT always writes the full tuple to the WAL,
+-- and inserts are the only event the timeline listens for.
+--
+-- ── Reversing this ───────────────────────────────────────────────────────────
+--   alter publication supabase_realtime drop table messages;
+-- The console degrades to its previous behaviour — messages appear on the next
+-- navigation — rather than breaking.
+--
+-- Applied by hand. `drizzle-kit generate` is not used on this project: run
+-- against the live database it proposed dropping RLS on all ten tables. See
+-- ADR-012 and packages/db/drizzle.config.ts.
+
+alter publication supabase_realtime add table messages;

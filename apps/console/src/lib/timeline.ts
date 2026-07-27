@@ -59,38 +59,63 @@ export function groupByDay(messages: TimelineMessage[]): TimelineDay[] {
   return [...days.entries()].map(([date, msgs]) => ({ date, messages: msgs }));
 }
 
+/**
+ * Returns rather than throws, and never rejects — the page starts this without
+ * awaiting it, so a rejection with no handler attached yet would take down the
+ * whole request rather than showing an error in the message column.
+ */
 export async function fetchTimeline(
   supabase: SupabaseClient,
   limit = 50,
 ): Promise<{ messages: TimelineMessage[]; error: string | null }> {
-  // RLS scopes this to the signed-in user, so there is no owner_id filter —
-  // adding one would imply the policy might not be doing its job.
-  //
-  // The join to contact_identities is what turns a sender_identity uuid into a
-  // name to show. It is a left join: sender_identity is nullable, and a message
-  // whose sender row was removed should still appear.
-  const { data, error } = await supabase
-    .from('messages')
-    .select(
-      'id, direction, subject, body_text, sent_at, channel_id, sender:contact_identities!messages_sender_identity_fkey(external_id, display_name)',
-    )
-    .order('sent_at', { ascending: false })
-    .limit(limit);
+  try {
+    // RLS scopes this to the signed-in user, so there is no owner_id filter —
+    // adding one would imply the policy might not be doing its job.
+    //
+    // The join to contact_identities is what turns a sender_identity uuid into a
+    // name to show. It is a left join: sender_identity is nullable, and a message
+    // whose sender row was removed should still appear.
+    const { data, error } = await supabase
+      .from('messages')
+      .select(
+        'id, direction, subject, body_text, sent_at, channel_id, sender:contact_identities!messages_sender_identity_fkey(external_id, display_name)',
+      )
+      .order('sent_at', { ascending: false })
+      .limit(limit);
 
-  if (error) return { messages: [], error: error.message };
+    if (error) return { messages: [], error: error.message };
 
-  // PostgREST returns an embedded one-to-one as an object, but types it loosely.
-  const messages = (data ?? []).map((row) => {
-    const raw = row as unknown as Omit<TimelineMessage, 'sender'> & {
-      sender: TimelineMessage['sender'] | TimelineMessage['sender'][] | null;
-    };
+    // PostgREST returns an embedded one-to-one as an object, but types it loosely.
+    const messages = (data ?? []).map((row) => {
+      const raw = row as unknown as Omit<TimelineMessage, 'sender'> & {
+        sender: TimelineMessage['sender'] | TimelineMessage['sender'][] | null;
+      };
+      return {
+        ...raw,
+        sender: Array.isArray(raw.sender) ? (raw.sender[0] ?? null) : raw.sender,
+      } satisfies TimelineMessage;
+    });
+
+    return { messages, error: null };
+  } catch (cause) {
     return {
-      ...raw,
-      sender: Array.isArray(raw.sender) ? (raw.sender[0] ?? null) : raw.sender,
-    } satisfies TimelineMessage;
-  });
+      messages: [],
+      // Never include the payload in an error string: this query returns real
+      // message bodies. docs/02-ARCHITECTURE.md §6.
+      error: cause instanceof Error ? cause.message : 'Messages are unavailable.',
+    };
+  }
+}
 
-  return { messages, error: null };
+/**
+ * Label for the "you have unseen mail" pill.
+ *
+ * Pure and separate from the component so the plural boundary is a test rather
+ * than something noticed in a screenshot. "1 new messages" in front of a
+ * mentor is a small thing that reads as an unfinished product.
+ */
+export function newMessagesLabel(count: number): string {
+  return count === 1 ? '1 new message' : `${count} new messages`;
 }
 
 /** First line of the body, for a one-line preview. */

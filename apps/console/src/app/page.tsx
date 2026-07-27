@@ -1,9 +1,14 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 
 import { AppShell } from '@/components/app-shell';
-import { Timeline, TimelineEmpty } from '@/components/timeline';
+import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
+import { fetchChannels, type ChannelRow } from '@/lib/channels';
 import { createClient } from '@/lib/supabase/server';
-import { fetchTimeline } from '@/lib/timeline';
+import { fetchTimeline, type TimelineMessage } from '@/lib/timeline';
+
+export const metadata: Metadata = { title: 'Timeline · Switchboard' };
 
 export default async function TimelinePage() {
   const supabase = await createClient();
@@ -22,38 +27,68 @@ export default async function TimelinePage() {
    *
    * The milestone email is one you send yourself, which is `outbound`. An
    * inbound-only query would hide it and make a working pipeline look broken.
+   *
+   * Neither promise is awaited here, on purpose. Both requests are already in
+   * flight while the shell renders and streams; the message column arrives
+   * behind its <Suspense> boundary. Awaiting them here would put the whole
+   * frame behind another round trip to Singapore for no gain — the header and
+   * the sidebar do not depend on either result.
    */
-  const [{ messages, error }, { data: channels }] = await Promise.all([
-    fetchTimeline(supabase),
-    supabase.from('channels').select('id, type'),
-  ]);
-
-  // Channel type per message, so each row can show which platform it came from.
-  const channelTypeById = new Map(
-    (channels ?? []).map((c) => [c.id as string, c.type as string]),
-  );
+  const channels = fetchChannels(supabase);
+  const timeline = fetchTimeline(supabase);
 
   return (
     <AppShell
       title="Timeline"
       description="Every message, every channel, in order."
       userEmail={user.email ?? 'Signed in'}
+      userId={user.id}
       activeHref="/"
+      channels={channels}
     >
-      {error && (
+      <Suspense fallback={<TimelineSkeleton />}>
+        <TimelineSection timeline={timeline} channels={channels} />
+      </Suspense>
+    </AppShell>
+  );
+}
+
+/**
+ * Everything that has to wait for the database. Kept as its own component so
+ * the boundary above it is a real streaming boundary — a `<Suspense>` whose
+ * child is not async suspends on nothing.
+ */
+async function TimelineSection({
+  timeline,
+  channels,
+}: {
+  timeline: Promise<{ messages: TimelineMessage[]; error: string | null }>;
+  channels: Promise<{ channels: ChannelRow[]; error: string | null }>;
+}) {
+  const [{ messages, error }, { channels: rows, error: channelsError }] =
+    await Promise.all([timeline, channels]);
+
+  // Channel type per message, so each row can show which line it came in on.
+  const channelTypeById = new Map(rows.map((c) => [c.id, c.type]));
+
+  return (
+    <>
+      {(error || channelsError) && (
         <p
           role="alert"
           className="mb-5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
-          Could not load messages: {error}
+          {error
+            ? `Could not load messages: ${error}`
+            : 'Could not load channels, so messages may be missing their channel.'}
         </p>
       )}
 
       {messages.length > 0 ? (
         <Timeline messages={messages} channelTypeById={channelTypeById} />
       ) : (
-        <TimelineEmpty connectedChannels={channels?.length ?? 0} />
+        <TimelineEmpty connectedTypes={rows.map((c) => c.type)} />
       )}
-    </AppShell>
+    </>
   );
 }

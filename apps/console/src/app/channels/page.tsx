@@ -1,23 +1,15 @@
-﻿import { CHANNEL_TYPES } from '@switchboard/core';
+import { CHANNEL_TYPES } from '@switchboard/core';
 import { Plug } from 'lucide-react';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 
 import { AppShell } from '@/components/app-shell';
-import { CHANNELS } from '@/lib/channels';
+import { CHANNELS, fetchChannels, type ChannelRow } from '@/lib/channels';
 import { createClient } from '@/lib/supabase/server';
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'Channels · Switchboard' };
-
-interface ChannelRow {
-  id: string;
-  type: string;
-  display_name: string;
-  status: string;
-  last_error: string | null;
-  created_at: string;
-}
 
 export default async function ChannelsPage({
   searchParams,
@@ -32,28 +24,25 @@ export default async function ChannelsPage({
   } = await supabase.auth.getUser();
   if (!user) redirect('/login?next=/channels');
 
-  // RLS scopes this to the signed-in user; no owner_id filter is needed, and
-  // adding one would imply the policy might not be doing its job.
-  const { data, error: queryError } = await supabase
-    .from('channels')
-    .select('id, type, display_name, status, last_error, created_at')
-    .order('created_at', { ascending: true });
-
-  const channels = (data ?? []) as ChannelRow[];
+  // One query, shared with the shell's channel legend. Not awaited here — the
+  // frame does not depend on it, so it should not wait for it.
+  const channels = fetchChannels(supabase);
 
   return (
     <AppShell
       title="Channels"
       description="Connect an account and its messages flow into the timeline."
       userEmail={user.email ?? 'Signed in'}
+      userId={user.id}
       activeHref="/channels"
+      channels={channels}
     >
       {connected && (
         <p
           role="status"
-          className="mb-5 rounded-md border border-border bg-card px-3 py-2 text-sm"
+          className="mb-5 rounded-md border border-border bg-panel px-3 py-2 text-sm"
         >
-          Connected <span className="font-medium">{connected}</span>. Messages will
+          Connected <span className="font-mono">{connected}</span>. Messages will
           appear in the timeline shortly.
         </p>
       )}
@@ -67,7 +56,23 @@ export default async function ChannelsPage({
         </p>
       )}
 
-      {queryError && (
+      <Suspense fallback={<ChannelListSkeleton />}>
+        <ChannelList channels={channels} />
+      </Suspense>
+    </AppShell>
+  );
+}
+
+async function ChannelList({
+  channels,
+}: {
+  channels: Promise<{ channels: ChannelRow[]; error: string | null }>;
+}) {
+  const { channels: rows, error } = await channels;
+
+  return (
+    <>
+      {error && (
         <p
           role="alert"
           className="mb-5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
@@ -79,17 +84,21 @@ export default async function ChannelsPage({
       <ul className="space-y-2.5">
         {CHANNEL_TYPES.map((type) => {
           const meta = CHANNELS.find((c) => c.type === type);
-          const connectedChannels = channels.filter((c) => c.type === type);
+          const connectedChannels = rows.filter((c) => c.type === type);
           const isGmail = type === 'gmail';
 
           return (
             <li
               key={type}
-              className="rounded-lg border border-border px-4 py-3.5"
+              className="rounded-lg border border-border bg-panel px-4 py-3.5"
             >
               <div className="flex flex-wrap items-center gap-3">
                 <span
-                  className={cn('size-2 shrink-0 rounded-full', meta?.dotClass)}
+                  className={cn(
+                    'size-2 shrink-0 rounded-full',
+                    meta?.dotClass,
+                    connectedChannels.length === 0 && 'opacity-30',
+                  )}
                   aria-hidden
                 />
                 <span className="text-sm font-medium">{meta?.label ?? type}</span>
@@ -103,7 +112,7 @@ export default async function ChannelsPage({
                     {connectedChannels.length > 0 ? 'Reconnect' : 'Connect'}
                   </a>
                 ) : (
-                  <span className="ml-auto text-xs text-muted-foreground">
+                  <span className="ml-auto font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
                     Admin-provisioned
                   </span>
                 )}
@@ -112,20 +121,27 @@ export default async function ChannelsPage({
               {connectedChannels.length > 0 ? (
                 <ul className="mt-3 space-y-1.5 border-t border-border pt-3">
                   {connectedChannels.map((channel) => (
-                    <li key={channel.id} className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="text-muted-foreground">{channel.display_name}</span>
+                    <li
+                      key={channel.id}
+                      className="flex flex-wrap items-center gap-2 text-sm"
+                    >
+                      <span className="font-mono text-[12px] text-muted-foreground">
+                        {channel.display_name}
+                      </span>
                       <span
                         className={cn(
-                          'rounded px-1.5 py-0.5 text-[11px]',
+                          'font-mono text-[10px] tracking-[0.12em] uppercase',
                           channel.status === 'active'
-                            ? 'bg-accent text-accent-foreground'
-                            : 'bg-destructive/10 text-destructive',
+                            ? 'text-muted-foreground/70'
+                            : 'text-destructive',
                         )}
                       >
                         {channel.status}
                       </span>
                       {channel.last_error && (
-                        <span className="text-xs text-destructive">{channel.last_error}</span>
+                        <span className="text-xs text-destructive">
+                          {channel.last_error}
+                        </span>
                       )}
                     </li>
                   ))}
@@ -141,6 +157,26 @@ export default async function ChannelsPage({
           );
         })}
       </ul>
-    </AppShell>
+    </>
+  );
+}
+
+function ChannelListSkeleton() {
+  return (
+    <ul className="space-y-2.5" aria-hidden>
+      {CHANNEL_TYPES.map((type) => (
+        <li
+          key={type}
+          className="rounded-lg border border-border bg-panel px-4 py-3.5"
+        >
+          <div className="flex animate-pulse items-center gap-3">
+            <span className="size-2 shrink-0 rounded-full bg-muted-foreground/20" />
+            <span className="h-3.5 w-20 rounded bg-muted-foreground/15" />
+            <span className="ml-auto h-8 w-24 rounded-md bg-muted-foreground/10" />
+          </div>
+          <span className="mt-3 block h-3 w-2/3 animate-pulse rounded bg-muted-foreground/10" />
+        </li>
+      ))}
+    </ul>
   );
 }

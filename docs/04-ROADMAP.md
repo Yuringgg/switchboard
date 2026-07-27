@@ -119,28 +119,40 @@ already has the account.
       **`owner_id` comes from the channel, never the payload.** Migration 0004
       adds the `(channel_id, external_id)` idempotency guard that `raw_events`
       was missing, so Pub/Sub redelivery cannot double-queue.
-- [ ] `packages/adapters/gmail` — `poll` via `history.list`, `normalize` (MIME, threads, HTML→text).
+- [x] `packages/adapters/gmail` — `poll` via `history.list`, `normalize` (MIME, threads, HTML→text).
       **See `docs/02-ARCHITECTURE.md` §2 for the two settled rules:** `bodyText`
       is always synthesised (never null, `''` is legal), and attachments are
       provider references only.
-- [ ] Record real payloads into `fixtures/gmail/`; unit-test `normalize` against them.
+- [x] Record real payloads into `fixtures/gmail/`; unit-test `normalize` against them.
       **Include an HTML-only email with no `text/plain` part** — it's common and
-      it's what the fallback chain exists for.
-- [ ] Worker loop: claim with `FOR UPDATE SKIP LOCKED` → `history.list` from the
+      it's what the fallback chain exists for. Nine fixtures recorded, including
+      `nested-html-only` and `bare-html`.
+- [x] Worker loop: claim with `FOR UPDATE SKIP LOCKED` → `history.list` from the
       stored cursor → normalize → upsert `messages` → advance the cursor
-- [ ] Contact identity resolution: create `contact_identities`, auto-create `contacts`
-- [ ] Console: bare timeline reading from `messages`.
+- [x] Contact identity resolution: create `contact_identities`, auto-create `contacts`
+- [x] Console: bare timeline reading from `messages`.
       **Render BOTH directions — do not filter to `inbound`.** The milestone
       email is one you send yourself, which is `outbound` (direction comes from
       the From address). R12 frames the product around messages received from
       others, which makes an inbound-only filter look right; it would hide the
       demo email and read as a broken pipeline.
-      Also: distinguish "connected, waiting" from "nothing connected" — the
-      empty state currently looks identical in both, which has already cost one
-      debugging session.. **It must distinguish
-      "connected, waiting" from "nothing connected"** — today both render the
-      same empty state, which already cost one debugging session by pointing at
-      a connection problem when the connection was fine.
+      The two empty states are **distinct**: "Listening", when a channel is
+      connected, versus "No messages yet" plus a Connect action when none is.
+      Collapsing them cost a full debugging session once by pointing at a
+      connection problem when the connection was fine.
+- [x] **Supabase Realtime on `messages`** — **pulled forward from Phase 3,
+      2026-07-28.** Migration `0005_realtime_messages.sql` adds the table to the
+      `supabase_realtime` publication; the console subscribes with the user's
+      own session so RLS scopes the stream (ADR-013). An arriving row triggers
+      `router.refresh()` while you are at the top of the list, and is counted
+      behind a "3 new messages" pill when you are not — so nothing is ever
+      inserted above what you are reading. Realtime payloads carry no joined
+      sender, so re-rendering on the server is what keeps one rendering path
+      for a row instead of two.
+- [x] Console frame holds still — the sidebar and header are fixed and only the
+      message column scrolls; the shell streams ahead of the messages behind a
+      `<Suspense>` skeleton, and `channels` is fetched once per request instead
+      of twice.
 - [ ] Idempotency test: replay the same notification 3×, assert exactly one row
 
 **Done when:** you send yourself an email and it appears in the deployed console.
@@ -193,7 +205,14 @@ distinguished by channel.
 to invest, and it's what makes the system feel finished.
 
 - [ ] Timeline: virtualized, infinite scroll, channel badges, grouped by day
-- [ ] **Supabase Realtime** — new messages appear without a refresh
+      *(grouped by day and channel-marked already shipped in Phase 1;
+      what remains here is virtualization and infinite scroll)*
+- [x] ~~**Supabase Realtime** — new messages appear without a refresh~~
+      **Moved into Phase 1 and shipped, 2026-07-28.** Pulled forward on purpose:
+      it is the item this section already called the highest ratio of demo
+      impact to implementation cost, and the timeline was the surface where its
+      absence was most visible — new mail did not appear until you navigated
+      away and back. Migration `0005`, `apps/console/src/components/live.tsx`.
 - [ ] Keyword search — Postgres full-text over `body_text`
 - [ ] Filters: channel, contact, date range
 - [ ] Contact list; contact detail = merged cross-channel history
@@ -299,4 +318,6 @@ a row, without intervention.
 
 ---
 
-*Last updated: 2026-07-27 · Phase 1 progress recorded; attachments moved to Phase 3*
+*Last updated: 2026-07-28 · Realtime moved from Phase 3 into Phase 1 and shipped;
+Phase 1 adapter, worker, contact-identity and timeline items ticked after
+verifying them against the live database and the test suite*

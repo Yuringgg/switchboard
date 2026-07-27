@@ -168,13 +168,26 @@ isolation is intact.
 - **CI runs `next build`**, and the pre-commit hook rejects BOM'd JSON. Both
   guard the same class of failure; see `docs/02-ARCHITECTURE.md` §8.
 
-**What is not:** `history.list` polling and `normalize` in
-`packages/adapters/gmail`; the worker's upsert into `messages` (it claims events
-and marks them done without doing anything); contact identity resolution; and
-the timeline, which renders `<NoMessagesYet />` unconditionally and never queries
-`messages`. **So a notification arriving changes nothing visible** — those four
-links are what turn a verified notification into an email on screen. `messages`
-has never held a row. Attachments moved to Phase 3. No WhatsApp, no assistant.
+**✅ THE PIPELINE IS CLOSED, AND THE CONSOLE IS LIVE (2026-07-28).** `history.list`
++ `normalize`, the worker's upsert into `messages`, contact identity resolution
+and the timeline all landed. Verified against the live database: **10 messages,
+10 conversations, 7 contact identities.** A real email now reaches the screen.
+
+**The console updates itself.** `messages` is published to Supabase Realtime
+(migration `0005`), and `apps/console/src/components/live.tsx` subscribes with
+the **user's own session** so RLS scopes the stream. A new row refreshes the
+list where you are already at the top, and is counted behind a pill where you
+are not. Realtime moved out of Phase 3 to get here — `docs/04-ROADMAP.md`
+records that. Two things follow for anyone touching the console:
+
+- **The frame does not scroll; the message column does.** `AppShell` is
+  `h-dvh` + `overflow-hidden`, and exactly one element owns the scroll. Going
+  back to `min-h-dvh` puts the sidebar back on the ride.
+- **`channels` is fetched once per request and passed down as a promise.** It
+  used to be queried in the page *and* again inside `AppShell`, which cost a
+  whole extra sequential round trip to Singapore for data already in hand.
+
+Attachments moved to Phase 3. No WhatsApp, no assistant.
 
 Two normalization rules were settled before `normalize` was written — read
 `docs/02-ARCHITECTURE.md` §2 first: **`bodyText` is always synthesised** (the
@@ -246,10 +259,9 @@ request fails auth in a way that reads as a bad key. Paste values unquoted.
 does not yet flag wrapping quotes; both are worth adding next to the existing
 whitespace and line-break checks.
 
-**→ Next action: build `history.list` + `normalize`.** Nothing is blocked. Note
-that **the timeline still shows nothing and that is correct** — three links
-remain between a queued notification and a message on screen, and the worker
-currently claims each event and marks it done without doing anything.
+**→ Next action: the idempotency test** — replay one notification 3× and assert
+exactly one `messages` row. It is the last unticked item in Phase 1
+(`docs/04-ROADMAP.md`). Nothing is blocked.
 
 Credentials: **Supabase and Google Cloud are both fully configured.**
 `apps/worker/.env` holds `DATABASE_URL` (Supavisor session mode, port 5432 — the
@@ -332,4 +344,5 @@ scope entirely** — see ADR-008 before anyone suggests adding them.
 
 ---
 
-*Last updated: 2026-07-27 · Planning session 2 — after build session 5*
+*Last updated: 2026-07-28 · after the console session: Realtime, the fixed
+frame, and the streaming shell*

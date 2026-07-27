@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { Brand } from '@/components/brand';
+
 /** Frame shared by /login and /signup, so the two pages cannot drift visually. */
 export function AuthCard({
   title,
@@ -19,12 +21,7 @@ export function AuthCard({
   return (
     <div className="flex min-h-dvh items-center justify-center px-5 py-10">
       <div className="w-full max-w-[21rem]">
-        <div className="flex items-center gap-2.5">
-          <SwitchboardMark />
-          <span className="text-[15px] leading-none font-semibold tracking-tight">
-            Switchboard
-          </span>
-        </div>
+        <Brand />
 
         <h1 className="mt-6 text-xl font-semibold tracking-tight">{title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
@@ -54,24 +51,5 @@ export function AuthCard({
         <p className="mt-5 text-center text-sm text-muted-foreground">{footer}</p>
       </div>
     </div>
-  );
-}
-
-/** Many lines in, one operator's view out. */
-function SwitchboardMark() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="size-[18px] text-foreground"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.75}
-      strokeLinecap="round"
-      aria-hidden
-    >
-      <path d="M3 5h6a4 4 0 0 1 4 4v6a4 4 0 0 0 4 4h4" />
-      <path d="M3 19h6a4 4 0 0 0 4-4" opacity={0.45} />
-      <circle cx="20.5" cy="5" r="1.5" fill="currentColor" stroke="none" />
-    </svg>
   );
 }
