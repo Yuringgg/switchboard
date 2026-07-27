@@ -4,6 +4,7 @@ import { createDbClient } from '@switchboard/db';
 
 import { claimNextEvent, markDone, markFailed } from './claim';
 import { DATABASE_URL, IDLE_POLL_MS, MAX_ATTEMPTS, PORT } from './env';
+import { ingestGmailEvent } from './gmail-ingest';
 import { readGmailWatchConfig, renewExpiringWatches } from './gmail-watch';
 
 /**
@@ -49,12 +50,25 @@ async function processOne(): Promise<boolean> {
       `[worker] claimed event=${event.id} channel=${event.channelType} attempt=${event.attempts}`,
     );
 
-    // TODO(Phase 1): adapter.normalize(event) → upsert messages on the
-    // (channel_id, external_id) conflict target → resolve contact identity.
-    // TODO(Phase 4): chunk + embed → message_chunks; extract → extractions.
-    //
     // owner_id for every row written here comes from event.ownerId, which
     // claim.ts read from the channels row. Never from event.payload.
+    if (event.channelType === 'gmail') {
+      const config = readGmailWatchConfig();
+      if (!config) {
+        throw new Error(
+          'Gmail ingest is not configured: needs CHANNEL_CREDENTIALS_KEY, ' +
+            'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET',
+        );
+      }
+
+      const outcome = await ingestGmailEvent(db, config, event);
+      console.info(
+        `[worker] event=${event.id} fetched=${outcome.fetched} created=${outcome.created} ` +
+          `skipped=${outcome.skipped}${outcome.fullSync ? ' (full sync)' : ''}`,
+      );
+    }
+
+    // TODO(Phase 4): chunk + embed → message_chunks; extract → extractions.
 
     await markDone(db, event.id);
     return true;

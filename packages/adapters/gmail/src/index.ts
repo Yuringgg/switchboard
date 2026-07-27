@@ -23,11 +23,17 @@ export {
 
 export {
   fetchMessage,
+  fetchProfile,
   listHistory,
+  listRecentMessages,
   parseHistoryResponse,
   type FetchMessageResult,
   type HistoryPage,
   type HistoryResult,
+  type ListMessagesResult,
+  type MailboxProfile,
+  type ProfileResult,
+  type RecentMessages,
 } from './history';
 
 export {

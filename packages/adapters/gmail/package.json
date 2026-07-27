@@ -7,6 +7,10 @@
   "exports": {
     ".": "./src/index.ts",
     "./watch": "./src/watch.ts",
+    "./history": "./src/history.ts",
+    "./normalize": "./src/normalize.ts",
+    "./decode": "./src/decode.ts",
+    "./html-to-text": "./src/html-to-text.ts",
     "./notification": "./src/notification.ts",
     "./push-token": "./src/push-token.ts"
   },

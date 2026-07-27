@@ -127,6 +127,106 @@ export async function listHistory(
   return parseHistoryResponse(await response.text(), startHistoryId);
 }
 
+export interface MailboxProfile {
+  emailAddress: string;
+  /** The mailbox's CURRENT historyId — where a full sync resets the cursor to. */
+  historyId: string;
+}
+
+export type ProfileResult =
+  | { ok: true; profile: MailboxProfile }
+  | { ok: false; reason: string };
+
+/**
+ * `users.getProfile` — the mailbox address and its current historyId.
+ *
+ * Used to reset the cursor after a full sync. historyId is read from the raw
+ * text for the same precision reason as everywhere else.
+ */
+export async function fetchProfile(accessToken: string): Promise<ProfileResult> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE}/profile`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  } catch {
+    return { ok: false, reason: 'could not reach Gmail for the profile' };
+  }
+
+  if (!response.ok) {
+    return { ok: false, reason: `getProfile failed (HTTP ${response.status})` };
+  }
+
+  const raw = await response.text();
+  const historyMatch = /"historyId"\s*:\s*"?(\d+)"?/.exec(raw);
+  if (!historyMatch?.[1]) return { ok: false, reason: 'profile had no historyId' };
+
+  let emailAddress: string;
+  try {
+    emailAddress = String((JSON.parse(raw) as { emailAddress?: string }).emailAddress ?? '');
+  } catch {
+    return { ok: false, reason: 'profile response was not JSON' };
+  }
+  if (!emailAddress) return { ok: false, reason: 'profile had no emailAddress' };
+
+  return { ok: true, profile: { emailAddress, historyId: historyMatch[1] } };
+}
+
+export interface RecentMessages {
+  messageIds: string[];
+  nextPageToken?: string;
+}
+
+export type ListMessagesResult =
+  | { ok: true; result: RecentMessages }
+  | { ok: false; reason: string };
+
+/**
+ * `users.messages.list` — the full-sync fallback when a history cursor expires.
+ *
+ * INBOX only, and bounded. This is a recovery path, not a mailbox importer:
+ * the goal is to resume ingestion without gaps in recent mail, not to backfill
+ * years of archive on a Supabase free tier.
+ */
+export async function listRecentMessages(
+  accessToken: string,
+  maxResults = 50,
+  pageToken?: string,
+): Promise<ListMessagesResult> {
+  const url = new URL(`${BASE}/messages`);
+  url.searchParams.set('maxResults', String(maxResults));
+  url.searchParams.set('labelIds', 'INBOX');
+  if (pageToken) url.searchParams.set('pageToken', pageToken);
+
+  let response: Response;
+  try {
+    response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  } catch {
+    return { ok: false, reason: 'could not reach Gmail to list messages' };
+  }
+
+  if (!response.ok) {
+    return { ok: false, reason: `messages.list failed (HTTP ${response.status})` };
+  }
+
+  const body = (await response.json()) as {
+    messages?: { id?: string }[];
+    nextPageToken?: string;
+  };
+
+  const messageIds = (body.messages ?? [])
+    .map((m) => m.id)
+    .filter((id): id is string => typeof id === 'string');
+
+  return {
+    ok: true,
+    result: {
+      messageIds,
+      ...(body.nextPageToken ? { nextPageToken: body.nextPageToken } : {}),
+    },
+  };
+}
+
 export type FetchMessageResult =
   | { ok: true; message: GmailMessage }
   | { ok: false; reason: string; notFound: boolean };
