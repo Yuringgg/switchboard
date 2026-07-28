@@ -197,6 +197,25 @@ records that. Two things follow for anyone touching the console:
 
 Attachments moved to Phase 3. No WhatsApp, no assistant.
 
+**A design pass landed on the console (2026-07-28) — read
+`correspondence/2026-07-28-ui-design-pass.md` before touching `apps/console`.**
+The direction was not replaced, but four defects were fixed and two things
+changed that a build session must know about:
+
+- **The type scale is now tokens** (`--text-label` … `--text-display` in
+  `globals.css`), and **adding a step means editing `lib/utils.ts` too.**
+  tailwind-merge reads `text-subject` as a *colour*, so `cn()` drops it unless
+  the `font-size` group is extended — a missing step renders at the browser
+  default of 16px with **no error**. It silently hit four elements once.
+- **Channel identity may never rest on the coloured dot alone.** Gmail red
+  against WhatsApp green is the red/green confusion pair, and this is the one
+  question the product exists to answer. `channelChangePoints`
+  (`lib/timeline.ts`) names the channel wherever the line changes. Do not
+  remove it and leave the dot to work alone.
+- `localhost:3100/preview` renders the timeline over fixtures so the console
+  can be looked at without a login or real mail. **Development only**, guarded
+  by `notFound()` and a conditional `PUBLIC_PATHS` entry, both on `NODE_ENV`.
+
 Two normalization rules were settled before `normalize` was written — read
 `docs/02-ARCHITECTURE.md` §2 first: **`bodyText` is always synthesised** (the
 column is `not null`, HTML-only email is common, `''` is a legal value), and

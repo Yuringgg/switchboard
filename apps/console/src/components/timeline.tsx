@@ -1,9 +1,11 @@
-import { Inbox } from 'lucide-react';
+import { Inbox, Radio } from 'lucide-react';
 import Link from 'next/link';
 
 import { NewMessages } from '@/components/live';
+import { MessageRow } from '@/components/message-row';
 import { CHANNELS } from '@/lib/channels';
-import { groupByDay, preview, type TimelineMessage } from '@/lib/timeline';
+import { channelChangePoints, groupByDay, type TimelineMessage } from '@/lib/timeline';
+import { buttonClass, LABEL } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
 /**
@@ -15,8 +17,14 @@ import { cn } from '@/lib/utils';
  * show messages from different places as a single ordered record, without
  * losing track of which line each one came in on. So the day's messages hang
  * off a continuous line, and each message is a lamp on it, coloured by its
- * channel. Channel identity is carried by the structure rather than by a badge
- * bolted onto the row, which means it survives being skimmed.
+ * channel — many lines in, one operator's view out, which is the name and the
+ * whole design.
+ *
+ * Channel identity is carried by the structure rather than by a badge bolted
+ * onto every row, which means it survives being skimmed. It is *also* carried
+ * in words the moment the line changes, because a colour on its own is not
+ * something every reader can see — `channelChangePoints` in lib/timeline.ts
+ * explains that at length and it is the more important half.
  *
  * Renders BOTH directions — see lib/timeline.ts for why filtering to inbound
  * would hide the demo message.
@@ -30,25 +38,31 @@ export function Timeline({
 }) {
   const days = groupByDay(messages);
 
+  // Computed over the flat ordered list, before grouping: a day boundary is
+  // not a change of channel.
+  const changePoints = channelChangePoints(messages, channelTypeById);
+
   return (
     <div>
       {/* Takes no height: an arrival must never move what you are reading. */}
       <NewMessages />
 
-      <div className="space-y-6">
+      <div className="space-y-7">
         {days.map((day) => (
           <section key={day.date}>
-            <h2 className="sticky top-0 z-10 -mx-1 mb-2.5 flex items-center gap-3 bg-background px-1 py-2">
-              <time
-                dateTime={day.date}
-                className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground uppercase"
-              >
+            {/*
+              Sticky, and inset wider than the content so the lamp's background
+              ring scrolls under it cleanly rather than clipping at the column
+              edge.
+            */}
+            <h2 className="sticky top-0 z-10 -mx-3 mb-3 flex items-center gap-3 bg-background px-3 py-2">
+              <time dateTime={day.date} className={LABEL}>
                 {formatDay(day.date)}
               </time>
               <span className="h-px flex-1 bg-border" aria-hidden />
               {/* Zero-padded: a ledger column that doesn't reflow at ten. */}
               <span
-                className="font-mono text-[10px] text-muted-foreground/60"
+                className="font-mono text-meta text-muted-foreground"
                 aria-label={`${day.messages.length} messages`}
               >
                 {String(day.messages.length).padStart(2, '0')}
@@ -56,72 +70,19 @@ export function Timeline({
             </h2>
 
             <ul>
-              {day.messages.map((message) => {
+              {day.messages.map((message, index) => {
                 const channelType = channelTypeById.get(message.channel_id);
                 const channel = CHANNELS.find((c) => c.type === channelType);
-                const outbound = message.direction === 'outbound';
-
-                const name = outbound ? 'You' : (message.sender?.display_name ?? null);
-                const address = message.sender?.external_id ?? null;
-                const line = preview(message.body_text);
 
                 return (
-                  <li key={message.id} className="group relative flex gap-3.5">
-                    {/* The line, and this message's lamp on it. */}
-                    <span
-                      className="relative flex w-2 shrink-0 justify-center"
-                      aria-hidden
-                    >
-                      <span className="absolute top-0 bottom-0 w-px bg-border group-last:bottom-auto group-last:h-5" />
-                      <span
-                        className={cn(
-                          'absolute top-[7px] size-[7px] rounded-full ring-[3px] ring-background',
-                          channel?.dotClass ?? 'bg-muted-foreground/40',
-                        )}
-                      />
-                    </span>
-
-                    <div className="min-w-0 flex-1 pb-5">
-                      <div className="flex items-baseline gap-2">
-                        <span className="truncate text-[13.5px] font-medium">
-                          {name ?? address ?? 'Unknown sender'}
-                        </span>
-
-                        {name && address && (
-                          <span className="hidden truncate font-mono text-[11px] text-muted-foreground/70 sm:inline">
-                            {address}
-                          </span>
-                        )}
-
-                        {/* Direction is shown, never filtered on. A self-sent
-                            message is outbound and must still appear. */}
-                        {outbound && (
-                          <span className="shrink-0 font-mono text-[9.5px] tracking-[0.14em] text-muted-foreground uppercase">
-                            sent
-                          </span>
-                        )}
-
-                        <time
-                          dateTime={message.sent_at}
-                          className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground"
-                        >
-                          {formatTime(message.sent_at)}
-                        </time>
-                      </div>
-
-                      <p className="mt-1 text-[14px] leading-snug">
-                        {message.subject ?? (
-                          <span className="text-muted-foreground italic">No subject</span>
-                        )}
-                      </p>
-
-                      {line && (
-                        <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
-                          {line}
-                        </p>
-                      )}
-                    </div>
-                  </li>
+                  <MessageRow
+                    key={message.id}
+                    message={message}
+                    channelLabel={channel?.label ?? null}
+                    dotClass={channel?.dotClass ?? 'bg-faint'}
+                    showChannel={changePoints.has(message.id)}
+                    isLast={index === day.messages.length - 1}
+                  />
                 );
               })}
             </ul>
@@ -139,7 +100,9 @@ export function Timeline({
  * working or nothing was connected at all — which cost a real debugging
  * session, because "no messages" reads as "broken" when you have just
  * connected an account and sent yourself mail. The two must never converge:
- * one of them means wait, the other means act.
+ * one of them means wait, the other means act. So one is a lit lamp with no
+ * action on it, and the other is an unlit inbox with the single action that
+ * changes the situation.
  */
 export function TimelineEmpty({ connectedTypes }: { connectedTypes: string[] }) {
   const connected = connectedTypes.length > 0;
@@ -149,38 +112,36 @@ export function TimelineEmpty({ connectedTypes }: { connectedTypes: string[] }) 
   );
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
-      {connected ? (
-        <span
-          className="flex size-11 items-center justify-center rounded-xl border border-border bg-panel"
-          aria-hidden
-        >
-          <span className="animate-lamp size-2 rounded-full bg-live" />
-        </span>
-      ) : (
-        <span
-          className="flex size-11 items-center justify-center rounded-xl border border-border bg-panel"
-          aria-hidden
-        >
+    <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
+      <span
+        className={cn(
+          'flex size-12 items-center justify-center rounded-xl border',
+          connected ? 'border-live/30 bg-live/8' : 'border-border bg-panel',
+        )}
+        aria-hidden
+      >
+        {connected ? (
+          <span className="relative flex size-5 items-center justify-center">
+            <Radio className="size-5 text-live" />
+            <span className="animate-lamp absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-live" />
+          </span>
+        ) : (
           <Inbox className="size-5 text-muted-foreground" />
-        </span>
-      )}
+        )}
+      </span>
 
-      <h2 className="mt-4 text-[15px] font-medium">
+      <h2 className="mt-4 text-heading font-semibold">
         {connected ? 'Listening' : 'No messages yet'}
       </h2>
 
-      <p className="mt-1.5 max-w-sm text-[13.5px] leading-relaxed text-balance text-muted-foreground">
+      <p className="mt-2 max-w-[34ch] text-row text-balance text-muted-foreground">
         {connected
           ? `${formatList(names)} ${names.length === 1 ? 'is' : 'are'} connected. New mail appears here within seconds of arriving — you won't need to refresh.`
           : 'Connect a channel and everything you receive lands here in one timeline, whichever app it came from.'}
       </p>
 
       {!connected && (
-        <Link
-          href="/channels"
-          className="mt-5 inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-        >
+        <Link href="/channels" className={buttonClass({ className: 'mt-5' })}>
           Connect a channel
         </Link>
       )}
@@ -198,26 +159,32 @@ export function TimelineEmpty({ connectedTypes }: { connectedTypes: string[] }) 
 export function TimelineSkeleton() {
   return (
     <div aria-hidden>
-      <div className="mb-2.5 flex items-center gap-3 py-2">
-        <span className="h-2.5 w-14 rounded bg-muted-foreground/15" />
+      <div className="mb-3 flex items-center gap-3 py-2">
+        <span className="h-2.5 w-14 rounded bg-faint/50" />
         <span className="h-px flex-1 bg-border" />
+        <span className="h-2.5 w-4 rounded bg-faint/50" />
       </div>
 
       <ul>
-        {[0, 1, 2].map((i) => (
-          <li key={i} className="group relative flex gap-3.5">
+        {[0, 1, 2, 3].map((i) => (
+          <li key={i} className="relative flex gap-3.5">
             <span className="relative flex w-2 shrink-0 justify-center">
-              <span className="absolute top-0 bottom-0 w-px bg-border group-last:bottom-auto group-last:h-5" />
-              <span className="absolute top-[7px] size-[7px] rounded-full bg-muted-foreground/20 ring-[3px] ring-background" />
+              <span
+                className={cn(
+                  'absolute top-0 w-px bg-border',
+                  i === 3 ? 'h-5' : 'bottom-0',
+                )}
+              />
+              <span className="absolute top-[9px] size-[7px] rounded-full bg-faint ring-[3px] ring-background" />
             </span>
 
-            <div className="flex-1 animate-pulse pb-5">
+            <div className="flex-1 animate-pulse pb-4 pt-1">
               <div className="flex items-baseline gap-2">
-                <span className="h-3 w-28 rounded bg-muted-foreground/15" />
-                <span className="ml-auto h-3 w-10 rounded bg-muted-foreground/10" />
+                <span className="h-3 w-28 rounded bg-faint/60" />
+                <span className="ml-auto h-3 w-9 rounded bg-faint/40" />
               </div>
-              <span className="mt-2 block h-3.5 w-2/3 rounded bg-muted-foreground/15" />
-              <span className="mt-1.5 block h-3 w-1/2 rounded bg-muted-foreground/10" />
+              <span className="mt-2 block h-3.5 w-2/3 rounded bg-faint/60" />
+              <span className="mt-1.5 block h-3 w-1/2 rounded bg-faint/40" />
             </div>
           </li>
         ))}
@@ -235,18 +202,26 @@ function formatList(items: string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 }
 
+/**
+ * Today and Yesterday are named; everything older gets its weekday, because
+ * "Monday" is how someone actually remembers when a message arrived.
+ */
 function formatDay(isoDate: string): string {
   const [year, month, day] = isoDate.split('-').map(Number);
   const date = new Date(Date.UTC(year!, month! - 1, day!));
 
-  const todayIso = new Intl.DateTimeFormat('en-CA', {
+  const inManila = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Manila',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date());
+  });
 
-  if (isoDate === todayIso) return 'Today';
+  const now = new Date();
+  if (isoDate === inManila.format(now)) return 'Today';
+  if (isoDate === inManila.format(new Date(now.getTime() - 86_400_000))) {
+    return 'Yesterday';
+  }
 
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'UTC',
@@ -254,12 +229,4 @@ function formatDay(isoDate: string): string {
     day: 'numeric',
     month: 'long',
   }).format(date);
-}
-
-function formatTime(iso: string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Manila',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(iso));
 }

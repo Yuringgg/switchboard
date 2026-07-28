@@ -7,6 +7,7 @@ import { Live, LiveStatus, SCROLLER_ID } from '@/components/live';
 import { signOut } from '@/lib/auth-actions';
 import { CHANNELS, type ChannelRow } from '@/lib/channels';
 import { NAV_ITEMS } from '@/lib/nav';
+import { buttonClass, LABEL } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
 /**
@@ -62,9 +63,21 @@ export function AppShell({
 }) {
   return (
     <Live userId={userId}>
+      {/*
+        First thing in the tab order. Without it, reaching the timeline by
+        keyboard means tabbing past the whole sidebar on every navigation —
+        and the sidebar is the part that never changes.
+      */}
+      <a
+        href={`#${SCROLLER_ID}`}
+        className="focus-ring sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
+      >
+        Skip to messages
+      </a>
+
       <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
         <aside className="flex shrink-0 flex-col border-b border-border bg-panel md:w-60 md:overflow-y-auto md:border-r md:border-b-0">
-          <div className="flex items-center gap-2.5 px-4 py-3 md:px-5 md:py-4">
+          <div className="flex items-center gap-2.5 px-4 py-3 md:px-5 md:py-5">
             <Brand />
 
             {/* The account controls live in the sidebar's footer on desktop,
@@ -77,7 +90,7 @@ export function AppShell({
               <form action={signOut}>
                 <button
                   type="submit"
-                  className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                  className={buttonClass({ variant: 'ghost', size: 'icon' })}
                 >
                   <LogOut className="size-3.5" aria-hidden />
                   <span className="sr-only">Sign out</span>
@@ -104,20 +117,24 @@ export function AppShell({
                     )}
                     <Icon className="size-4 shrink-0" aria-hidden />
                     {label}
+                    {/*
+                      Shown at every width. It used to be `hidden md:inline`,
+                      so on a phone Contacts and Assistant looked like ordinary
+                      nav items that silently did nothing when tapped — the
+                      desktop tooltip that explained them is not reachable by
+                      touch either.
+                    */}
                     {!ready && (
-                      <span className="ml-auto hidden font-mono text-[9px] tracking-[0.14em] text-muted-foreground/70 uppercase md:inline">
-                        soon
-                      </span>
+                      <span className={cn(LABEL, 'ml-1.5 md:ml-auto')}>soon</span>
                     )}
                   </>
                 );
 
                 const className = cn(
-                  'relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13.5px] whitespace-nowrap',
-                  'focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none',
+                  'focus-ring relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-row whitespace-nowrap transition-colors',
                   isActive && 'bg-accent font-medium text-foreground md:bg-transparent',
-                  ready && !isActive && 'text-muted-foreground hover:text-foreground',
-                  !ready && 'text-muted-foreground/60',
+                  ready && !isActive && 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                  !ready && 'text-muted-foreground',
                 );
 
                 return (
@@ -148,21 +165,19 @@ export function AppShell({
             </ul>
           </nav>
 
-          <div className="mt-auto hidden px-5 py-4 md:block">
+          <div className="mt-auto hidden px-5 py-5 md:block">
             {/* The same word as the nav entry and the page it links to. A
                 surface that calls one thing three names is one the reader has
                 to keep translating. */}
-            <p className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground/70 uppercase">
-              Channels
-            </p>
+            <p className={LABEL}>Channels</p>
 
             <Suspense fallback={<LegendFallback />}>
               <ChannelLegend channels={channels} />
             </Suspense>
 
-            <div className="mt-5 border-t border-border pt-3.5">
+            <div className="mt-5 border-t border-border pt-4">
               <p
-                className="truncate font-mono text-[11px] text-muted-foreground"
+                className="truncate font-mono text-meta text-muted-foreground"
                 title={userEmail}
               >
                 {userEmail}
@@ -170,7 +185,11 @@ export function AppShell({
               <form action={signOut}>
                 <button
                   type="submit"
-                  className="mt-1.5 -ml-1 flex items-center gap-1.5 rounded px-1 py-0.5 text-xs text-muted-foreground hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                  className={buttonClass({
+                    variant: 'ghost',
+                    size: 'sm',
+                    className: 'mt-2 -ml-2 h-7 px-2',
+                  })}
                 >
                   <LogOut className="size-3" aria-hidden />
                   Sign out
@@ -182,13 +201,11 @@ export function AppShell({
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="shrink-0 border-b border-border bg-panel">
-            <div className="mx-auto flex w-full max-w-4xl items-center gap-4 px-5 py-3 md:px-8 md:py-4">
+            <div className="mx-auto flex w-full max-w-4xl items-center gap-4 px-5 py-3.5 md:px-8 md:py-4">
               <div className="min-w-0">
-                <h1 className="truncate text-[15px] font-semibold tracking-tight">
-                  {title}
-                </h1>
+                <h1 className="truncate text-heading font-semibold">{title}</h1>
                 {description && (
-                  <p className="mt-0.5 hidden truncate text-[13px] text-muted-foreground sm:block">
+                  <p className="mt-0.5 hidden truncate text-note text-muted-foreground sm:block">
                     {description}
                   </p>
                 )}
@@ -201,9 +218,18 @@ export function AppShell({
             The one element that scrolls. `live.tsx` reads its offset by id to
             decide whether an arriving message may be inserted above what you
             are currently reading.
+
+            `tabIndex={-1}` makes it the skip link's landing point, and gives a
+            keyboard user something to focus before pressing Page Down — a
+            scroll container that cannot take focus cannot be scrolled from the
+            keyboard alone.
           */}
-          <main id={SCROLLER_ID} className="min-h-0 flex-1 overflow-y-auto">
-            <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-5 py-5 md:px-8 md:py-7">
+          <main
+            id={SCROLLER_ID}
+            tabIndex={-1}
+            className="min-h-0 flex-1 overflow-y-auto outline-none"
+          >
+            <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-5 py-6 md:px-8 md:py-8">
               {children}
             </div>
           </main>
@@ -222,7 +248,7 @@ async function ChannelLegend({
   const { channels: rows } = await channels;
 
   return (
-    <ul className="mt-2.5 space-y-2">
+    <ul className="mt-3 space-y-2.5">
       {CHANNELS.map(({ type, label, dotClass }) => {
         // Read from the database, not hardcoded. This said "Not connected"
         // beside a channel that WAS connected, which is worse than showing
@@ -232,12 +258,11 @@ async function ChannelLegend({
         const anyError = connected.some((c) => c.status === 'error');
 
         return (
-          <li key={type} className="flex items-center gap-2 text-[13px]">
+          <li key={type} className="flex items-center gap-2 text-row">
             <span
               className={cn(
-                'size-1.5 rounded-full',
-                dotClass,
-                connected.length > 0 ? 'opacity-100' : 'opacity-30',
+                'size-1.5 shrink-0 rounded-full',
+                connected.length === 0 ? 'bg-faint' : dotClass,
               )}
               aria-hidden
             />
@@ -246,8 +271,8 @@ async function ChannelLegend({
             </span>
             <span
               className={cn(
-                'ml-auto font-mono text-[10px] tracking-[0.08em] uppercase',
-                anyError ? 'text-destructive' : 'text-muted-foreground/70',
+                'ml-auto font-mono text-label uppercase',
+                anyError ? 'text-destructive' : 'text-muted-foreground',
               )}
             >
               {connected.length === 0
@@ -289,7 +314,7 @@ async function ChannelLamps({
               className={cn(
                 'block size-1.5 rounded-full',
                 anyError ? 'bg-destructive' : dotClass,
-                connected.length === 0 && 'opacity-30',
+                connected.length === 0 && 'bg-faint',
               )}
               title={`${label} — ${state}`}
               aria-hidden
@@ -304,12 +329,12 @@ async function ChannelLamps({
 
 function LegendFallback() {
   return (
-    <ul className="mt-2.5 space-y-2" aria-hidden>
+    <ul className="mt-3 animate-pulse space-y-2.5" aria-hidden>
       {CHANNELS.map(({ type }) => (
         <li key={type} className="flex items-center gap-2">
-          <span className="size-1.5 rounded-full bg-muted-foreground/20" />
-          <span className="h-3 w-16 rounded bg-muted-foreground/10" />
-          <span className="ml-auto h-3 w-6 rounded bg-muted-foreground/10" />
+          <span className="size-1.5 rounded-full bg-faint" />
+          <span className="h-3 w-16 rounded bg-faint/60" />
+          <span className="ml-auto h-3 w-12 rounded bg-faint/40" />
         </li>
       ))}
     </ul>
@@ -318,9 +343,9 @@ function LegendFallback() {
 
 function LampsFallback() {
   return (
-    <span className="flex items-center gap-1.5" aria-hidden>
+    <span className="flex animate-pulse items-center gap-1.5" aria-hidden>
       {CHANNELS.map(({ type }) => (
-        <span key={type} className="size-1.5 rounded-full bg-muted-foreground/20" />
+        <span key={type} className="size-1.5 rounded-full bg-faint" />
       ))}
     </span>
   );

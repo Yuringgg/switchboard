@@ -44,6 +44,57 @@ variables, and there is no CLI login on this machine.
 **Do not add `SUPABASE_SERVICE_ROLE_KEY` here.** It bypasses RLS, and this app
 ships code to a browser.
 
+## Design
+
+The console is a **piece of equipment**, and the name is the design: many lines
+in, one operator's view out. Three rules carry that, and everything else is
+downstream of them.
+
+**Two voices.** Instrument Sans carries anything a *person* wrote — senders,
+subjects, message bodies. IBM Plex Mono carries anything the *machine* knows —
+timestamps, addresses, channel state, counts, the wordmark. On a monitoring
+console the eye has to separate "what arrived" from "what the system is doing",
+and a change of voice does that faster than a change of colour.
+
+**A named type scale, not pixel values.** `--text-label` · `meta` · `note` ·
+`row` · `subject` · `heading` · `display`, defined in `globals.css` and named
+for the job rather than the size. Eight ad-hoc values had accumulated one
+screen at a time, which is how a UI ends up looking *almost* right.
+
+> ⚠ **Adding a step means editing two files.** tailwind-merge only knows stock
+> Tailwind's groups, so it reads `text-subject` as a *colour* and drops it when
+> `cn()` also sees `text-muted-foreground`. `lib/utils.ts` extends the
+> `font-size` group to fix that, and a step missing from that list renders at
+> the browser default of 16px with no error. It cost four elements once.
+
+**Colour is never the only carrier.** The channel accents are Gmail red against
+WhatsApp green — the worst possible pair for red/green colour blindness, and
+"which line did this come in on" is the one question this product exists to
+answer. So the timeline **names the channel in words wherever the line
+changes** (`channelChangePoints`, `lib/timeline.ts`), the way a ledger prints a
+column value only when it moves. One connected channel yields one label; two
+interleaved yield one on nearly every row, which is exactly when it is needed.
+
+There is also **no text tier below `--muted-foreground`**, which clears 4.5:1
+on every surface. Quietness is expressed through size, letterspacing and case —
+all free. `text-muted-foreground/60` is not: it lands near 2.3:1, and it was
+carrying day counts, channel status and sender addresses.
+
+`--faint` exists for hairlines, skeleton bars and an unlit lamp. **Nothing
+legible may be set in it.**
+
+### Seeing it — `/preview`
+
+Every screen worth designing is behind a login and needs real mail to render,
+so `pnpm dev` then <http://localhost:3100/preview> renders the real components
+over fixture rows: `?state=empty` and `?state=unconnected` give the two empty
+states, which must never converge.
+
+**Development only**, guarded twice — `notFound()` in the route and a
+conditional entry in `PUBLIC_PATHS`, both keyed on `NODE_ENV`, which Next
+inlines at build time. It reads nothing and constructs no Supabase client. If
+that ever stops being true, delete it.
+
 ## State
 
 Built in Phase 0: the app shell and the "no messages yet" empty state, rendering

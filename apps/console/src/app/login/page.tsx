@@ -26,7 +26,7 @@ export default async function LoginPage({
           New here?{' '}
           <Link
             href={`/signup?next=${encodeURIComponent(next)}`}
-            className="rounded font-medium text-foreground underline underline-offset-4 hover:no-underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+            className="focus-ring rounded font-medium text-foreground underline underline-offset-4 hover:no-underline"
           >
             Create an account
           </Link>

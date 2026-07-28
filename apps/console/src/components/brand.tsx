@@ -5,10 +5,18 @@ import { cn } from '@/lib/utils';
  *
  * They were duplicated in `app-shell` and `auth-card`, which is how the two
  * halves of a product start to look like two products. Anything wearing the
- * name renders this.
+ * name renders this, and `app/icon.tsx` redraws the same figure for the tab.
  */
 
-/** Many lines in, one operator's view out. */
+/**
+ * Many lines in, one operator's view out.
+ *
+ * A cord patched from a line on the left across to a trunk on the right, with
+ * the second line dropping away unanswered — and the lamp above the jack lit.
+ * The lamp is the one amber thing in the product, the same `--live` used by
+ * the connection indicator and the new-message pill, so the logo is saying the
+ * board is up rather than decorating itself.
+ */
 export function SwitchboardMark({ className }: { className?: string }) {
   return (
     <svg
@@ -21,8 +29,8 @@ export function SwitchboardMark({ className }: { className?: string }) {
       aria-hidden
     >
       <path d="M3 5h6a4 4 0 0 1 4 4v6a4 4 0 0 0 4 4h4" />
-      <path d="M3 19h6a4 4 0 0 0 4-4" opacity={0.45} />
-      <circle cx="20.5" cy="5" r="1.5" fill="currentColor" stroke="none" />
+      <path d="M3 19h6a4 4 0 0 0 4-4" opacity={0.4} />
+      <circle cx="20.5" cy="5" r="1.75" className="fill-live" stroke="none" />
     </svg>
   );
 }

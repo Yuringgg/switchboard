@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  BODY_LIMIT,
+  bodyForDisplay,
+  channelChangePoints,
   groupByDay,
   newMessagesLabel,
   preview,
@@ -77,5 +80,97 @@ describe('preview', () => {
     // body_text is NOT NULL but can legitimately be a whitespace-only body.
     expect(preview('')).toBe('');
     expect(preview('   \n  ')).toBe('');
+  });
+});
+
+/**
+ * The device that stops channel identity resting on colour alone. Gmail red
+ * against WhatsApp green is unreadable for red/green colour blindness, and
+ * "which line did this come in on" is the question this console exists to
+ * answer — so these are accessibility tests, not formatting ones.
+ */
+describe('channelChangePoints', () => {
+  const types = new Map([
+    ['c-gmail', 'gmail'],
+    ['c-whatsapp', 'whatsapp'],
+  ]);
+
+  const run = (channelIds: string[]) =>
+    channelChangePoints(
+      channelIds.map((channel_id, i) => message({ id: `m${i}`, channel_id })),
+      types,
+    );
+
+  it('always marks the first message', () => {
+    // Otherwise a single-channel timeline never names its channel at all.
+    expect([...run(['c-gmail'])]).toEqual(['m0']);
+  });
+
+  it('marks only where the line actually switches', () => {
+    const marked = run([
+      'c-gmail',
+      'c-gmail',
+      'c-whatsapp',
+      'c-whatsapp',
+      'c-whatsapp',
+      'c-gmail',
+    ]);
+    expect([...marked].sort()).toEqual(['m0', 'm2', 'm5']);
+  });
+
+  it('marks one run of a single channel exactly once', () => {
+    // The whole point: a badge on all fifty rows is noise, and noise is what
+    // gets skimmed past.
+    expect(run(Array(50).fill('c-gmail')).size).toBe(1);
+  });
+
+  it('marks every row when two channels alternate', () => {
+    const ids = Array.from({ length: 6 }, (_, i) =>
+      i % 2 === 0 ? 'c-gmail' : 'c-whatsapp',
+    );
+    expect(run(ids).size).toBe(6);
+  });
+
+  it('treats an unknown channel as its own state, and back again', () => {
+    // A message whose channel row failed to load renders no label; it must
+    // still count as a change, or the next real one is swallowed.
+    const marked = run(['c-gmail', 'c-missing', 'c-gmail']);
+    expect([...marked].sort()).toEqual(['m0', 'm1', 'm2']);
+  });
+
+  it('returns nothing for no messages', () => {
+    expect(channelChangePoints([], types).size).toBe(0);
+  });
+});
+
+describe('bodyForDisplay', () => {
+  it('leaves an ordinary body alone', () => {
+    expect(bodyForDisplay('Hello there')).toEqual({
+      text: 'Hello there',
+      truncated: false,
+      limit: BODY_LIMIT,
+    });
+  });
+
+  it('reports truncation as a flag rather than appending an ellipsis', () => {
+    // The UI says "showing the first 4,000 characters" outright. A trailing …
+    // is the same claim made too quietly to act on, and indistinguishable from
+    // an ellipsis the sender typed.
+    const result = bodyForDisplay('x'.repeat(BODY_LIMIT + 500));
+    expect(result.truncated).toBe(true);
+    expect(result.text).toHaveLength(BODY_LIMIT);
+    expect(result.text.endsWith('…')).toBe(false);
+  });
+
+  it('does not truncate at exactly the limit', () => {
+    expect(bodyForDisplay('x'.repeat(BODY_LIMIT)).truncated).toBe(false);
+  });
+
+  it('collapses a whitespace-only body to empty so the UI can say so', () => {
+    // '' is a legal, meaningful value — normalize looked and there was
+    // nothing. docs/02-ARCHITECTURE.md §2. The row renders a sentence for it
+    // rather than an unexplained gap, and that branch keys off this being ''.
+    expect(bodyForDisplay('   \n\n  ').text).toBe('');
+    expect(bodyForDisplay('').text).toBe('');
   });
 });

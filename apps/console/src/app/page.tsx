@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { AppShell } from '@/components/app-shell';
+import { Callout } from '@/components/callout';
 import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
 import { fetchChannels, type ChannelRow } from '@/lib/channels';
 import { createClient } from '@/lib/supabase/server';
@@ -74,14 +75,11 @@ async function TimelineSection({
   return (
     <>
       {(error || channelsError) && (
-        <p
-          role="alert"
-          className="mb-5 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
+        <Callout tone="error" role="alert" className="mb-5">
           {error
             ? `Could not load messages: ${error}`
-            : 'Could not load channels, so messages may be missing their channel.'}
-        </p>
+            : 'Could not load channels, so some messages may not show which line they came in on.'}
+        </Callout>
       )}
 
       {messages.length > 0 ? (

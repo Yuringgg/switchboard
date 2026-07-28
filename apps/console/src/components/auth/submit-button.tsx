@@ -3,6 +3,8 @@
 import { Loader2 } from 'lucide-react';
 import { useFormStatus } from 'react-dom';
 
+import { buttonClass } from '@/lib/ui';
+
 /**
  * Submit button with a real pending state.
  *
@@ -26,7 +28,7 @@ export function SubmitButton({ children }: { children: React.ReactNode }) {
       // aria-disabled rather than relying on `disabled` alone would remove it
       // from the tab order mid-interaction; `disabled` is correct here because
       // it only applies once the request is already in flight.
-      className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-primary text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none disabled:opacity-60"
+      className={buttonClass({ className: 'w-full' })}
     >
       {pending && <Loader2 className="size-4 animate-spin" aria-hidden />}
       {children}

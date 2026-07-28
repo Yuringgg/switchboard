@@ -9,39 +9,66 @@
 @custom-variant dark (@media (prefers-color-scheme: dark));
 
 /*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * COLOUR
+ *
  * shadcn/ui token names, so `npx shadcn@latest add <component>` drops in and
- * themes correctly without editing anything. Neutral base, oklch.
+ * themes correctly without editing anything. oklch throughout.
+ *
+ * The neutrals carry a deliberate, very small temperature — chroma 0.002–0.014,
+ * which is under the threshold at which anyone would call this "a blue theme".
+ * It is there because a pure-grey ramp is what every unconfigured Tailwind
+ * project ships with, and this is a piece of equipment: light mode is the cool
+ * grey of a printed instrument face, dark mode the warm charcoal of a panel
+ * under its own lamp. The difference is subliminal and that is the point.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 :root {
-  --radius: 0.625rem;
+  --radius: 0.5rem;
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: oklch(0.994 0.0015 250);
+  --foreground: oklch(0.185 0.014 262);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.185 0.014 262);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.185 0.014 262);
+  --primary: oklch(0.225 0.016 262);
+  --primary-foreground: oklch(0.985 0.001 250);
+  --secondary: oklch(0.966 0.004 250);
+  --secondary-foreground: oklch(0.225 0.016 262);
+  --muted: oklch(0.966 0.004 250);
 
   /*
-   * Channel accents. One per ChannelType in @switchboard/core — the timeline
-   * has to make "which channel did this come from" readable at a glance, and
-   * that is the whole point of a cross-channel console.
+   * The ONLY secondary text colour, and it clears 4.5:1 on --background.
+   *
+   * There is deliberately no third, fainter text tier. The previous palette
+   * expressed "quieter" as `text-muted-foreground/60`, which lands around
+   * 2.3:1 — and it was carrying real content: day counts, channel status,
+   * sender addresses. Quietness is now expressed through size, letterspacing
+   * and case, all of which are free. Opacity on text is not.
    */
-  --channel-gmail: oklch(0.62 0.19 25);
-  --channel-whatsapp: oklch(0.68 0.16 155);
+  --muted-foreground: oklch(0.468 0.012 258);
+
+  --accent: oklch(0.958 0.005 252);
+  --accent-foreground: oklch(0.225 0.016 262);
+  --destructive: oklch(0.545 0.213 27.2);
+  --destructive-foreground: oklch(0.985 0.001 250);
+  --border: oklch(0.905 0.005 250);
+  --input: oklch(0.892 0.006 250);
+  --ring: oklch(0.62 0.035 258);
+
+  /*
+   * Channel accents. One per ChannelType in @switchboard/core.
+   *
+   * ⚠ These are an ASSIST, never the only carrier. Gmail red against WhatsApp
+   * green is the single worst pair for red/green colour blindness, and "which
+   * line did this come in on" is the one question this console exists to
+   * answer. The timeline names the channel in words whenever it changes; see
+   * components/timeline.tsx. Do not remove that label and leave the dot to do
+   * the work alone.
+   */
+  --channel-gmail: oklch(0.575 0.2 27);
+  --channel-whatsapp: oklch(0.58 0.14 158);
 
   /*
    * The frame. One step off the background, so the sidebar and header read as
@@ -49,7 +76,7 @@
    * Deliberately almost imperceptible — a console that stripes itself into
    * panels is harder to read, not easier.
    */
-  --panel: oklch(0.983 0 0);
+  --panel: oklch(0.972 0.004 250);
 
   /*
    * Signal amber: something arrived and you have not seen it yet.
@@ -60,38 +87,47 @@
    * competing with "which channel", which is the distinction the timeline
    * exists to make.
    */
-  --live: oklch(0.77 0.15 72);
+  --live: oklch(0.72 0.155 68);
+
+  /*
+   * Non-text only: hairlines, skeleton bars, an unlit lamp. It does not clear
+   * 4.5:1 and nothing legible may be set in it. Kept as a token rather than an
+   * opacity so that constraint is stated once, here, instead of re-decided at
+   * every call site.
+   */
+  --faint: oklch(0.83 0.006 250);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --destructive-foreground: oklch(0.985 0 0);
-    --border: oklch(1 0 0 / 12%);
+    --background: oklch(0.155 0.006 265);
+    --foreground: oklch(0.965 0.002 250);
+    --card: oklch(0.205 0.007 265);
+    --card-foreground: oklch(0.965 0.002 250);
+    --popover: oklch(0.205 0.007 265);
+    --popover-foreground: oklch(0.965 0.002 250);
+    --primary: oklch(0.93 0.003 250);
+    --primary-foreground: oklch(0.185 0.008 265);
+    --secondary: oklch(0.262 0.008 265);
+    --secondary-foreground: oklch(0.965 0.002 250);
+    --muted: oklch(0.262 0.008 265);
+    --muted-foreground: oklch(0.705 0.01 258);
+    --accent: oklch(0.275 0.009 265);
+    --accent-foreground: oklch(0.965 0.002 250);
+    --destructive: oklch(0.7 0.185 22.2);
+    --destructive-foreground: oklch(0.985 0.001 250);
+    --border: oklch(1 0 0 / 11%);
     --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
+    --ring: oklch(0.58 0.02 258);
 
-    --channel-gmail: oklch(0.7 0.17 25);
-    --channel-whatsapp: oklch(0.75 0.15 155);
+    --channel-gmail: oklch(0.7 0.175 27);
+    --channel-whatsapp: oklch(0.74 0.145 158);
 
     /* Lighter than the background in dark mode, darker in light — the frame
        stays the surface nearest the viewer either way. */
-    --panel: oklch(0.185 0 0);
-    --live: oklch(0.81 0.15 76);
+    --panel: oklch(0.192 0.007 265);
+    --live: oklch(0.82 0.15 74);
+    --faint: oklch(0.36 0.008 262);
   }
 }
 
@@ -120,6 +156,7 @@
   --color-channel-whatsapp: var(--channel-whatsapp);
   --color-panel: var(--panel);
   --color-live: var(--live);
+  --color-faint: var(--faint);
 
   /* next/font sets the two variables in app/layout.tsx; the fallbacks are what
      renders during the swap, so they are ordered to match the metrics of the
@@ -129,6 +166,53 @@
     'Segoe UI Emoji';
   --font-mono: var(--font-mono-plex), ui-monospace, SFMono-Regular, 'SF Mono',
     Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /*
+   * ───────────────────────────────────────────────────────────────────────────
+   * TYPE SCALE
+   *
+   * Seven steps, each named for its JOB rather than its size, because the job
+   * is the thing that has to stay consistent across screens. This replaces
+   * eight ad-hoc values — 9.5, 10, 11, 12, 13, 13.5, 14, 15px — that had
+   * accumulated one screen at a time, which is how a UI ends up looking
+   * *almost* right.
+   *
+   * Tailwind's own text-xs/sm/base are left untouched and still work; these
+   * sit alongside them for the console's own vocabulary.
+   *
+   *   text-label     stencilled machine labels. mono, uppercase, tracked.
+   *   text-meta      timestamps, addresses, counts.
+   *   text-note      helper and hint text.
+   *   text-row       the timeline's default — sender, preview, body.
+   *   text-subject   the line you scan. the reason a row is worth reading.
+   *   text-heading   a page's title.
+   *   text-display   the one headline on an unauthenticated page.
+   * ───────────────────────────────────────────────────────────────────────────
+   */
+  --text-label: 0.625rem;
+  --text-label--line-height: 1.1;
+  --text-label--letter-spacing: 0.16em;
+
+  --text-meta: 0.6875rem;
+  --text-meta--line-height: 1.35;
+
+  --text-note: 0.75rem;
+  --text-note--line-height: 1.5;
+
+  --text-row: 0.84375rem;
+  --text-row--line-height: 1.5;
+
+  --text-subject: 0.9375rem;
+  --text-subject--line-height: 1.4;
+  --text-subject--letter-spacing: -0.006em;
+
+  --text-heading: 1.0625rem;
+  --text-heading--line-height: 1.3;
+  --text-heading--letter-spacing: -0.014em;
+
+  --text-display: 1.375rem;
+  --text-display--line-height: 1.2;
+  --text-display--letter-spacing: -0.02em;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -150,6 +234,20 @@
   /* A column of times must not change width as the digits change. */
   .font-mono {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * The focus ring, defined once.
+ *
+ * It was previously an eleven-word class string repeated at every focusable
+ * element, which is the state right before one of them quietly loses it.
+ */
+@utility focus-ring {
+  &:focus-visible {
+    outline: none;
+    --tw-ring-color: color-mix(in oklch, var(--ring) 45%, transparent);
+    box-shadow: 0 0 0 3px var(--tw-ring-color);
   }
 }
 
@@ -186,6 +284,23 @@
 
 @utility animate-arrive {
   animation: arrive 0.28s ease-out;
+}
+
+/* Body text unfolding under its own row. Shares the arrival easing so the two
+   kinds of "something appeared" read as the same system. */
+@keyframes unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-unfold {
+  animation: unfold 0.18s ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {

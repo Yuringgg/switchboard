@@ -124,3 +124,82 @@ export function preview(bodyText: string, maxLength = 140): string {
   const trimmed = firstLine.trim();
   return trimmed.length > maxLength ? `${trimmed.slice(0, maxLength - 1)}…` : trimmed;
 }
+
+/**
+ * How much of a body an opened row will render.
+ *
+ * A ceiling exists because the timeline is server-rendered: every body in the
+ * page is serialized into the HTML whether or not its row is open. Fifty
+ * ordinary emails is fine; fifty newsletters is a megabyte of markup for text
+ * nobody asked to see. 4,000 characters is roughly 700 words — past the point
+ * where anyone reads on without scrolling, and past the end of essentially
+ * every real message in this corpus.
+ *
+ * When Phase 3 adds a message route, that route reads the whole body and this
+ * ceiling stays where it is: it bounds the *list*, not the record.
+ */
+export const BODY_LIMIT = 4000;
+
+/**
+ * Returns the truncation as a flag rather than appending an ellipsis, so the
+ * UI can say "showing the first 4,000 characters" outright. A trailing "…" is
+ * the same claim made too quietly to act on — the reader cannot tell it from
+ * an ellipsis the sender typed.
+ */
+export function bodyForDisplay(bodyText: string): {
+  text: string;
+  truncated: boolean;
+  limit: number;
+} {
+  const text = bodyText.trim();
+
+  return text.length > BODY_LIMIT
+    ? { text: text.slice(0, BODY_LIMIT), truncated: true, limit: BODY_LIMIT }
+    : { text, truncated: false, limit: BODY_LIMIT };
+}
+
+/**
+ * Which messages should name their channel in words.
+ *
+ * ── Why this exists ──────────────────────────────────────────────────────────
+ *
+ * Channel identity used to be carried by a 7px coloured dot and nothing else,
+ * and the two colours are Gmail red against WhatsApp green — the single worst
+ * pair for red/green colour blindness, which is roughly 8% of men. "Which line
+ * did this come in on" is the one question a cross-channel console exists to
+ * answer, so answering it in a way ~1 reader in 12 cannot read is not a
+ * detail. WCAG 1.4.1: colour must never be the only visual means of conveying
+ * information.
+ *
+ * ── Why on CHANGE rather than on every row ───────────────────────────────────
+ *
+ * A badge on all fifty rows is noise when forty-nine of them say the same
+ * thing, and noise is what gets skimmed past — so it would fail in practice
+ * even where it passes on paper. A ledger prints a column value only when it
+ * changes, and the same rule is *more* informative here: in a merged timeline
+ * the moment the line switches is itself the news. One connected channel
+ * yields exactly one label, at the top, meaning "everything below is Gmail".
+ * Two interleaved channels yield a label on almost every row, which is
+ * precisely when you need one.
+ *
+ * Pure, and computed over the whole ordered list rather than per day — a day
+ * boundary is not a channel change, and re-announcing at every midnight would
+ * break the "it changed" contract the device depends on.
+ */
+export function channelChangePoints(
+  messages: TimelineMessage[],
+  channelTypeById: Map<string, string>,
+): Set<string> {
+  const marked = new Set<string>();
+  let previous: string | undefined;
+
+  for (const message of messages) {
+    const type = channelTypeById.get(message.channel_id);
+    if (type !== previous) {
+      marked.add(message.id);
+      previous = type;
+    }
+  }
+
+  return marked;
+}

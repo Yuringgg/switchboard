@@ -147,10 +147,28 @@ export function Live({ userId, children }: { userId: string; children: ReactNode
   );
 }
 
-const CONNECTION_LABEL: Record<Connection, string> = {
-  connecting: 'Connecting',
-  live: 'Live',
-  offline: 'Offline',
+const CONNECTION: Record<
+  Connection,
+  { label: string; text: string; lamp: string; title: string }
+> = {
+  connecting: {
+    label: 'Connecting',
+    text: 'text-muted-foreground',
+    lamp: 'bg-faint',
+    title: 'Opening the live connection.',
+  },
+  live: {
+    label: 'Live',
+    text: 'text-muted-foreground',
+    lamp: 'animate-lamp bg-live',
+    title: 'New messages will appear here on their own.',
+  },
+  offline: {
+    label: 'Offline',
+    text: 'text-destructive',
+    lamp: 'bg-destructive',
+    title: 'Not receiving updates. Reload the page to reconnect.',
+  },
 };
 
 /**
@@ -159,28 +177,35 @@ const CONNECTION_LABEL: Record<Connection, string> = {
  * Worth the pixels: without it, "no new messages" and "the socket died twenty
  * minutes ago" look exactly the same — which is the failure this project has
  * already paid for once, in the empty state.
+ *
+ * ⚠ Offline must not be styled like the other two. It previously read
+ * `connection === 'offline' ? 'text-muted-foreground' : 'text-muted-foreground'`
+ * — the same value on both branches — so a dead socket differed from a healthy
+ * one by a 6px dot losing its animation, which is exactly the collapse the
+ * paragraph above says this component exists to prevent. It is now the only
+ * place in the console outside a real error that turns red, and it says what
+ * to do about it.
+ *
+ * `aria-live="polite"` because a screen-reader user has no other way to learn
+ * the board stopped listening. It fires about twice a session — once on
+ * connect, once if it drops — so it is information, not chatter.
  */
 export function LiveStatus({ className }: { className?: string }) {
   const { connection } = useContext(LiveContext);
+  const { label, text, lamp, title } = CONNECTION[connection];
 
   return (
     <span
+      aria-live="polite"
+      title={title}
       className={cn(
-        'inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.14em] uppercase',
-        connection === 'offline' ? 'text-muted-foreground' : 'text-muted-foreground',
+        'inline-flex items-center gap-1.5 font-mono text-label uppercase',
+        text,
         className,
       )}
     >
-      <span
-        className={cn(
-          'size-1.5 rounded-full',
-          connection === 'live' && 'animate-lamp bg-live',
-          connection === 'connecting' && 'bg-muted-foreground/40',
-          connection === 'offline' && 'bg-muted-foreground/40 ring-1 ring-border',
-        )}
-        aria-hidden
-      />
-      {CONNECTION_LABEL[connection]}
+      <span className={cn('size-1.5 shrink-0 rounded-full', lamp)} aria-hidden />
+      {label}
     </span>
   );
 }
@@ -202,9 +227,9 @@ export function NewMessages() {
       <button
         type="button"
         onClick={catchUp}
-        className="animate-arrive pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border bg-panel px-3.5 py-1.5 text-xs font-medium shadow-sm transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+        className="focus-ring animate-arrive pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border bg-panel px-3.5 py-1.5 text-note font-medium shadow-sm transition-colors hover:bg-accent"
       >
-        <span className="size-1.5 shrink-0 rounded-full bg-live" aria-hidden />
+        <span className="animate-lamp size-1.5 shrink-0 rounded-full bg-live" aria-hidden />
         {newMessagesLabel(pending)}
         <ArrowUp className="size-3 shrink-0 text-muted-foreground" aria-hidden />
       </button>

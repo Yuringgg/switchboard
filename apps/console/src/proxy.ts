@@ -20,7 +20,28 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
  * per request, by signature or bearer token; that is the correct boundary for
  * machine callers. Anything added under /api must do its own auth.
  */
-const PUBLIC_PATHS = ['/login', '/signup', '/auth', '/api'];
+const PUBLIC_PATHS = [
+  '/login',
+  '/signup',
+  '/auth',
+  '/api',
+
+  /*
+   * The design preview (`app/preview/page.tsx`) — DEVELOPMENT ONLY, and the
+   * only entry in this list that is conditional.
+   *
+   * Next inlines `NODE_ENV` at build time, here as much as in the route, so a
+   * production build does not contain this string at all rather than
+   * evaluating a check per request. The route ALSO calls `notFound()` on the
+   * same condition: two independent guards, because this is the security
+   * boundary of a multi-tenant system and one `&&` is not a boundary.
+   *
+   * It is safe to expose because it reads nothing — every row it renders is a
+   * literal in that file, and no Supabase client is constructed. If that ever
+   * stops being true, this entry must go.
+   */
+  ...(process.env.NODE_ENV === 'development' ? ['/preview'] : []),
+];
 
 /** Signing in or up while already signed in should just go to the console. */
 const AUTH_PAGES = ['/login', '/signup'];
@@ -81,7 +102,15 @@ export const config = {
     /*
      * Everything except static assets. The negative lookahead is what keeps a
      * getUser() round trip off every image request.
+     *
+     * ⚠ `icon` is Next's generated metadata route (`app/icon.tsx`), and it has
+     * no file extension — so without an explicit exclusion it falls through to
+     * the gate below and an unauthenticated request for the tab icon is
+     * answered with a 307 to /login. The visible symptom is the browser
+     * falling back to a blank page icon on /login and /signup, the two screens
+     * where nobody is signed in yet. `apple-icon` and `opengraph-image` are
+     * named here too so adding either later cannot reintroduce this.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|icon$|apple-icon$|opengraph-image$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };

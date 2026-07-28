@@ -25,7 +25,7 @@ export default async function SignupPage({
           Already have an account?{' '}
           <Link
             href={`/login?next=${encodeURIComponent(next)}`}
-            className="rounded font-medium text-foreground underline underline-offset-4 hover:no-underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+            className="focus-ring rounded font-medium text-foreground underline underline-offset-4 hover:no-underline"
           >
             Sign in
           </Link>
@@ -39,7 +39,7 @@ export default async function SignupPage({
         <SubmitButton>Create account</SubmitButton>
       </form>
 
-      <p className="mt-3 text-xs text-muted-foreground">
+      <p className="mt-3.5 text-note text-muted-foreground">
         We&rsquo;ll email you a confirmation link. You won&rsquo;t be signed in until
         you click it.
       </p>
