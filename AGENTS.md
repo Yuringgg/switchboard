@@ -348,8 +348,17 @@ dashboard-only; reproduce build failures with `pnpm --filter console build`.
 database has twice caught what reading the code did not.
 
 **Accounts:** `dev@switchboard.test` was deleted on 2026-07-26 along with its
-seed file. `leiruychua@gmail.com` is now the only user, created through the
-normal signup flow.
+seed file. **There are now TWO users**, both created through the normal signup
+flow — `leiruychua@gmail.com` (`ec7645a6-…`), which owns the Gmail channel and
+all 16 messages, and `hiraimumu1616@gmail.com` (`f5131cd5-…`), which owns
+nothing. This file claimed there was only one until 2026-07-28; corrected after
+querying `auth.users`.
+
+⚠ **That matters for Phase 2.** A WhatsApp number is assigned to a specific
+`owner_id`, and only that tenant will ever see its messages — RLS is doing
+exactly what it should. Provision against `ec7645a6-…` unless you mean
+otherwise. The second account is also the first real chance to *see* tenant
+isolation working rather than only testing it.
 
 **Environment notes for builders** — both cost time to rediscover:
 
