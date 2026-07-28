@@ -63,10 +63,14 @@ async function TimelineSection({
   timeline,
   channels,
 }: {
-  timeline: Promise<{ messages: TimelineMessage[]; error: string | null }>;
+  timeline: Promise<{
+    messages: TimelineMessage[];
+    truncated: boolean;
+    error: string | null;
+  }>;
   channels: Promise<{ channels: ChannelRow[]; error: string | null }>;
 }) {
-  const [{ messages, error }, { channels: rows, error: channelsError }] =
+  const [{ messages, truncated, error }, { channels: rows, error: channelsError }] =
     await Promise.all([timeline, channels]);
 
   // Channel type per message, so each row can show which line it came in on.
@@ -83,7 +87,11 @@ async function TimelineSection({
       )}
 
       {messages.length > 0 ? (
-        <Timeline messages={messages} channelTypeById={channelTypeById} />
+        <Timeline
+          messages={messages}
+          channelTypeById={channelTypeById}
+          truncated={truncated}
+        />
       ) : (
         <TimelineEmpty connectedTypes={rows.map((c) => c.type)} />
       )}

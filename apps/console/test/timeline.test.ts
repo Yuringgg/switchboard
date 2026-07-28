@@ -4,6 +4,7 @@ import {
   BODY_LIMIT,
   bodyForDisplay,
   channelChangePoints,
+  formatAge,
   groupByDay,
   newMessagesLabel,
   preview,
@@ -140,6 +141,51 @@ describe('channelChangePoints', () => {
 
   it('returns nothing for no messages', () => {
     expect(channelChangePoints([], types).size).toBe(0);
+  });
+});
+
+describe('formatAge', () => {
+  const now = Date.parse('2026-07-28T12:00:00.000Z');
+  const ago = (seconds: number) =>
+    new Date(now - seconds * 1000).toISOString();
+
+  it('returns null before the client has mounted', () => {
+    // `now === 0` is lib/now.ts's not-mounted sentinel. The row falls back to
+    // the absolute clock time, which is what the server can render without
+    // guessing at a clock it does not share.
+    expect(formatAge(ago(60), 0)).toBeNull();
+  });
+
+  it('says "just now" for the first three quarters of a minute', () => {
+    expect(formatAge(ago(0), now)).toBe('just now');
+    expect(formatAge(ago(44), now)).toBe('just now');
+  });
+
+  it('never says "0m ago" or "1m ago" twice at the boundary', () => {
+    // Rounding minutes without the 45/90s steps produces "0m ago" just after
+    // sending, which reads as broken.
+    expect(formatAge(ago(45), now)).toBe('1m ago');
+    expect(formatAge(ago(89), now)).toBe('1m ago');
+    expect(formatAge(ago(90), now)).toBe('2m ago');
+  });
+
+  it('counts minutes up to the hour', () => {
+    expect(formatAge(ago(14 * 60), now)).toBe('14m ago');
+    expect(formatAge(ago(59 * 60), now)).toBe('59m ago');
+  });
+
+  it('hands back to the clock at an hour', () => {
+    // Past an hour "4h ago" is vaguer than 14:12, and the day heading above
+    // the row already carries the date.
+    expect(formatAge(ago(3600), now)).toBeNull();
+    expect(formatAge(ago(86_400), now)).toBeNull();
+  });
+
+  it('does not produce a negative age from clock skew', () => {
+    // A sender's machine running 40 seconds fast is ordinary. Without the
+    // catch this reads "-1m ago".
+    expect(formatAge(ago(-40), now)).toBe('just now');
+    expect(formatAge(ago(-5000), now)).toBe('just now');
   });
 });
 

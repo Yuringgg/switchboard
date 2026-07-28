@@ -1,8 +1,10 @@
 import { Inbox, Radio } from 'lucide-react';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
 import { NewMessages } from '@/components/live';
 import { MessageRow } from '@/components/message-row';
+import { TimelineKeys } from '@/components/timeline-keys';
 import { CHANNELS } from '@/lib/channels';
 import { channelChangePoints, groupByDay, type TimelineMessage } from '@/lib/timeline';
 import { buttonClass, LABEL } from '@/lib/ui';
@@ -32,9 +34,12 @@ import { cn } from '@/lib/utils';
 export function Timeline({
   messages,
   channelTypeById,
+  truncated = false,
 }: {
   messages: TimelineMessage[];
   channelTypeById: Map<string, string>;
+  /** More messages exist than were fetched. Said out loud, never implied. */
+  truncated?: boolean;
 }) {
   const days = groupByDay(messages);
 
@@ -46,6 +51,7 @@ export function Timeline({
     <div>
       {/* Takes no height: an arrival must never move what you are reading. */}
       <NewMessages />
+      <TimelineKeys />
 
       <div className="space-y-7">
         {days.map((day) => (
@@ -89,7 +95,58 @@ export function Timeline({
           </section>
         ))}
       </div>
+
+      <TimelineFoot count={messages.length} truncated={truncated} />
     </div>
+  );
+}
+
+/**
+ * The end of the record.
+ *
+ * Two jobs in one line, and they belong together — this is the moment you have
+ * reached the bottom, which is exactly when "is that everything?" and "is
+ * there a faster way through this?" are the questions you have.
+ *
+ * The limit is stated rather than implied. A console promising "every message,
+ * every channel, in order" that silently shows the newest fifty is wrong in
+ * the one way it must not be: a message you have received, cannot see, and are
+ * not told is being withheld.
+ *
+ * The shortcut hint lives here instead of behind a `?` dialog because a hint
+ * nobody finds teaches nobody, and a dialog is a lot of focus-trapping
+ * machinery for eleven characters. At the foot of the list it is out of the
+ * way until you are done reading, which is when you would want it.
+ */
+function TimelineFoot({ count, truncated }: { count: number; truncated: boolean }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-border pt-4">
+      <p className={LABEL}>
+        {truncated ? `Latest ${count} messages` : `${count} message${count === 1 ? '' : 's'}`}
+      </p>
+
+      <p className={cn(LABEL, 'ml-auto flex items-center gap-1.5')} aria-label="Keyboard shortcuts: J and K move between messages, Enter opens one, G returns to the top">
+        <Key>j</Key>
+        <Key>k</Key>
+        <span aria-hidden>move</span>
+        <Key>↵</Key>
+        <span aria-hidden>open</span>
+        <Key>g</Key>
+        <span aria-hidden>top</span>
+      </p>
+    </div>
+  );
+}
+
+/** A keycap. Same mono voice as everything else the machine says. */
+function Key({ children }: { children: ReactNode }) {
+  return (
+    <kbd
+      aria-hidden
+      className="rounded border border-border bg-background px-1 py-px font-mono text-label text-muted-foreground"
+    >
+      {children}
+    </kbd>
   );
 }
 

@@ -3,7 +3,9 @@
 import { ChevronRight } from 'lucide-react';
 import { useId, useState } from 'react';
 
-import { bodyForDisplay, preview, type TimelineMessage } from '@/lib/timeline';
+import { ROW_ATTR } from '@/components/timeline-keys';
+import { useNow } from '@/lib/now';
+import { bodyForDisplay, formatAge, preview, type TimelineMessage } from '@/lib/timeline';
 import { LABEL } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
@@ -50,12 +52,16 @@ export function MessageRow({
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
+  const now = useNow();
 
   const outbound = message.direction === 'outbound';
   const name = outbound ? 'You' : (message.sender?.display_name ?? null);
   const address = message.sender?.external_id ?? null;
   const line = preview(message.body_text);
   const body = bodyForDisplay(message.body_text);
+
+  /** "14m ago" while it is recent, otherwise null and the clock time shows. */
+  const age = formatAge(message.sent_at, now);
 
   /*
    * ── Why the headline is not simply the subject ───────────────────────────
@@ -112,6 +118,8 @@ export function MessageRow({
 
         <button
           type="button"
+          // Marks this as a stop for j/k. See components/timeline-keys.tsx.
+          {...{ [ROW_ATTR]: '' }}
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           // Only while the panel exists. A collapsed row is not rendering one,
@@ -138,11 +146,16 @@ export function MessageRow({
               <span className={cn(LABEL, 'shrink-0')}>sent</span>
             )}
 
+            {/*
+              `title` carries the exact clock time whenever the label is
+              relative, so "just now" is never the only answer available.
+            */}
             <time
               dateTime={message.sent_at}
+              title={age ? formatFullTimestamp(message.sent_at) : undefined}
               className="ml-auto shrink-0 font-mono text-meta text-muted-foreground"
             >
-              {formatTime(message.sent_at)}
+              {age ?? formatTime(message.sent_at)}
             </time>
           </span>
 

@@ -3,9 +3,13 @@ import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { AppShell } from '@/components/app-shell';
+import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
 import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
 import type { ChannelRow } from '@/lib/channels';
 import type { TimelineMessage } from '@/lib/timeline';
+
+/** Not a real user. Realtime is scoped to it and will simply match nothing. */
+const PREVIEW_USER_ID = '00000000-0000-0000-0000-000000000000';
 
 /**
  * Design preview. **Development only.**
@@ -130,19 +134,62 @@ function fixtures(): TimelineMessage[] {
   ];
 }
 
+/**
+ * A channel in trouble. The renewal sweep writes `last_error` when a Gmail
+ * watch fails to renew, and `/channels` is the only screen it ever surfaces
+ * on — so it is the state most worth being able to look at, and the one least
+ * likely to be around when you want to.
+ */
+const CHANNELS_WITH_ERROR: ChannelRow[] = [
+  {
+    ...CHANNELS[0]!,
+    status: 'error',
+    last_error:
+      'Gmail rejected the refresh token (invalid_grant). Reconnect the account to restore ingestion.',
+  },
+  CHANNELS[1]!,
+];
+
 export default async function PreviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ state?: string }>;
+  searchParams: Promise<{ state?: string; screen?: string }>;
 }) {
   if (process.env.NODE_ENV !== 'development') notFound();
 
-  const { state = 'messages' } = await searchParams;
+  const { state = 'messages', screen = 'timeline' } = await searchParams;
 
-  const messages = state === 'messages' ? fixtures() : [];
-  const rows = state === 'unconnected' ? [] : CHANNELS;
+  const rows =
+    state === 'unconnected'
+      ? []
+      : state === 'error'
+        ? CHANNELS_WITH_ERROR
+        : CHANNELS;
 
   const channels = Promise.resolve({ channels: rows, error: null });
+
+  if (screen === 'channels') {
+    return (
+      <AppShell
+        title="Channels"
+        description="Connect an account and its messages flow into the timeline."
+        userEmail="preview@switchboard.local"
+        userId={PREVIEW_USER_ID}
+        activeHref="/channels"
+        channels={channels}
+      >
+        <Suspense fallback={<ChannelListSkeleton />}>
+          {state === 'loading' ? (
+            <ChannelListSkeleton />
+          ) : (
+            <ChannelList rows={rows} error={null} />
+          )}
+        </Suspense>
+      </AppShell>
+    );
+  }
+
+  const messages = state === 'messages' || state === 'error' ? fixtures() : [];
   const channelTypeById = new Map(rows.map((c) => [c.id, c.type]));
 
   return (
@@ -150,7 +197,7 @@ export default async function PreviewPage({
       title="Timeline"
       description="Every message, every channel, in order."
       userEmail="preview@switchboard.local"
-      userId="00000000-0000-0000-0000-000000000000"
+      userId={PREVIEW_USER_ID}
       activeHref="/"
       channels={channels}
     >
@@ -158,7 +205,13 @@ export default async function PreviewPage({
         {state === 'loading' ? (
           <TimelineSkeleton />
         ) : messages.length > 0 ? (
-          <Timeline messages={messages} channelTypeById={channelTypeById} />
+          <Timeline
+            messages={messages}
+            channelTypeById={channelTypeById}
+            // So the "Latest N messages" footer can be looked at without
+            // needing 51 real messages in the database.
+            truncated={state === 'messages'}
+          />
         ) : (
           <TimelineEmpty connectedTypes={rows.map((c) => c.type)} />
         )}

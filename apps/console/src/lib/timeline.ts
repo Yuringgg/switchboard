@@ -67,7 +67,7 @@ export function groupByDay(messages: TimelineMessage[]): TimelineDay[] {
 export async function fetchTimeline(
   supabase: SupabaseClient,
   limit = 50,
-): Promise<{ messages: TimelineMessage[]; error: string | null }> {
+): Promise<{ messages: TimelineMessage[]; truncated: boolean; error: string | null }> {
   try {
     // RLS scopes this to the signed-in user, so there is no owner_id filter —
     // adding one would imply the policy might not be doing its job.
@@ -81,12 +81,25 @@ export async function fetchTimeline(
         'id, direction, subject, body_text, sent_at, channel_id, sender:contact_identities!messages_sender_identity_fkey(external_id, display_name)',
       )
       .order('sent_at', { ascending: false })
-      .limit(limit);
+      /*
+       * One more than we intend to show, purely to learn whether more exist.
+       *
+       * The list was capped at 50 with nothing on screen saying so, which on a
+       * console whose promise is "every message, every channel, in order" is
+       * the one kind of wrong it must not be — a message you have received and
+       * cannot see, with no indication it is being withheld. Asking for 51 and
+       * discarding the extra costs one row and no second query; an exact
+       * `count` would cost a full scan on every load to render one sentence.
+       */
+      .limit(limit + 1);
 
-    if (error) return { messages: [], error: error.message };
+    if (error) return { messages: [], truncated: false, error: error.message };
+
+    const rows = data ?? [];
+    const truncated = rows.length > limit;
 
     // PostgREST returns an embedded one-to-one as an object, but types it loosely.
-    const messages = (data ?? []).map((row) => {
+    const messages = rows.slice(0, limit).map((row) => {
       const raw = row as unknown as Omit<TimelineMessage, 'sender'> & {
         sender: TimelineMessage['sender'] | TimelineMessage['sender'][] | null;
       };
@@ -96,10 +109,11 @@ export async function fetchTimeline(
       } satisfies TimelineMessage;
     });
 
-    return { messages, error: null };
+    return { messages, truncated, error: null };
   } catch (cause) {
     return {
       messages: [],
+      truncated: false,
       // Never include the payload in an error string: this query returns real
       // message bodies. docs/02-ARCHITECTURE.md §6.
       error: cause instanceof Error ? cause.message : 'Messages are unavailable.',
@@ -123,6 +137,37 @@ export function preview(bodyText: string, maxLength = 140): string {
   const firstLine = bodyText.split('\n').find((line) => line.trim().length > 0) ?? '';
   const trimmed = firstLine.trim();
   return trimmed.length > maxLength ? `${trimmed.slice(0, maxLength - 1)}…` : trimmed;
+}
+
+/**
+ * How a message's age is phrased.
+ *
+ * ── Why not just the clock time ──────────────────────────────────────────────
+ *
+ * This is a live board. For something that arrived in the last hour the useful
+ * question is "how long ago", and "14m ago" answers it at a glance where 18:31
+ * makes you do arithmetic against a clock you have to go and find. Past an
+ * hour the reverse is true — "4h ago" is vaguer than 14:12, and by tomorrow it
+ * is useless — so the clock takes back over, and the day heading above the row
+ * already carries the date.
+ *
+ * `now === 0` is the not-yet-mounted sentinel from `lib/now.ts`; the absolute
+ * time is the correct thing to render on the server either way.
+ *
+ * A negative age falls into the first branch and reads "just now", which is
+ * deliberate: clock skew between the sender's machine and ours is ordinary,
+ * and without that catch a message stamped 40 seconds ahead reads "-1m ago".
+ */
+export function formatAge(sentAt: string, now: number): string | null {
+  if (now === 0) return null;
+
+  const seconds = Math.round((now - new Date(sentAt).getTime()) / 1000);
+
+  if (seconds < 45) return 'just now';
+  if (seconds < 90) return '1m ago';
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m ago`;
+
+  return null;
 }
 
 /**

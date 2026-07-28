@@ -83,6 +83,31 @@ carrying day counts, channel status and sender addresses.
 `--faint` exists for hairlines, skeleton bars and an unlit lamp. **Nothing
 legible may be set in it.**
 
+### The timeline
+
+**Keyboard.** `j` / `k` move, `Enter` opens a row, `g` returns to the top. It
+moves real DOM **focus** rather than tracking a selection of its own — so Tab
+still works, a screen reader announces the row it lands on, and there is no
+second notion of "where you are" to drift out of sync with the browser's.
+
+> ⚠ Never query rows with a bare `document.querySelectorAll`. React streams
+> suspended content into a hidden `<div id="S:n">` at the end of `<body>`, so
+> while the timeline sits behind `<Suspense>` the document holds a **second,
+> invisible copy of every row** — 12 matches for 6 messages, measured. Scope to
+> the scroller and filter on visibility; `components/timeline-keys.tsx` does
+> both.
+
+**Time.** Under an hour a row says "14m ago", because on a live board that is
+the question; past an hour it hands back to the clock, since "5h ago" is vaguer
+than 14:12 and the day heading already carries the date. One shared interval in
+`lib/now.ts` drives every row — fifty rows with fifty timers wake the tab up
+out of phase and update out of step with each other.
+
+**The list is capped at 50 and says so.** `fetchTimeline` asks for `limit + 1`
+to learn whether more exist, which costs one row instead of a counting scan. A
+console promising *every message, every channel, in order* must not silently
+withhold one.
+
 ### Theming
 
 Three states — light, dark, and **system**, which is the default and is what
@@ -114,8 +139,16 @@ breakpoint.
 
 Every screen worth designing is behind a login and needs real mail to render,
 so `pnpm dev` then <http://localhost:3100/preview> renders the real components
-over fixture rows: `?state=empty` and `?state=unconnected` give the two empty
-states, which must never converge.
+over fixture rows.
+
+| URL | Shows |
+|---|---|
+| `/preview` | the timeline, two channels interleaved, with the truncation footer |
+| `/preview?state=empty` | "Listening" — a channel is connected, nothing has arrived |
+| `/preview?state=unconnected` | "No messages yet" + Connect. These two must never converge |
+| `/preview?state=loading` | the streaming skeleton |
+| `/preview?screen=channels` | the channel list |
+| `/preview?screen=channels&state=error` | **a channel with `last_error` set** — the state the renewal sweep produces, which only ever surfaces here and is never around when you want to look at it |
 
 **Development only**, guarded twice — `notFound()` in the route and a
 conditional entry in `PUBLIC_PATHS`, both keyed on `NODE_ENV`, which Next
