@@ -85,7 +85,24 @@ export function Live({ userId, children }: { userId: string; children: ReactNode
   }, [router]);
 
   const catchUp = useCallback(() => {
-    document.getElementById(SCROLLER_ID)?.scrollTo({ top: 0, behavior: 'smooth' });
+    const scroller = document.getElementById(SCROLLER_ID);
+    scroller?.scrollTo({ top: 0, behavior: 'smooth' });
+
+    /*
+     * Move focus before the pill unmounts.
+     *
+     * Clearing `pending` removes the button that was just activated, and focus
+     * on a removed element falls back to <body> — so a keyboard user who
+     * pressed Enter on "3 new messages" lands nowhere, and their next Tab
+     * starts again from the skip link at the top of the document. Handing
+     * focus to the scroller puts them at the messages they asked to see:
+     * `j` continues from the first row, Tab enters the list, and a screen
+     * reader announces the region by its label rather than going silent.
+     *
+     * `preventScroll` so this cannot fight the smooth scroll above.
+     */
+    scroller?.focus({ preventScroll: true });
+
     setPending(0);
     router.refresh();
   }, [router]);

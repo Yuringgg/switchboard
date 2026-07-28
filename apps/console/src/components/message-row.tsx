@@ -5,7 +5,13 @@ import { useId, useState } from 'react';
 
 import { ROW_ATTR } from '@/components/timeline-keys';
 import { useNow } from '@/lib/now';
-import { bodyForDisplay, formatAge, preview, type TimelineMessage } from '@/lib/timeline';
+import {
+  bodyForDisplay,
+  formatAge,
+  initials,
+  preview,
+  type TimelineMessage,
+} from '@/lib/timeline';
 import { LABEL } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
@@ -116,6 +122,19 @@ export function MessageRow({
           </p>
         )}
 
+        {/*
+          The avatar sits OUTSIDE the button so the opened body aligns with the
+          text column rather than starting under the initials — and the hover
+          wash moves out here with it, so the whole row lights up as one object
+          instead of the text highlighting while the avatar stays cold.
+        */}
+        <div className="-mx-2 flex gap-2.5 rounded-md px-2 py-1 transition-colors group-hover:bg-accent/70">
+          <Avatar
+            initials={initials(message.sender?.display_name ?? null, address)}
+            outbound={outbound}
+          />
+
+          <div className="min-w-0 flex-1">
         <button
           type="button"
           // Marks this as a stop for j/k. See components/timeline-keys.tsx.
@@ -127,7 +146,7 @@ export function MessageRow({
           // a dangling reference — `aria-expanded` is what actually carries the
           // state to a screen reader either way.
           aria-controls={open ? panelId : undefined}
-          className="focus-ring -mx-2 block w-full rounded-md px-2 py-1 text-left transition-colors hover:bg-accent/70"
+          className="focus-ring block w-full rounded-sm text-left"
         >
           <span className="flex items-baseline gap-2">
             <span className="truncate text-row font-medium">
@@ -215,8 +234,52 @@ export function MessageRow({
             )}
           </div>
         )}
+          </div>
+        </div>
       </div>
     </li>
+  );
+}
+
+/**
+ * Who sent it, as one or two letters.
+ *
+ * ── Why it is monochrome ─────────────────────────────────────────────────────
+ *
+ * A hue per contact is the conventional build and it is wrong here. This
+ * interface already spends colour on exactly two meanings — which channel a
+ * message came in on, and whether the board is live — and that discipline is
+ * what lets a 7px dot carry the product's central distinction. A rainbow of
+ * contact colours would sit beside those with no meaning attached and make all
+ * three read as decoration. The letters do the identifying; they differ from
+ * each other far more than a set of pastel circles would.
+ *
+ * ── Why a rounded square ─────────────────────────────────────────────────────
+ *
+ * There is already a circle on this row, 10px to the left: the channel lamp.
+ * Two round things adjacent read as one repeated element. Square means
+ * identity, round means signal — and the shape difference survives being
+ * skimmed, which is the whole job.
+ *
+ * Decorative, so `aria-hidden`: the sender's name is directly beside it and a
+ * screen reader spelling out "M S" first is noise.
+ */
+function Avatar({ initials, outbound }: { initials: string; outbound: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md',
+        'text-label font-semibold tracking-normal',
+        // Your own messages invert, so "me" is separable from every contact at
+        // a glance without reading the name.
+        outbound
+          ? 'bg-foreground text-background'
+          : 'bg-accent text-foreground',
+      )}
+    >
+      {initials}
+    </span>
   );
 }
 

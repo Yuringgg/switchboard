@@ -140,6 +140,58 @@ export function preview(bodyText: string, maxLength = 140): string {
 }
 
 /**
+ * The one or two characters that stand for a sender.
+ *
+ * ── Why the fallbacks are not an afterthought ────────────────────────────────
+ *
+ * `display_name` is nullable and frequently null — Gmail gives a name only
+ * when the sender set one, and WhatsApp identities are phone numbers. So the
+ * interesting cases are the ones without a name, and each needs its own rule:
+ *
+ * **Email** uses the local part, because everything after the @ is shared by
+ * everyone at that company — a column of "V" for vendor.example identifies
+ * nobody.
+ *
+ * **Phone numbers use the LAST two digits**, which is the opposite of every
+ * other branch and is the whole reason this function exists rather than a
+ * `.slice(0, 2)` at the call site. The corpus is Philippine: every number
+ * starts +63, and most mobiles continue 9xx — so leading characters make every
+ * contact identical. The tail is the part that differs.
+ *
+ * A name of two or more words takes the first and *last* word, so "Maria
+ * Santos" and "Maria dela Cruz" do not both read "MD".
+ */
+export function initials(
+  displayName: string | null,
+  externalId: string | null,
+): string {
+  const name = displayName?.trim();
+
+  if (name) {
+    const words = name.split(/\s+/).filter(Boolean);
+
+    if (words.length >= 2) {
+      return (words[0]![0]! + words.at(-1)![0]!).toUpperCase();
+    }
+    return words[0]!.slice(0, 2).toUpperCase();
+  }
+
+  const id = externalId?.trim();
+  if (!id) return '?';
+
+  // An address: everything before the @ is the part that identifies a person.
+  const local = id.includes('@') ? id.split('@')[0]! : id;
+
+  const letters = local.replace(/[^a-z0-9]/gi, '');
+  if (!letters) return '?';
+
+  // No letters at all means a phone number. Take the tail, not the head.
+  return /[a-z]/i.test(letters)
+    ? letters.slice(0, 2).toUpperCase()
+    : letters.slice(-2);
+}
+
+/**
  * How a message's age is phrased.
  *
  * ── Why not just the clock time ──────────────────────────────────────────────

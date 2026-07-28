@@ -5,6 +5,7 @@ import {
   bodyForDisplay,
   channelChangePoints,
   formatAge,
+  initials,
   groupByDay,
   newMessagesLabel,
   preview,
@@ -141,6 +142,49 @@ describe('channelChangePoints', () => {
 
   it('returns nothing for no messages', () => {
     expect(channelChangePoints([], types).size).toBe(0);
+  });
+});
+
+describe('initials', () => {
+  it('takes the first and last word of a name', () => {
+    expect(initials('Maria Santos', 'm@x.com')).toBe('MS');
+    // First-and-last, not first-two: otherwise "Maria Santos" and "Maria dela
+    // Cruz" both read MD and the avatar stops distinguishing anyone.
+    expect(initials('Maria dela Cruz', 'm@x.com')).toBe('MC');
+  });
+
+  it('takes two letters from a single-word name', () => {
+    // One letter in a 20px square looks like a placeholder rather than a person.
+    expect(initials('Ram', '+639170000002')).toBe('RA');
+  });
+
+  it('falls back to the local part of an address', () => {
+    // Never the domain: everyone at one company shares it, so a column of "V"
+    // for vendor.example identifies nobody.
+    expect(initials(null, 'billing@vendor.example')).toBe('BI');
+    expect(initials(null, 'dan@client.example')).toBe('DA');
+  });
+
+  it('takes the LAST two digits of a phone number', () => {
+    /*
+     * The corpus is Philippine. Every number starts +63 and most mobiles
+     * continue 9xx, so leading characters make every WhatsApp contact
+     * identical — which is the exact opposite of what an avatar is for.
+     */
+    expect(initials(null, '+639170000001')).toBe('01');
+    expect(initials(null, '+639170000002')).toBe('02');
+    expect(initials(null, '+63 917 000 0042')).toBe('42');
+  });
+
+  it('prefers a name over the handle when it has one', () => {
+    expect(initials('Fatima R.', '+639170000001')).toBe('FR');
+  });
+
+  it('never returns an empty string', () => {
+    // Every branch feeds a fixed-size box; an empty one reads as a broken image.
+    expect(initials(null, null)).toBe('?');
+    expect(initials('   ', '')).toBe('?');
+    expect(initials(null, '@@@')).toBe('?');
   });
 });
 

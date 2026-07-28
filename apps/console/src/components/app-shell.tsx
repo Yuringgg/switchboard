@@ -230,11 +230,14 @@ export function AppShell({
             `tabIndex={-1}` makes it the skip link's landing point, and gives a
             keyboard user something to focus before pressing Page Down — a
             scroll container that cannot take focus cannot be scrolled from the
-            keyboard alone.
+            keyboard alone. `live.tsx` also hands focus here when the
+            new-messages pill is dismissed, which is why it is worth naming:
+            focus landing on an unlabelled <main> announces only "main".
           */}
           <main
             id={SCROLLER_ID}
             tabIndex={-1}
+            aria-label={title}
             className="min-h-0 flex-1 overflow-y-auto outline-none"
           >
             <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-5 py-6 md:px-8 md:py-8">

@@ -235,13 +235,18 @@ export function TimelineSkeleton() {
               <span className="absolute top-[9px] size-[7px] rounded-full bg-faint ring-[3px] ring-background" />
             </span>
 
-            <div className="flex-1 animate-pulse pb-4 pt-1">
-              <div className="flex items-baseline gap-2">
-                <span className="h-3 w-28 rounded bg-faint/60" />
-                <span className="ml-auto h-3 w-9 rounded bg-faint/40" />
+            {/* Same geometry as a real row, avatar included — a skeleton whose
+                shape doesn't match what replaces it produces a visible jump. */}
+            <div className="flex flex-1 animate-pulse gap-2.5 pb-4 pt-1">
+              <span className="mt-0.5 size-5 shrink-0 rounded-md bg-faint/50" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="h-3 w-28 rounded bg-faint/60" />
+                  <span className="ml-auto h-3 w-9 rounded bg-faint/40" />
+                </div>
+                <span className="mt-2 block h-3.5 w-2/3 rounded bg-faint/60" />
+                <span className="mt-1.5 block h-3 w-1/2 rounded bg-faint/40" />
               </div>
-              <span className="mt-2 block h-3.5 w-2/3 rounded bg-faint/60" />
-              <span className="mt-1.5 block h-3 w-1/2 rounded bg-faint/40" />
             </div>
           </li>
         ))}

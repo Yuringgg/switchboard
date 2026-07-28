@@ -103,6 +103,18 @@ than 14:12 and the day heading already carries the date. One shared interval in
 `lib/now.ts` drives every row — fifty rows with fifty timers wake the tab up
 out of phase and update out of step with each other.
 
+**Avatars are monochrome, and that is a decision.** A hue per contact is the
+conventional build and it is wrong here: this interface spends colour on
+exactly two meanings — which channel a message arrived on, and whether the
+board is live — and that discipline is what lets a 7px dot carry the product's
+central distinction. A third colour system with no meaning attached would make
+all three read as decoration. The letters identify; they differ from one
+another far more than pastel circles would. They are a rounded **square**
+because there is already a circle 10px to the left, and two round things
+adjacent read as one repeated element: round means signal, square means
+identity. Your own messages invert. `initials()` handles the cases that matter
+— see its note on why phone numbers take their **last** two digits.
+
 **The list is capped at 50 and says so.** `fetchTimeline` asks for `limit + 1`
 to learn whether more exist, which costs one row instead of a counting scan. A
 console promising *every message, every channel, in order* must not silently
