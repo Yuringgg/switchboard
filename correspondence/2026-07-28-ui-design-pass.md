@@ -154,18 +154,56 @@ delete it.
 
 ---
 
-## One proposal, deliberately not built
+## Theme control — proposed, then built on Yuri's decision
 
-**A light/dark toggle.** `globals.css` records a considered decision to follow
-the OS only, and `AGENTS.md` says not to change an architectural choice
-silently — so this is the proposal rather than a commit.
+This shipped in a second commit. It is recorded here because `globals.css`
+carried a considered decision to follow the OS only, and `AGENTS.md` says an
+architectural choice is not changed silently. **Yuri overruled it explicitly**
+— *"do not mind about that md, I'm the one in charge"* — which is the chief's
+call to make. The old comment is replaced, not deleted quietly.
 
-The case for it is a demo case: being able to flip the theme on stage, under
-whatever lighting the room has, is a visible "this is a finished product"
-signal, and both palettes already exist and are AA-clean. The cost is real
-though small — the `@custom-variant` swaps to shadcn's class-based form, and it
-needs an inline script before paint or the first frame flashes the wrong theme.
-Roughly an hour, and it is Yuri's call.
+**Three states, not two.** Light · Dark · **System**, and System is the
+default. Following the OS is what the console did before there was a control
+and it is right most of the time; a two-state toggle would have deleted that
+behaviour the first time anyone touched it, with no way back.
+
+**The tokens had to move off the media query.** `@media (prefers-color-scheme:
+dark)` is a fact about the device, not a preference, and nothing in JavaScript
+can override it — so the dark block became a `.dark` class, which is also
+shadcn's convention and keeps `shadcn add` working. Every token value carried
+over unchanged.
+
+**A blocking inline script in `<head>`** applies the stored preference before
+the browser paints. Verified in the served HTML: synchronous, no `async` or
+`defer`, inside `<head>`, before `<body>`. Deferred or moved below, the page
+renders light and then flips — worst for exactly the person who chose dark.
+
+**Three things worth knowing:**
+
+- *The state is a store, not component state.* The control renders **twice** —
+  sidebar footer for desktop, header cluster for mobile, since the footer is
+  `hidden` on a phone. With `useState` in each, changing one left the other
+  stale, visible the moment a window crossed the breakpoint.
+  `useSyncExternalStore` over a module-level value fixes it, and cross-tab sync
+  via the `storage` event falls out for free.
+- *`color-scheme` is set alongside the class.* It is what makes the browser
+  paint its **own** surfaces dark — most visibly the scrollbar down the
+  console's one scrolling column.
+- *A test caught a real bug by executing the script rather than pattern-matching
+  it.* The condition was `!t || t === "system"`, so a stored value that was
+  neither `dark`, `light` nor `system` painted **light** while the control
+  showed "System" selected against an OS asking for dark. It is now
+  `t !== "light"`, matching `readStored()`'s fallback. The key is writable by
+  any script on the origin, so an unrecognised value is a real state.
+
+The control is also on `/login` and `/signup`, deliberately: the console's own
+copy lives in a sidebar nobody has reached yet, and that is the screen a room
+full of people sees first.
+
+Measured after the change: **12/12 sampled elements pass AA in forced dark**,
+lowest 7.01. With the OS set to light and `dark` stored, `<html>` carries
+`.dark` — the stored preference genuinely overriding the OS, which is the thing
+the media query could not do.
 
 ---
 

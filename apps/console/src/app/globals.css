@@ -1,12 +1,19 @@
 @import 'tailwindcss';
 
 /*
- * Dark mode follows the OS. No toggle, no next-themes, no hydration dance —
- * there is nothing to persist yet. When a real preference control is wanted,
- * swap this variant for shadcn's class-based `(&:is(.dark *))` and the token
- * values below carry over unchanged.
+ * Dark mode is a stored preference with three states — light, dark, and
+ * follow-the-OS, which remains the default.
+ *
+ * It switched on `@media (prefers-color-scheme: dark)` until 2026-07-28. That
+ * had to change to add the control at all: a media query is a fact about the
+ * device, not a preference, and nothing in JavaScript can override it. The
+ * class strategy is also shadcn's, so `shadcn add` keeps working and any
+ * `dark:` utility a generated component ships resolves correctly.
+ *
+ * `lib/theme.ts` owns the decision and is the only thing that writes the
+ * class. Every token value below carried over unchanged.
  */
-@custom-variant dark (@media (prefers-color-scheme: dark));
+@custom-variant dark (&:where(.dark, .dark *));
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
@@ -98,37 +105,40 @@
   --faint: oklch(0.83 0.006 250);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.155 0.006 265);
-    --foreground: oklch(0.965 0.002 250);
-    --card: oklch(0.205 0.007 265);
-    --card-foreground: oklch(0.965 0.002 250);
-    --popover: oklch(0.205 0.007 265);
-    --popover-foreground: oklch(0.965 0.002 250);
-    --primary: oklch(0.93 0.003 250);
-    --primary-foreground: oklch(0.185 0.008 265);
-    --secondary: oklch(0.262 0.008 265);
-    --secondary-foreground: oklch(0.965 0.002 250);
-    --muted: oklch(0.262 0.008 265);
-    --muted-foreground: oklch(0.705 0.01 258);
-    --accent: oklch(0.275 0.009 265);
-    --accent-foreground: oklch(0.965 0.002 250);
-    --destructive: oklch(0.7 0.185 22.2);
-    --destructive-foreground: oklch(0.985 0.001 250);
-    --border: oklch(1 0 0 / 11%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.58 0.02 258);
+/*
+ * Applied by the class, never by a media query — see the variant at the top.
+ * `.dark` rather than `:root.dark` is deliberate: it is shadcn's selector, and
+ * it wins over `:root` above on source order at equal specificity.
+ */
+.dark {
+  --background: oklch(0.155 0.006 265);
+  --foreground: oklch(0.965 0.002 250);
+  --card: oklch(0.205 0.007 265);
+  --card-foreground: oklch(0.965 0.002 250);
+  --popover: oklch(0.205 0.007 265);
+  --popover-foreground: oklch(0.965 0.002 250);
+  --primary: oklch(0.93 0.003 250);
+  --primary-foreground: oklch(0.185 0.008 265);
+  --secondary: oklch(0.262 0.008 265);
+  --secondary-foreground: oklch(0.965 0.002 250);
+  --muted: oklch(0.262 0.008 265);
+  --muted-foreground: oklch(0.705 0.01 258);
+  --accent: oklch(0.275 0.009 265);
+  --accent-foreground: oklch(0.965 0.002 250);
+  --destructive: oklch(0.7 0.185 22.2);
+  --destructive-foreground: oklch(0.985 0.001 250);
+  --border: oklch(1 0 0 / 11%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.58 0.02 258);
 
-    --channel-gmail: oklch(0.7 0.175 27);
-    --channel-whatsapp: oklch(0.74 0.145 158);
+  --channel-gmail: oklch(0.7 0.175 27);
+  --channel-whatsapp: oklch(0.74 0.145 158);
 
-    /* Lighter than the background in dark mode, darker in light — the frame
-       stays the surface nearest the viewer either way. */
-    --panel: oklch(0.192 0.007 265);
-    --live: oklch(0.82 0.15 74);
-    --faint: oklch(0.36 0.008 262);
-  }
+  /* Lighter than the background in dark mode, darker in light — the frame
+     stays the surface nearest the viewer either way. */
+  --panel: oklch(0.192 0.007 265);
+  --live: oklch(0.82 0.15 74);
+  --faint: oklch(0.36 0.008 262);
 }
 
 @theme inline {

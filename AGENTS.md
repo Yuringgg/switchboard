@@ -215,6 +215,14 @@ changed that a build session must know about:
 - `localhost:3100/preview` renders the timeline over fixtures so the console
   can be looked at without a login or real mail. **Development only**, guarded
   by `notFound()` and a conditional `PUBLIC_PATHS` entry, both on `NODE_ENV`.
+- **Dark mode is a stored preference now, not a media query.** `globals.css`
+  said it followed the OS only; **Yuri overruled that on 2026-07-28** and the
+  toggle shipped. The tokens switch on a `.dark` class, `lib/theme.ts` owns the
+  decision, and a **blocking inline script in `<head>`** applies it before
+  first paint. ⚠ That script must stay synchronous and stay in `<head>` — move
+  it and the page renders light then flips. Its fallback logic must also keep
+  matching `readStored()`, or an unrecognised stored value paints one theme
+  while the control claims another.
 
 Two normalization rules were settled before `normalize` was written — read
 `docs/02-ARCHITECTURE.md` §2 first: **`bodyText` is always synthesised** (the

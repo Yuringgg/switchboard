@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import { IBM_Plex_Mono, Instrument_Sans } from 'next/font/google';
 
+import { THEME_INIT_SCRIPT } from '@/lib/theme';
+
 import './globals.css';
 
 /**
@@ -36,8 +38,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // The token values already follow prefers-color-scheme; this tells the
-  // browser to theme its own chrome to match.
+  // Declares the document renders in either mode. The init script then pins
+  // `style.color-scheme` on <html> to the resolved one, which is what actually
+  // themes the scrollbar and the form controls.
   colorScheme: 'light dark',
 };
 
@@ -45,7 +48,28 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    /*
+     * `suppressHydrationWarning` is required and is narrow in effect: it
+     * applies to this element's own attributes only, not to the tree below.
+     * The theme script runs before React and writes `class` and
+     * `style.color-scheme` on <html>, so the server's markup and the DOM React
+     * hydrates into legitimately differ. Without it, React warns on every load
+     * about a mismatch that is the feature working.
+     */
+    <html
+      lang="en"
+      className={`${sans.variable} ${mono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        {/*
+          Blocking, inline, and first — before the stylesheet and before any
+          paint. Deferred or moved below, the page renders light and then flips,
+          and the flash is worst for exactly the person the feature is for.
+          The content is a constant from lib/theme.ts, never user input.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>{children}</body>
     </html>
   );

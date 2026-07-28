@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { Brand } from '@/components/brand';
 import { Callout } from '@/components/callout';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 /**
  * Frame shared by /login and /signup, so the two pages cannot drift visually.
@@ -62,6 +63,13 @@ export function AuthCard({
         </div>
 
         <p className="mt-5 text-center text-note text-muted-foreground">{footer}</p>
+
+        {/* Reachable before signing in, deliberately. The console's own control
+            lives in a sidebar nobody has reached yet, and this is the screen a
+            room full of people sees first. */}
+        <div className="mt-7 flex justify-center">
+          <ThemeToggle />
+        </div>
       </div>
     </div>
   );

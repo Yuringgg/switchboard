@@ -83,6 +83,33 @@ carrying day counts, channel status and sender addresses.
 `--faint` exists for hairlines, skeleton bars and an unlit lamp. **Nothing
 legible may be set in it.**
 
+### Theming
+
+Three states — light, dark, and **system**, which is the default and is what
+this console did before the control existed. The tokens switch on a `.dark`
+class on `<html>`, not on `@media (prefers-color-scheme: dark)`: a media query
+is a fact about the device and cannot be overridden from JavaScript, so a
+stored preference is impossible while the tokens live inside one. The class is
+also shadcn's convention, so `shadcn add` keeps working.
+
+`lib/theme.ts` owns all of it — the store, the `.dark` write, and the
+`THEME_INIT_SCRIPT` string that `app/layout.tsx` inlines.
+
+> ⚠ **The init script must stay synchronous and stay in `<head>`.** It applies
+> the stored preference before first paint; deferred or moved below `<body>`,
+> the page renders light and then flips. It also sets `style.color-scheme`,
+> which is what makes the browser paint its *own* surfaces dark — most visibly
+> the scrollbar on the one scrolling column. And its fallback must keep
+> matching `readStored()`: anything that is not `dark` or `light` follows the
+> OS. When those two disagreed, a junk stored value painted light while the
+> control showed "System" selected.
+
+The control renders twice — sidebar footer on desktop, header cluster on
+mobile, since the footer is `hidden` on a phone. That is why the state lives in
+a module store read through `useSyncExternalStore` rather than in `useState`:
+two copies with their own state disagree the moment a window crosses the
+breakpoint.
+
 ### Seeing it — `/preview`
 
 Every screen worth designing is behind a login and needs real mail to render,

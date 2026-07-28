@@ -4,6 +4,7 @@ import { Suspense, type ReactNode } from 'react';
 
 import { Brand } from '@/components/brand';
 import { Live, LiveStatus, SCROLLER_ID } from '@/components/live';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { signOut } from '@/lib/auth-actions';
 import { CHANNELS, type ChannelRow } from '@/lib/channels';
 import { NAV_ITEMS } from '@/lib/nav';
@@ -83,10 +84,11 @@ export function AppShell({
             {/* The account controls live in the sidebar's footer on desktop,
                 which is `hidden` on mobile — so on a phone they come here.
                 A console you cannot sign out of is not finished. */}
-            <div className="ml-auto flex items-center gap-3 md:hidden">
+            <div className="ml-auto flex items-center gap-2 md:hidden">
               <Suspense fallback={<LampsFallback />}>
                 <ChannelLamps channels={channels} />
               </Suspense>
+              <ThemeToggle />
               <form action={signOut}>
                 <button
                   type="submit"
@@ -182,19 +184,25 @@ export function AppShell({
               >
                 {userEmail}
               </p>
-              <form action={signOut}>
-                <button
-                  type="submit"
-                  className={buttonClass({
-                    variant: 'ghost',
-                    size: 'sm',
-                    className: 'mt-2 -ml-2 h-7 px-2',
-                  })}
-                >
-                  <LogOut className="size-3" aria-hidden />
-                  Sign out
-                </button>
-              </form>
+              {/* Sign out and the theme control share a row: one is the only
+                  account action, the other the only display setting, and
+                  neither earns a section of its own. */}
+              <div className="mt-2 flex items-center gap-2">
+                <form action={signOut}>
+                  <button
+                    type="submit"
+                    className={buttonClass({
+                      variant: 'ghost',
+                      size: 'sm',
+                      className: '-ml-2 h-7 px-2',
+                    })}
+                  >
+                    <LogOut className="size-3" aria-hidden />
+                    Sign out
+                  </button>
+                </form>
+                <ThemeToggle className="ml-auto" />
+              </div>
             </div>
           </div>
         </aside>
