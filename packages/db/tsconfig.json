@@ -4,5 +4,8 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "drizzle.config.ts"]
+  // `scripts/` is included deliberately. Both scripts here run against the live
+  // database — one asserts the tenant boundary, one assigns a business number to
+  // an owner — and neither was typechecked by anything until Phase 2.
+  "include": ["src/**/*.ts", "scripts/**/*.ts", "drizzle.config.ts"]
 }

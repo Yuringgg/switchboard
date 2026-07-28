@@ -54,4 +54,32 @@ describe('worker import boundary', () => {
         )}\nImport a subpath instead: /history, /normalize, /watch.`,
     ).toEqual([]);
   });
+
+  /*
+   * The same rule, applied to every adapter rather than only the one that has
+   * already caused an outage twice.
+   *
+   * The WhatsApp adapter's root is harmless today — it pulls in nothing beyond
+   * `node:crypto`. The trap is that Phase 3 adds media download to it, which
+   * means an HTTP client in its `index.ts`, at which point a root import that
+   * has been sitting there quietly starts bundling one. Writing the rule per
+   * package is what let the Gmail version be rediscovered the hard way in a
+   * second file; writing it once is what stops a third.
+   */
+  it('never imports ANY adapter by its package root', () => {
+    const offenders = files
+      .flatMap((file) => {
+        const source = readFileSync(file, 'utf8');
+        const matches = [...source.matchAll(/from\s+['"](@switchboard\/adapter-[\w-]+)['"]/g)];
+        return matches.map((match) => `${relative(SRC, file)} → ${match[1]}`);
+      });
+
+    expect(
+      offenders,
+      `Adapters must be imported by SUBPATH, never by their package root.\n` +
+        `A root re-exports everything the package can do, so bundling the worker\n` +
+        `pulls in dependencies it never uses — and the failure is a container that\n` +
+        `crashloops naming a module nothing here imports.\n  ${offenders.join('\n  ')}`,
+    ).toEqual([]);
+  });
 });

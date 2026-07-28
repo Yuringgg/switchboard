@@ -18,8 +18,19 @@ The name is the design: many lines in, one operator's view out.
 
 ## Status
 
-🟡 **Phase 0 — Foundation, in progress.** The monorepo skeleton is up; nothing is
-deployed and no channel is connected yet.
+✅ **Phase 0 — Foundation.** Deployed, behind a login, RLS forced on all ten
+tables with a CI job that keeps checking it.
+
+✅ **Phase 1 — Gmail, end to end.** An email arriving in Gmail appears in the
+deployed console within seconds, with no refresh. Watch registered and
+auto-renewing, webhook verifying and queueing, worker normalizing, timeline
+live over Supabase Realtime.
+
+🟡 **Phase 2 — WhatsApp.** Adapter, ingest, worker and migration are written,
+typechecked and tested. Waiting on a Meta developer account and a free test
+number — see [`docs/03-RESOURCES.md`](./docs/03-RESOURCES.md) §6.
+
+⬜ Phases 3–5 — console, assistant, extraction and calendar write-back.
 
 The full plan lives in [`docs/`](./docs). Start with [`AGENTS.md`](./AGENTS.md).
 
@@ -74,6 +85,7 @@ Full detail: [`docs/02-ARCHITECTURE.md`](./docs/02-ARCHITECTURE.md).
 | [`docs/04-ROADMAP.md`](./docs/04-ROADMAP.md) | Phased build plan, risk register |
 | [`docs/05-DECISIONS.md`](./docs/05-DECISIONS.md) | ADR log |
 | [`docs/06-OPEN-QUESTIONS.md`](./docs/06-OPEN-QUESTIONS.md) | Live blockers |
+| [`correspondence/`](./correspondence) | Session handoffs — what was built, what broke, what is left |
 
 ---
 

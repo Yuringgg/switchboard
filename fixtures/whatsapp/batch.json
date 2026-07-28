@@ -1,0 +1,109 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550783881",
+              "phone_number_id": "106540352242922"
+            },
+            "contacts": [
+              {
+                "profile": { "name": "Marisol Enriquez" },
+                "wa_id": "639170000001"
+              },
+              {
+                "profile": { "name": "Ate Niña Concepción" },
+                "wa_id": "639170000002"
+              }
+            ],
+            "statuses": [
+              {
+                "id": "wamid.HBgLMTU1NTA3ODM4ODEVAgASGCA5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OQA=",
+                "status": "delivered",
+                "timestamp": "1785268800",
+                "recipient_id": "639170000001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "639170000001",
+                "id": "wamid.HBgMNjM5MTcwMDAwMDAxFQIAEhggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDEwAA==",
+                "timestamp": "1785268800",
+                "type": "text",
+                "text": { "body": "First of three." }
+              },
+              {
+                "from": "639170000002",
+                "id": "wamid.HBgMNjM5MTcwMDAwMDAyFQIAEhggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDExAA==",
+                "timestamp": "1785268860",
+                "type": "text",
+                "text": { "body": "Second of three, different sender." }
+              }
+            ]
+          }
+        },
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550783881",
+              "phone_number_id": "106540352242922"
+            },
+            "contacts": [
+              {
+                "profile": { "name": "Marisol Enriquez" },
+                "wa_id": "639170000001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "639170000001",
+                "id": "wamid.HBgMNjM5MTcwMDAwMDAxFQIAEhggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDEyAA==",
+                "timestamp": "1785268920",
+                "type": "text",
+                "text": { "body": "Third of three, second change in the same entry." }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "889977665544332",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550999123",
+              "phone_number_id": "220099887766554"
+            },
+            "contacts": [
+              {
+                "profile": { "name": "Rodel Bautista" },
+                "wa_id": "639170000003"
+              }
+            ],
+            "messages": [
+              {
+                "from": "639170000003",
+                "id": "wamid.HBgMNjM5MTcwMDAwMDAzFQIAEhggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDEzAA==",
+                "timestamp": "1785268980",
+                "type": "text",
+                "text": { "body": "Fourth message, a SECOND business number in the same POST." }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

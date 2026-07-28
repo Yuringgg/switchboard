@@ -10,9 +10,11 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "assert-rls": "tsx scripts/assert-rls.ts"
+    "assert-rls": "tsx scripts/assert-rls.ts",
+    "provision-whatsapp": "tsx scripts/provision-whatsapp.ts"
   },
   "dependencies": {
+    "@switchboard/core": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.9"
   },

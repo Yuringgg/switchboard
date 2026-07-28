@@ -1,4 +1,9 @@
-import type { AttachmentRef, CanonicalMessage, ContactIdentityRef } from '@switchboard/core';
+import type {
+  AttachmentRef,
+  CanonicalMessage,
+  ContactIdentityRef,
+  NormalizeResult,
+} from '@switchboard/core';
 
 import {
   base64UrlToBuffer,
@@ -53,9 +58,12 @@ export interface GmailMessage {
   payload?: GmailPart;
 }
 
-export type NormalizeResult =
-  | { ok: true; message: CanonicalMessage }
-  | { ok: false; reason: string };
+/**
+ * Moved to `@switchboard/core` at Phase 2's refactor checkpoint — the WhatsApp
+ * adapter had independently written the identical union. Re-exported here so
+ * existing importers keep working.
+ */
+export type { NormalizeResult };
 
 /**
  * Case-insensitive, first match wins — as RFC 5322 headers behave — and

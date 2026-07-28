@@ -113,6 +113,34 @@ function fixtures(): TimelineMessage[] {
       sender: { external_id: 'billing@vendor.example', display_name: null },
     },
     {
+      /*
+       * A photo with no caption — no subject AND no body, which is the one
+       * combination that renders the "Empty message" fallback. It became a
+       * reachable state in Phase 2: WhatsApp media carries no text of its own,
+       * and `normalize` deliberately does not invent an "[image]" placeholder
+       * (see packages/adapters/whatsapp/src/normalize.ts, decision 3). Until
+       * Phase 3 stores attachments there is genuinely nothing else to show, so
+       * this is the row that has to be judged rather than assumed.
+       */
+      id: 'm4b',
+      direction: 'inbound',
+      subject: null,
+      body_text: '',
+      sent_at: at(120),
+      channel_id: 'ch-whatsapp',
+      sender: { external_id: '+639170000001', display_name: 'Fatima R.' },
+    },
+    {
+      // A reaction: stored as a message, and its whole body is one emoji.
+      id: 'm4c',
+      direction: 'inbound',
+      subject: null,
+      body_text: '👍',
+      sent_at: at(132),
+      channel_id: 'ch-whatsapp',
+      sender: { external_id: '+639170000002', display_name: 'Ram' },
+    },
+    {
       id: 'm5',
       direction: 'inbound',
       subject: 'Notes from the client call',

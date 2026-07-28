@@ -89,12 +89,38 @@ feature that works and is understood beats a clever one that half-works.
 ## 5. Current status
 
 **Phase 0 ✅ COMPLETE (2026-07-26). Phase 1 ✅ COMPLETE (2026-07-28).
-Phase 2 (WhatsApp) is next.**
+Phase 2 🟡 CODE COMPLETE (2026-07-28) — every line is written, typechecked and
+tested; it is waiting on a Meta account and a test number, which are Yuri's
+clicks.**
 
-> **Joining cold? Read `correspondence/2026-07-28-phase-1-complete-handoff.md`
-> after this file.** It carries the whole picture: what is deployed where, the
-> seven rules that are not negotiable, the failure modes that are silent, why
-> each guard exists, and what Phase 2 already has waiting.
+> **Joining cold? Read these two after this file, in order:**
+> `correspondence/2026-07-28-phase-1-complete-handoff.md` — what is deployed
+> where, the seven rules that are not negotiable, the failure modes that are
+> silent, and why each guard exists.
+> `correspondence/2026-07-28-phase-2-whatsapp.md` — what Phase 2 built, the
+> refactor checkpoint's finding, and exactly what is left.
+
+**Phase 2 in one paragraph.** `packages/adapters/whatsapp` parses Meta's webhook
+and normalizes it; `/api/webhooks/whatsapp` verifies the HMAC, resolves the
+channel by `phone_number_id` and queues one `raw_events` row per message; the
+worker normalizes and persists through the same `persistMessage` Gmail uses.
+Migration 0006 adds `channels.external_account_id` — the tenant lookup key,
+separate from the human-readable `display_name`. 13 fixtures, 103 new tests, 286
+total. `next build` green, the worker bundle boots. **Nothing is stored until a
+number is provisioned** — see `docs/03-RESOURCES.md` §6.
+
+**⚠ The refactor checkpoint found a real defect — read ADR-014.** The canonical
+types held against a structurally different channel with no special case
+anywhere above the adapter. **Three of `ChannelAdapter`'s five signatures could
+not be implemented**, and nothing had noticed because nothing implemented the
+interface — Gmail ships as free functions, so the contract had been a comment
+since Phase 0. `verifyWebhook` had no secret; `parseWebhook` had to invent a
+`channelId`, which requires the database lookup that decides `owner_id`;
+`normalize` took a shape that only exists at ingest. All three are amended, and
+`packages/adapters/whatsapp` now implements the interface so the next drift
+fails a test. **The rule that came out of it: a stored payload must be
+self-sufficient.** WhatsApp's is; Gmail's is not, and Gmail was deliberately
+left alone because it is carrying real mail.
 
 **An email arriving in Gmail now appears in the deployed console within
 seconds, without a refresh.** The console is live at
@@ -294,9 +320,15 @@ request fails auth in a way that reads as a bad key. Paste values unquoted.
 does not yet flag wrapping quotes; both are worth adding next to the existing
 whitespace and line-break checks.
 
-**→ Next action: the idempotency test** — replay one notification 3× and assert
-exactly one `messages` row. It is the last unticked item in Phase 1
-(`docs/04-ROADMAP.md`). Nothing is blocked.
+**→ Next action: Yuri's Meta clicks.** Developer account, an app with the
+WhatsApp product, the free test number, up to 5 verified recipients, the webhook
+registered with the **`messages` field subscribed**, the four `WHATSAPP_*`
+variables on Vercel, then `packages/db/scripts/provision-whatsapp.ts`. The full
+checklist with the traps is `docs/03-RESOURCES.md` §6.
+
+**While that is pending, the useful build is Phase 3 search** — Postgres
+full-text over `body_text`. It needs no new credentials and there are 16 real
+messages to search.
 
 Credentials: **Supabase and Google Cloud are both fully configured.**
 `apps/worker/.env` holds `DATABASE_URL` (Supavisor session mode, port 5432 — the
@@ -377,7 +409,29 @@ scope entirely** — see ADR-008 before anyone suggests adding them.
 3. **Never create a calendar event without explicit user confirmation.** Propose,
    don't assert.
 
+**Four WhatsApp-specific traps, all guarded by tests but worth knowing:**
+
+1. **Every level of Meta's envelope is an array** — `entry[] → changes[] →
+   messages[]`. Every example in Meta's docs has exactly one of each, so
+   `entry[0].changes[0].value.messages[0]` passes every test written from the
+   documentation and **silently drops mail**. `fixtures/whatsapp/batch.json`
+   fails on it.
+2. **`phone_number_id` is the tenant key; `display_phone_number` is a label.**
+   The id is opaque and stable, the display number is formatted and Meta calls
+   it a display value. Never resolve a tenant on the latter.
+3. **Timestamps are unix SECONDS in a string.** Read as milliseconds every
+   message lands in 1970 — and sorts correctly among itself, so a WhatsApp-only
+   timeline looks perfectly normal.
+4. **Most traffic is `statuses`, not messages.** Delivery receipts arrive on the
+   same field. Queue them and every message the business sent appears twice.
+
+**⚠ Never use `whatsapp-web.js` or Baileys.** They impersonate WhatsApp Web,
+violate Meta's terms, and get numbers banned. The Cloud API only receives
+messages sent *to a business number you control* — it cannot read existing
+personal conversations, and no library changes that legitimately.
+
 ---
 
-*Last updated: 2026-07-28 · after the console session: Realtime, the fixed
-frame, and the streaming shell*
+*Last updated: 2026-07-28 · Phase 2 built to the edge of what needs credentials —
+the WhatsApp adapter, ingest, worker, migration 0006, and the refactor
+checkpoint's finding (ADR-014)*

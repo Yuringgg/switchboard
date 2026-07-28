@@ -1,0 +1,20 @@
+{
+  "name": "@switchboard/adapter-whatsapp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WhatsApp Cloud API channel adapter: webhook parsing, signature verification, normalize.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./parse": "./src/parse.ts",
+    "./normalize": "./src/normalize.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@switchboard/core": "workspace:*"
+  }
+}

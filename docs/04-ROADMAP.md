@@ -183,29 +183,69 @@ already has the account.
 
 ---
 
-## Phase 2 — WhatsApp
+## Phase 2 — WhatsApp 🟡 CODE COMPLETE, awaiting Meta credentials
 
 **Goal:** prove the adapter abstraction holds against a structurally different
 channel. Gmail is hybrid push/pull with a cursor; WhatsApp is pure push. If the
 interface survives both, it will survive a third.
 
-- [ ] Meta developer account, app created, WhatsApp product added
-- [ ] Free **test business number**; verify up to 5 recipient numbers
-- [ ] WhatsApp channels are **admin-provisioned**, not self-serve — a number is
+**Everything that can be built without a Meta account is built, typechecked and
+tested (2026-07-28).** The pipeline is closed end to end — webhook → `raw_events`
+→ worker → `messages` → timeline — and 103 new tests cover it, 286 total. What
+remains is credentials, and the first real message.
+
+- [ ] ★ Meta developer account, app created, WhatsApp product added — **Yuri**
+- [ ] ★ Free **test business number**; verify up to 5 recipient numbers — **Yuri**
+- [ ] ★ Webhook registered in the Meta dashboard; `messages` field subscribed;
+      the four `WHATSAPP_*` variables set on Vercel — **Yuri**
+- [ ] ★ Provision the number: `packages/db/scripts/provision-whatsapp.ts` —
+      **needs the ids from the steps above**
+- [x] WhatsApp channels are **admin-provisioned**, not self-serve — a number is
       registered to the WABA, then assigned an `owner_id`. Unlike Gmail, a user
       cannot connect their own. A WABA holds 2 numbers, up to 20 once verified.
-- [ ] Webhook registered; verify token handshake working
-- [ ] **`X-Hub-Signature-256` HMAC verification** over the *raw* body, timing-safe compare
-- [ ] `packages/adapters/whatsapp` — `parseWebhook`, `verifyWebhook`, `normalize`
-- [ ] Media/attachment download → Azure Blob
-- [ ] Fixtures + tests, same as Gmail
-- [ ] **Refactor checkpoint:** anything both adapters duplicate moves into `core`
+      `/channels` already says so instead of offering a Connect button, and
+      **migration 0006** adds `channels.external_account_id` — the
+      `phone_number_id` the webhook resolves a tenant by, kept separate from the
+      human-readable `display_name`.
+- [x] Verify token handshake — `GET /api/webhooks/whatsapp`, timing-safe
+- [x] **`X-Hub-Signature-256` HMAC verification** over the *raw* body, timing-safe
+      compare. A test pins the failure the design guards against: a body verified
+      after `JSON.parse`/`stringify` fails even though the data is identical.
+- [x] `packages/adapters/whatsapp` — `parseWebhook`, `verifyWebhook`, `normalize`,
+      **and the `ChannelAdapter` implementation** that makes the contract checked
+      rather than described
+- [x] Ingest wired: parse → resolve the channel by `phone_number_id` → one
+      `raw_events` row **per message** → 200. **`owner_id` comes from the channel,
+      never the payload.** One row per message because the `wamid` is the only id
+      stable across Meta's redeliveries, which run for **7 days** on any non-200.
+- [x] Worker: `whatsapp-ingest.ts` → `persistMessage`. No cursor, no credential,
+      no network call — the payload already carries the message. A WhatsApp
+      channel's `sync_state` staying empty is correct, not a symptom.
+- [x] Fixtures + tests, same as Gmail — 13 fixtures, including `batch.json`,
+      which carries two entries, two changes and two business numbers in one POST
+      and fails any `[0]`-indexed parse
+- [x] **Refactor checkpoint** — see ADR-014. The canonical types held; **three of
+      `ChannelAdapter`'s five signatures could not be implemented**, which nothing
+      had noticed because nothing implemented the interface. `NormalizeResult` and
+      phone comparison moved into `core`; `InboundRef` was added so a pure parse
+      cannot be asked to invent a `channelId`.
+- [ ] ~~Media/attachment download → Azure Blob~~ **→ Phase 3**, with Gmail's.
+      `normalize` emits attachment references from Phase 2; nothing downloads
+      bytes. Same reasoning as the Phase 1 move: `attachments.blob_url` is
+      `not null`, the Blob container does not exist yet
+      (`docs/03-RESOURCES.md` §6), and every reference survives in
+      `messages.payload_raw` — so this is a backfill, not a re-ingest.
 
 **Done when:** a WhatsApp message and an email sit in the same timeline, visually
 distinguished by channel.
 
 > The refactor checkpoint is the actual point of this phase. Don't skip it — it's
 > where you find out whether the abstraction was real or wishful.
+>
+> **It was both.** The canonical types absorbed a structurally different channel
+> without a special case anywhere above the adapter. The *interface* did not: it
+> asked a pure function to produce a `channelId`, which requires the database
+> lookup that decides `owner_id`. Full finding in ADR-014.
 
 ---
 
@@ -229,9 +269,14 @@ to invest, and it's what makes the system feel finished.
 - [ ] **Manual identity merge** — "this email address and this number are the same person"
 - [ ] Channel settings: connect, pause, disconnect, sync status, last error
 - [ ] **Attachments → Azure Blob; rows in `attachments`** — moved here from
-      Phase 1. Needs the Blob account and container provisioned first
-      (`docs/03-RESOURCES.md` §6). The references already exist in
-      `messages.payload_raw`, so this is a backfill, not a re-ingest.
+      Phase 1, and **now covers WhatsApp media too** (moved here from Phase 2,
+      2026-07-28, for the same reason). Needs the Blob account and container
+      provisioned first (`docs/03-RESOURCES.md` §6). The references already
+      exist in `messages.payload_raw` for both channels, so this is a backfill,
+      not a re-ingest. Note the two channels fetch differently: Gmail uses
+      `users.messages.attachments.get`, WhatsApp exchanges a media id for a
+      **short-lived** URL — so its download cannot be deferred long after the
+      message arrives.
 - [ ] Empty, loading, and error states everywhere
 - [ ] Responsive down to mobile width
 
@@ -328,6 +373,7 @@ a row, without intervention.
 
 ---
 
-*Last updated: 2026-07-28 · Realtime moved from Phase 3 into Phase 1 and shipped;
-Phase 1 adapter, worker, contact-identity and timeline items ticked after
-verifying them against the live database and the test suite*
+*Last updated: 2026-07-28 · Phase 2 built to the edge of what needs credentials:
+adapter, ingest, worker, fixtures and the refactor checkpoint (ADR-014) all
+landed. WhatsApp media download moved to Phase 3 to sit with Gmail's. Realtime
+had moved from Phase 3 into Phase 1 and shipped.*

@@ -565,6 +565,86 @@ the same allowlisted directory, so the rule does not need revisiting per channel
 
 ---
 
+## ADR-014 — The adapter contract, amended at the Phase 2 checkpoint
+
+**Status:** Accepted · 2026-07-28 · *Amends `docs/02-ARCHITECTURE.md` §2*
+
+**Context.** `docs/04-ROADMAP.md` gives Phase 2 one job — *"the refactor
+checkpoint is the actual point of this phase… it's where you find out whether
+the abstraction was real or wishful."* Writing the second adapter answered it,
+and the answer had two halves.
+
+The abstraction was **real**: WhatsApp is pure push where Gmail is hybrid
+push/pull, and the canonical types absorbed the difference without strain. One
+`CanonicalMessage`, one `persistMessage`, one timeline, no special cases
+anywhere above the adapter.
+
+Three of the interface's five signatures were **wishful**. None of them could be
+implemented, which nothing had noticed because **nothing implemented the
+interface** — Gmail ships as free functions, so `ChannelAdapter` had been a
+comment since Phase 0.
+
+| Signature | Why it could not be implemented |
+|---|---|
+| `verifyWebhook(headers, rawBody)` | No secret parameter. The only way to get one was reading `process.env` inside a package whose defining property is purity. |
+| `parseWebhook(payload): RawEvent[]` | `RawEvent` carries `channelId`. Producing one needs a database lookup — *the* lookup that decides `owner_id`. |
+| `normalize(event: RawEvent)` | `RawEvent` exists only at ingest. By normalization time the event has been through the queue and what remains is a stored payload. |
+
+**Decision.** Amend the three signatures to what an adapter can actually
+provide, add `InboundRef` as the type a pure parse can honestly produce, move
+`NormalizeResult` into `core`, and **have the WhatsApp adapter implement the
+interface** so it is checked rather than described.
+
+**Why.** The `channelId` problem is the load-bearing one. Resolving a provider's
+account reference to a channel is where `owner_id` is decided, the worker runs
+as `service_role`, and no RLS policy will catch a wrong answer — it is the one
+step in this system that must not be approximately right. An interface that
+required a pure function to produce a `channelId` was quietly inviting an
+adapter to do that lookup. `InboundRef` makes the seam explicit: **the adapter
+reports what the provider said; ingest decides whose it is.**
+
+The rule that fell out of it is worth more than the signatures: **a stored
+payload must be self-sufficient.** WhatsApp's is — `parseWebhook` attaches the
+business number and the sender's profile to each message, so `normalize` takes
+one argument and the worker needs no second query. Gmail's is not: a Gmail
+message resource does not say which mailbox fetched it, so the worker reads
+`display_name` from `channels` and passes it in.
+
+**Consequences.** Gmail is **not** retrofitted. It is working in production
+against real mail, and rewriting an ingest path for symmetry is a risk taken for
+tidiness. The divergence is documented here and in `core/src/adapter.ts` rather
+than hidden, and the self-sufficiency rule applies to the next adapter.
+
+`packages/adapters/whatsapp/test/adapter.test.ts` is what keeps this honest: it
+implements the contract, so a future edit that drifts back toward the
+unimplementable fails there instead of in a code review nobody runs.
+
+**Consequence for the schema.** WhatsApp reports the same number twice —
+`phone_number_id` (opaque, stable) and `display_phone_number` (formatted, for
+humans) — and one column cannot be both the tenant key and the label. Migration
+0006 adds `channels.external_account_id`, unique per channel type. Gmail leaves
+it null and keeps resolving on `display_name`.
+
+**Rejected:**
+
+- **Delete `ChannelAdapter` and admit adapters are modules of free functions.**
+  Honest, and it was close. Rejected because the contract is what makes "adding
+  a channel is one file, not a refactor" true, and the canonical types on the
+  other side of it genuinely held up under a structurally different channel. The
+  interface was not wrong; three of its signatures were.
+- **Leave it and note the divergence.** The option this project most needs to
+  refuse — `docs/02-ARCHITECTURE.md` §2 calls the contract "the heart of the
+  design", and a heart that cannot be implemented is a comment with ceremony.
+- **Retrofit Gmail to a self-sufficient payload in the same pass.** Correct
+  eventually, wrong now. It would rewrite the one path currently carrying real
+  mail, in the same session that added a second channel, for no behaviour
+  change.
+- **Let adapters take a database handle.** Would make every signature work and
+  end fixture-driven testing the same afternoon. The suite would need
+  credentials to run.
+
+---
+
 ## Template for new ADRs
 
 ```markdown

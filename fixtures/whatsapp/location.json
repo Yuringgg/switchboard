@@ -1,0 +1,40 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550783881",
+              "phone_number_id": "106540352242922"
+            },
+            "contacts": [
+              {
+                "profile": { "name": "Ate Niña Concepción" },
+                "wa_id": "639170000002"
+              }
+            ],
+            "messages": [
+              {
+                "from": "639170000002",
+                "id": "wamid.HBgMNjM5MTcwMDAwMDAyFQIAEhggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA3AA==",
+                "timestamp": "1785258000",
+                "type": "location",
+                "location": {
+                  "latitude": 14.5547,
+                  "longitude": 121.0244,
+                  "name": "Ayala Triangle Gardens",
+                  "address": "Paseo de Roxas, Makati, Metro Manila"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import { claimNextEvent, markDone, markFailed } from './claim';
 import { DATABASE_URL, IDLE_POLL_MS, MAX_ATTEMPTS, PORT } from './env';
 import { ingestGmailEvent } from './gmail-ingest';
 import { readGmailWatchConfig, renewExpiringWatches } from './gmail-watch';
+import { ingestWhatsAppEvent } from './whatsapp-ingest';
 
 /**
  * The worker.
@@ -65,6 +66,35 @@ async function processOne(): Promise<boolean> {
       console.info(
         `[worker] event=${event.id} fetched=${outcome.fetched} created=${outcome.created} ` +
           `skipped=${outcome.skipped}${outcome.fullSync ? ' (full sync)' : ''}`,
+      );
+    } else if (event.channelType === 'whatsapp') {
+      /*
+       * No config gate, unlike Gmail.
+       *
+       * Gmail cannot ingest without credentials to decrypt and an API to call,
+       * so it checks first and throws a named error. WhatsApp's payload already
+       * carries the message: there is nothing to configure and nothing to fetch,
+       * so an event here can always be processed. That asymmetry is the whole
+       * reason these two channels were paired.
+       */
+      const outcome = await ingestWhatsAppEvent(db, event);
+      console.info(
+        `[worker] event=${event.id} created=${outcome.created} skipped=${outcome.skipped}`,
+      );
+    } else {
+      /*
+       * A channel type the worker has no branch for.
+       *
+       * Marked done rather than failed, and said out loud. `channels.type` is
+       * CHECK-constrained to the two channels in scope, so reaching this means
+       * a migration widened it without the worker following — and retrying
+       * will never grow the missing branch. Silently marking it done with no
+       * log is how a channel ends up connected, ingesting, and invisible.
+       */
+      console.error(
+        `[worker] event=${event.id} has channel type '${event.channelType}' with no ingest ` +
+          `branch. It will be marked done and its message will never appear. Add a branch ` +
+          `in apps/worker/src/index.ts.`,
       );
     }
 

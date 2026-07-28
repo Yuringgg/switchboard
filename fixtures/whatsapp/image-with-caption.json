@@ -1,0 +1,40 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550783881",
+              "phone_number_id": "106540352242922"
+            },
+            "contacts": [
+              {
+                "profile": { "name": "Marisol Enriquez" },
+                "wa_id": "639170000001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "639170000001",
+                "id": "wamid.HBgMNjM5MTcwMDAwMDAxFQIAEhggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAzAA==",
+                "timestamp": "1785247200",
+                "type": "image",
+                "image": {
+                  "caption": "Ito yung signed copy ng contract, page 4.",
+                  "mime_type": "image/jpeg",
+                  "sha256": "0f2c7ad3e8b41c9d6a5f3e2b1c8d7a6e5f4c3b2a190807060504030201000fed",
+                  "id": "1284551239007744"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

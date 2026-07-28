@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@switchboard/adapter-gmail": "workspace:*",
+    "@switchboard/adapter-whatsapp": "workspace:*",
     "@switchboard/core": "workspace:*",
     "@switchboard/db": "workspace:*",
     "drizzle-orm": "^0.45.2",

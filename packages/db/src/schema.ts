@@ -52,7 +52,18 @@ export const channels = pgTable(
     ownerId: uuid('owner_id').notNull(),
     /** 'gmail' | 'whatsapp' — enforced by a CHECK constraint in SQL. */
     type: text('type').notNull(),
+    /** What a human reads: a mailbox address, or a formatted phone number. */
     displayName: text('display_name').notNull(),
+    /**
+     * The provider's own identifier for this account — `phone_number_id` for
+     * WhatsApp. Null for Gmail, which resolves on `displayName`.
+     *
+     * ⚠ This is a TENANT LOOKUP KEY. Ingest matches an inbound payload against
+     * it and takes `owner_id` from the row it finds. The worker runs as
+     * `service_role`, so RLS is inert and nothing downstream catches a wrong
+     * match. A miss means drop the message, never guess. Migration 0006.
+     */
+    externalAccountId: text('external_account_id'),
     /** ENCRYPTED (AES-256-GCM). Never assign plaintext to this column. */
     credentials: bytea('credentials').notNull(),
     /** 'active' | 'paused' | 'error' */
@@ -60,7 +71,12 @@ export const channels = pgTable(
     lastError: text('last_error'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('channels_owner_idx').on(t.ownerId)],
+  (t) => [
+    index('channels_owner_idx').on(t.ownerId),
+    // Globally unique per type, NOT per owner: a business number belongs to
+    // exactly one tenant, and the ingest lookup runs before any owner is known.
+    unique().on(t.type, t.externalAccountId),
+  ],
 );
 
 export const contacts = pgTable(

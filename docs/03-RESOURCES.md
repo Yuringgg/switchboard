@@ -278,16 +278,20 @@ flagging if iOzera ever wants to run this internally for real.
 
 ## 6. Credentials checklist
 
-*Updated 2026-07-27. Everything Phase 0 and Phase 1 need exists, with one
-exception called out below.*
+*Updated 2026-07-28. **Everything Phase 0 and Phase 1 need exists.** The only
+outstanding credentials in the whole project are Phase 2's Meta items and
+Phase 4's AI keys.*
 
-**🔴 The one outstanding item — ingest cannot persist without it**
-- [ ] ★ **`SUPABASE_SERVICE_ROLE_KEY` in the Vercel project** (Production **and**
+- [x] ★ **`SUPABASE_SERVICE_ROLE_KEY` in the Vercel project** (Production **and**
       Preview), same value as `apps/worker/.env`. A Pub/Sub push has no user
       session, so the webhook writes `raw_events` with the service role
-      (ADR-013). Until this is set, `/api/webhooks/gmail` returns 500 — nothing
-      is *lost*, because Pub/Sub retries with backoff for days, but nothing is
-      queued either.
+      (ADR-013).
+      *This carried a 🔴 "outstanding" flag until 2026-07-28. It was stale — the
+      key had been set since 2026-07-27. Confirmed against the live database
+      rather than by reading: **13 `raw_events` rows, all `status='done'`, none
+      pending, none failed**, which is only possible with the key present.
+      Checking a claim against the database beats re-reading the doc that made
+      it; see §8.*
       **⚠ Never prefix it with `NEXT_PUBLIC_`.** That inlines a key which
       bypasses every RLS policy into browser JavaScript. There is a test that
       fails if anyone does.
@@ -329,10 +333,46 @@ exception called out below.*
       renewed by the worker at T-2 days.
 
 **Phase 2 — WhatsApp**
-- [ ] Meta developer account + app with WhatsApp product added
-- [ ] Test business number + up to 5 verified recipient numbers
-- [ ] Phone number ID, access token, app secret (for `X-Hub-Signature-256`)
-- [ ] Webhook verify token
+
+*The code is complete and tested; this list is all that stands between it and a
+real message. Every item needs the Meta dashboard, so none of it can be done
+from tooling.*
+
+- [ ] ★ Meta developer account (<https://developers.facebook.com>) + an app of
+      type **Business**, with the **WhatsApp** product added
+- [ ] ★ Test business number (created automatically with the product) + up to
+      **5 verified recipient numbers**. Each recipient confirms with a code sent
+      in WhatsApp; **the number that will send test messages must be one of
+      them.** No business verification required.
+- [ ] ★ From *WhatsApp → API Setup*: **`phone_number_id`** and the temporary
+      **access token** (24 h — fine for a first message; swap for a permanent
+      System User token before a demo)
+- [ ] ★ From *App settings → Basic*: the **App Secret**. This is what
+      `X-Hub-Signature-256` is verified against, and it is **not** the access
+      token. Wrong value here = every webhook 401s, which reads as Meta being
+      broken.
+- [ ] ★ A **webhook verify token** — any long random string you invent. It is
+      compared against `WHATSAPP_WEBHOOK_VERIFY_TOKEN`; the two must match
+      exactly or the subscription handshake 403s.
+- [ ] ★ Webhook registered at
+      `https://switchboard-console-beryl.vercel.app/api/webhooks/whatsapp`,
+      with the **`messages` field subscribed**. Registering the URL without
+      subscribing the field is the quiet failure: the handshake succeeds, the
+      dashboard looks configured, and nothing is ever delivered.
+- [ ] ★ All four `WHATSAPP_*` variables on **Vercel (Production and Preview)**.
+      ⚠ **Vercel binds environment variables when a deployment is created** — a
+      variable added afterwards does nothing until the next build. Redeploy.
+      ⚠ **Paste values unquoted.** Vercel stores the field verbatim, so a value
+      pasted with its surrounding quotes fails auth in a way that reads as a bad
+      secret. `apps/worker/.env` quotes some values and dotenv strips them;
+      Vercel does not.
+- [ ] ★ Provision the number against an owner:
+      `node --env-file=apps/worker/.env packages/db/scripts/provision-whatsapp.ts
+      --owner <uuid> --phone-number-id <id> --display "+1 555 078 3881"`
+      with `WHATSAPP_ACCESS_TOKEN` in the environment. Until a `channels` row
+      exists with that `external_account_id`, the webhook verifies the signature,
+      finds no channel, logs `unknownNumber` and returns 200 — deliberately, so
+      Meta does not disable the endpoint, but nothing is stored.
 
 **Phase 4 — assistant**
 - [ ] Gemini API key — **billing left disabled** (assistant Q&A)

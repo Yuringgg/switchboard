@@ -56,6 +56,7 @@ export type Database = {
           created_at: string;
           credentials: string;
           display_name: string;
+          external_account_id: string | null;
           id: string;
           last_error: string | null;
           owner_id: string;
@@ -66,6 +67,7 @@ export type Database = {
           created_at?: string;
           credentials: string;
           display_name: string;
+          external_account_id?: string | null;
           id?: string;
           last_error?: string | null;
           owner_id: string;
@@ -76,6 +78,7 @@ export type Database = {
           created_at?: string;
           credentials?: string;
           display_name?: string;
+          external_account_id?: string | null;
           id?: string;
           last_error?: string | null;
           owner_id?: string;

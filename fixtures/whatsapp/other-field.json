@@ -1,0 +1,25 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "field": "phone_number_quality_update",
+          "value": {
+            "display_phone_number": "15550783881",
+            "event": "FLAGGED",
+            "current_limit": "TIER_1K"
+          }
+        },
+        {
+          "field": "account_update",
+          "value": {
+            "phone_number": "15550783881",
+            "event": "VERIFIED_ACCOUNT"
+          }
+        }
+      ]
+    }
+  ]
+}

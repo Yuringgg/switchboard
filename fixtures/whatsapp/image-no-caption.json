@@ -1,0 +1,39 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "field": "messages",
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550783881",
+              "phone_number_id": "106540352242922"
+            },
+            "contacts": [
+              {
+                "profile": { "name": "Marisol Enriquez" },
+                "wa_id": "639170000001"
+              }
+            ],
+            "messages": [
+              {
+                "from": "639170000001",
+                "id": "wamid.HBgMNjM5MTcwMDAwMDAxFQIAEhggMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA0AA==",
+                "timestamp": "1785247260",
+                "type": "image",
+                "image": {
+                  "mime_type": "image/jpeg",
+                  "sha256": "1a3b5c7d9e0f2a4b6c8d0e1f3a5b7c9d0e2f4a6b8c0d2e4f6a8b0c2d4e6f8a0b",
+                  "id": "1284551239007745"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

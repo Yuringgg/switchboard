@@ -69,6 +69,14 @@ serverless can't hold a model, and a cold-starting container drops webhooks.
 interface, so adding WhatsApp later is writing one file, not touching the
 pipeline.
 
+> ⚠ **AMENDED 2026-07-28 by ADR-014**, at Phase 2's refactor checkpoint. The
+> claim above held: WhatsApp is pure push where Gmail is hybrid push/pull, and
+> the canonical types absorbed it with no special case anywhere above the
+> adapter. **Three of `ChannelAdapter`'s five signatures did not** — they could
+> not be implemented at all, which nothing had noticed because until Phase 2
+> nothing implemented the interface. The block below is the amended version.
+> Read ADR-014 before changing it back.
+
 ```ts
 // packages/core/src/adapter.ts
 
@@ -81,6 +89,22 @@ export interface RawEvent {
   receivedAt: Date;
   payload: unknown;          // untouched provider payload, stored as jsonb
 }
+
+/**
+ * What a PURE webhook parse can actually produce (ADR-014).
+ *
+ * NOT a RawEvent: that carries a channelId, and producing one requires the
+ * database lookup that decides owner_id. An adapter must never do it.
+ */
+export interface InboundRef {
+  accountRef: string;        // mailbox address / phone_number_id — a CLAIM
+  externalId: string;        // idempotency key
+  payload: unknown;          // must be SELF-SUFFICIENT for normalize
+}
+
+export type NormalizeResult =
+  | { ok: true; message: CanonicalMessage }
+  | { ok: false; reason: string };   // reported, never thrown
 
 export interface CanonicalMessage {
   externalId: string;
@@ -98,17 +122,17 @@ export interface CanonicalMessage {
 export interface ChannelAdapter {
   readonly type: ChannelType;
 
-  /** Push channels: validate the provider's signature. Reject if invalid. */
-  verifyWebhook?(headers: Headers, rawBody: string): boolean;
+  /** Push channels: validate the signature over the RAW bytes. */
+  verifyWebhook?(rawBody: string, headers: Headers, secret: string): boolean;
 
-  /** Push channels: provider payload → zero or more raw events. */
-  parseWebhook?(payload: unknown): RawEvent[];
+  /** Push channels: provider payload → zero or more inbound references. */
+  parseWebhook?(payload: unknown): InboundRef[];
 
   /** Pull channels: fetch since cursor. Returns events + the next cursor. */
   poll?(cursor: string | null): Promise<{ events: RawEvent[]; nextCursor: string }>;
 
-  /** All channels: raw event → canonical form. Pure function, unit-testable. */
-  normalize(event: RawEvent): CanonicalMessage;
+  /** All channels: stored payload → canonical form. Pure, unit-testable. */
+  normalize(payload: unknown): NormalizeResult;
 
   /** Optional, stretch goal (US-12). */
   send?(to: ContactIdentityRef, body: string): Promise<void>;
@@ -123,6 +147,21 @@ export interface ChannelAdapter {
   raw payload is the only way to find out what.
 - `externalId` must be **stable and unique per channel**. It is the idempotency
   key — providers *will* redeliver webhooks and we must not double-insert.
+- **A stored payload must be self-sufficient** — everything `normalize` will
+  need, and nothing the database already knows. The rule Phase 2 produced.
+  WhatsApp's parse attaches the business number and the sender's profile to each
+  message, so `normalize` takes one argument. Gmail's does not: a Gmail message
+  resource never says which mailbox fetched it, so the worker reads
+  `display_name` from `channels` and passes it in. **Gmail is the exception, not
+  the pattern** — it was left alone because it is carrying real mail in
+  production, not because it is right.
+- **`normalize` reports failure, it does not throw.** A throw fails the whole
+  queued event, burns its attempts, and parks every other message in the same
+  batch. One unreadable message must not block the ones behind it.
+- **An adapter never resolves a tenant.** It reports `accountRef` — what the
+  provider *claimed* the message was addressed to. Ingest matches that against
+  `channels` and takes `owner_id` from the row it finds. The worker runs as
+  `service_role`, so this is the one step no RLS policy can catch.
 
 **Two normalization rules settled before Gmail's `normalize` was written
 (2026-07-27):**
@@ -202,14 +241,20 @@ row of every query, and a join in a policy is a performance trap.
 
 -- Connected accounts. owner_id is the tenant key everything else inherits.
 channels (
-  id            uuid pk,
-  owner_id      uuid not null references auth.users(id),
-  type          text not null,           -- 'gmail' | 'whatsapp'
-  display_name  text not null,
-  credentials   bytea not null,          -- ENCRYPTED. never plaintext. see §6
-  status        text not null default 'active',   -- active|paused|error
-  last_error    text,
-  created_at    timestamptz default now()
+  id                  uuid pk,
+  owner_id            uuid not null references auth.users(id),
+  type                text not null,     -- 'gmail' | 'whatsapp'
+  display_name        text not null,     -- what a person reads
+  -- ← the provider's own id: phone_number_id for WhatsApp, null for Gmail.
+  --   TENANT LOOKUP KEY — ingest matches it and takes owner_id from the row
+  --   it finds. Unique per type, NOT per owner: a business number belongs to
+  --   exactly one tenant, and the lookup runs before any owner is known.
+  --   Migration 0006, ADR-014.
+  external_account_id text,
+  credentials         bytea not null,    -- ENCRYPTED. never plaintext. see §6
+  status              text not null default 'active',   -- active|paused|error
+  last_error          text,
+  created_at          timestamptz default now()
 )
 
 -- One row per real human. Per-tenant: my contacts are not your contacts.
