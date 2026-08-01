@@ -94,10 +94,38 @@ Not a channel — the one place Switchboard writes outward.
 **⚠ OAuth mode is the real multi-tenancy ceiling.** Gmail's restricted scopes in
 **production** trigger a Google CASA security assessment — expensive and slow. In
 **testing mode** there's no assessment, but every user must be manually
-allowlisted, capped at roughly **100 test users**. That's ample for iOzera and
-avoids a months-long verification. *Verify the exact cap before relying on it.*
+allowlisted. **Verified 2026-08-02: the cap is exactly 100 test users, and it is
+hard** — the 101st gets an error, and the cap lifts only on successful
+verification. Ample for iOzera.
 
-*Sources:* [Choose Calendar API scopes](https://developers.google.com/workspace/calendar/api/auth) · [OAuth 2.0 scopes for Google APIs](https://developers.google.com/identity/protocols/oauth2/scopes)
+### ⚠⚠ The one that will interrupt a demo — verified 2026-08-02
+
+**With user type External and publishing status Testing, Google expires every
+refresh token 7 days after consent.** Not 7 days after last use — **7 days from
+the moment the user clicked Allow.** It is not configurable and it applies per
+user.
+
+What happens when it lapses: `refreshAccessToken` returns `invalid_grant`, the
+worker's watch-renewal sweep catches it within 6 hours and sets
+`channels.status='error'` with the reason, and `/channels` shows *"Needs
+attention"*. **Mail stops arriving.** The guard works — this is not silent — but
+nothing anywhere said to *expect* it, which is why it is written down here now.
+
+**The fix is to reconnect**, which takes one click on `/channels` and mints a
+fresh 7-day token. There is no way to extend it inside testing mode.
+
+- **Before any demo to Ms. Maria, reconnect Gmail that morning.** A token that
+  expires mid-presentation looks exactly like a broken pipeline.
+- **Do not "solve" this by publishing the consent screen.** `gmail.readonly` is
+  a restricted scope, so publishing triggers the CASA assessment this project
+  chose testing mode specifically to avoid. The weekly reconnect is the price of
+  that decision, and it is the cheaper side of the trade.
+- Check when it will next lapse:
+  `select display_name, status, last_error from channels;` — and the connect
+  time is `channels.created_at`, unchanged by reconnects, so use the worker log
+  or just reconnect on a schedule.
+
+*Sources:* [Choose Calendar API scopes](https://developers.google.com/workspace/calendar/api/auth) · [OAuth 2.0 scopes for Google APIs](https://developers.google.com/identity/protocols/oauth2/scopes) · [Refresh token 7-day expiry in Testing](https://www.unipile.com/google-oauth-refresh-token/) · [The 100 test-user cap](https://www.unipile.com/google-oauth-100-user-limit/) · [Manage app audience](https://support.google.com/cloud/answer/15549945?hl=en)
 
 ### WhatsApp Cloud API — **v1 channel, build second**
 

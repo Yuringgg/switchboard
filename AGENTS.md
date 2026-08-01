@@ -320,6 +320,32 @@ request fails auth in a way that reads as a bad key. Paste values unquoted.
 does not yet flag wrapping quotes; both are worth adding next to the existing
 whitespace and line-break checks.
 
+**⚠⚠ THE GMAIL CONNECTION EXPIRES EVERY 7 DAYS. Verified 2026-08-02.**
+The consent screen is **External + Testing**, and Google expires every refresh
+token **7 days from the moment the user clicked Allow** — not from last use, not
+configurable, per user. When it lapses `refreshAccessToken` returns
+`invalid_grant`, the worker's sweep sets `channels.status='error'` within 6
+hours, `/channels` shows *Needs attention*, and **mail stops arriving.** The fix
+is one click on Connect. **Reconnect on the morning of any demo.** Publishing
+the consent screen would end this and trigger the CASA assessment testing mode
+exists to avoid — do not. Full note: `docs/03-RESOURCES.md` §2.
+
+**Multi-tenancy, stated plainly because it is asked every time:**
+
+- **The code is multi-tenant for both channels and always has been.** Gmail's
+  OAuth callback writes `owner_id` from the session with RLS `WITH CHECK`
+  enforcing it; WhatsApp's webhook resolves each message to its own channel and
+  owner, including several numbers in one POST.
+- **Gmail's limit is Google's, not ours:** every user's address must be added by
+  hand to the test-user allowlist, hard-capped at **100** (verified 2026-08-02),
+  and each of them reconnects weekly per the note above.
+- **WhatsApp's limit is what WhatsApp is:** there is no personal WhatsApp API, so
+  a user cannot connect "their own". An admin assigns a **business number** —
+  2 per WABA, up to 20 once business-verified (ADR-009).
+- **One known gap:** two tenants connecting the *same* mailbox is permitted by
+  migration 0003 but breaks `/api/webhooks/gmail`, which uses `.maybeSingle()`
+  and errors on two rows. Fan out to every matching channel when this matters.
+
 **→ Next action: Yuri's Meta clicks.** Developer account, an app with the
 WhatsApp product, the free test number, up to 5 verified recipients, the webhook
 registered with the **`messages` field subscribed**, the four `WHATSAPP_*`
