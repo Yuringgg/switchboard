@@ -657,8 +657,7 @@ Maria, WhatsApp, 00:16 on 2026-07-25 — the message that started this project:
 
 Followed at 00:16 by *"we have this project in the loop and isa yan sa
 features"*, and at 00:18 by *"lmk if you need help ill try to compile a short
-brd or feats you can add. pero for now you can put it under the project name
-**Aika** as well"*.
+brd or feats you can add"* — a BRD that never arrived (Q6).
 
 Then on 2026-08-01, replying to *"Gmail works, emails pop up on the website"*:
 
