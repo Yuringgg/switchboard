@@ -84,7 +84,14 @@ WhatsApp reality check are the two things she'll actually care about.
 (ADR-003); Azure used for Container Apps + Blob only (ADR-004). *2026-07-25*
 
 ### R2 — Project name?
-**Switchboard.** Chosen by Yuri from four candidates. *2026-07-25*
+**Switchboard. Final.** Chosen by Yuri from four candidates, *2026-07-25*.
+
+**Reaffirmed 2026-08-02 against an alternative.** Ms. Maria suggested filing the
+work under the name **Aika** in her founding message (`docs/00-CONTEXT.md` §2a).
+Yuri's ruling: *"do not use aika. Switchboard is the final name."* ⚠ **Do not
+reintroduce it** — not in the repo, not in the console, not in the demo, and not
+when talking to iOzera. Naming is the product owner's call and this one is
+closed.
 
 ### R3 — Which channels in v1?
 *Superseded by R9 below.* *2026-07-25*

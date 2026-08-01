@@ -54,9 +54,12 @@ Five things in there that the reconstruction lost:
 4. **"we have this project in the loop and isa yan sa features"** — this is a
    **feature of a real iOzera project**, not a standalone exercise. It raises the
    stakes on scope confirmation (§7) and it is why she keeps checking in.
-5. **"put it under the project name Aika"** — iOzera files this work under
-   **Aika**. *Switchboard* is Yuri's name for the build (R2). Both are correct;
-   use Aika when talking to iOzera, Switchboard in the repo.
+5. **The name is Switchboard. ⚠ Do not use "Aika" anywhere.** She suggested
+   filing the work under that name on day one. **Yuri overruled it explicitly on
+   2026-08-02: *"do not use aika. Switchboard is the final name."*** Naming is
+   the product owner's call (R2), and this one is settled — repo, docs, console,
+   demo, and anything shown to iOzera. Her suggestion is left in the quote above
+   because it is a verbatim record, not because it is still live.
 
 ⚠ **She offered a BRD** — *"ill try to compile a short brd or feats you can
 add"*. That was never delivered and it is very likely what she meant on
