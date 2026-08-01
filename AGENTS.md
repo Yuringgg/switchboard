@@ -351,13 +351,20 @@ exists to avoid — do not. Full note: `docs/03-RESOURCES.md` §2.
   path with `.limit(1)`.** That is worse than the crash: it delivers one
   tenant's mail to whichever row sorted first, and no RLS policy catches it.
 
-**⭐ NEW REQUIREMENT FROM MS. MARIA, 2026-08-01 — `Phase 4A`.** *"dont forget to
-incorporate an llm din to summarize each emails received ha"*. She is the sole
-source of requirements, so this is scope, not a suggestion. It is a **third AI
-workload** — not the assistant (answers questions across the corpus) and not
-extraction (structured rows) — and it is sequenced **before** the assistant
-because it is far cheaper and proves the Groq path first. Full plan in
-`docs/04-ROADMAP.md` Phase 4A; storage decision in **ADR-015**.
+**Phase 4A — per-message summaries — added 2026-08-02.** A **third AI workload**:
+not the assistant (questions across the corpus) and not extraction (structured
+rows), but one small prompt per message on ingest. Sequenced **before** the
+assistant because it is far cheaper and proves the Groq path first. Plan in
+`docs/04-ROADMAP.md`; storage decision in **ADR-015**.
+
+⭐ **It is in the founding request, not an addition.** Ms. Maria, 2026-07-25:
+*"Do you think you can make a live webapp that can view whatsapp messages real
+time **and have ai summarize** bebe? Parang admin view"*, and again on
+2026-08-01: *"dont forget to incorporate an llm din to summarize noo"*. **The
+summarizer was always half the product.** It reached the roadmap only on
+2026-08-02 because her original WhatsApp thread had never been read into the
+docs — `docs/00-CONTEXT.md` §2a now carries it verbatim, and it corrects three
+other things the reconstruction had lost.
 
 ⚠ **It is also the first time message bodies leave this system.** Nothing has
 ever been sent to a third party. That makes Q2's consent conversation with Ms.

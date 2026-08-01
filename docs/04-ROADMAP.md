@@ -289,13 +289,19 @@ start to finish.
 
 ---
 
-## Phase 4A — Per-message summaries ⭐ REQUESTED BY MS. MARIA
+## Phase 4A — Per-message summaries
 
 **Goal:** every message carries a one-glance summary of what it says.
 
-> **Added 2026-08-02 on Ms. Maria's instruction** — *"dont forget to incorporate
-> an llm din to summarize each emails received ha"*. She is the sole source of
-> requirements (`AGENTS.md` §2), so this is a requirement, not an idea. ADR-015.
+> ⭐ **This is in the founding request, not an addition.** Ms. Maria, 2026-07-25:
+> *"Do you think you can make a live webapp that can view whatsapp messages real
+> time **and have ai summarize** bebe? Parang admin view"* — and again on
+> 2026-08-01: *"dont forget to incorporate an llm din to summarize noo"*.
+>
+> It reached this roadmap only on 2026-08-02 because the original thread had
+> never been read into the docs. **The summarizer was always half the product**;
+> ingestion was the other half. `docs/00-CONTEXT.md` §2 now carries her verbatim
+> words, and ADR-015 records how it got missed.
 
 **⚠ This is a THIRD AI workload, not a variation of the other two.** Getting that
 wrong is how it ends up half-built inside the assistant:

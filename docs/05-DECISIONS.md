@@ -649,13 +649,40 @@ it null and keeps resolving on `display_name`.
 
 **Status:** Accepted · 2026-08-02
 
-**Context.** Ms. Maria, on 2026-08-01: *"dont forget to incorporate an llm din to
-summarize each emails received ha"*. She proposed and scoped this project and is
-its **sole source of requirements** (`AGENTS.md` §2), so this is a requirement.
+**Context.** Summarization was in the **founding request**, not added later. Ms.
+Maria, WhatsApp, 00:16 on 2026-07-25 — the message that started this project:
 
-The plan had no place for it. Phase 4 answers *questions across the corpus*;
-Phase 5 pulls *structured facts* into `extractions`. Neither produces "what does
-this one message say", which is what she asked for.
+> ***"Do you think you can make a live webapp that can view whatsapp messages
+> real time and have ai summarize bebe? Parang admin view"***
+
+Followed at 00:16 by *"we have this project in the loop and isa yan sa
+features"*, and at 00:18 by *"lmk if you need help ill try to compile a short
+brd or feats you can add. pero for now you can put it under the project name
+**Aika** as well"*.
+
+Then on 2026-08-01, replying to *"Gmail works, emails pop up on the website"*:
+
+> *"nc bebbb!! dont forget to incorporate an llm din to summarize noo"*
+
+**That second message is a reminder pointing back at the first.** Read alone its
+"summarize" has no object, and this ADR briefly recorded it as ambiguous on
+2026-08-02 before the original thread surfaced. It is not ambiguous in context:
+the object is *the messages*, established in the founding request, and
+*"summarize"* sits inside *"view whatsapp messages real time **and have ai
+summarize**"*.
+
+⚠ **The correction record, because both errors are instructive.** This ADR was
+first written from a paraphrase — *"summarize each emails received"* — which
+asserted more than the source did. It was then over-corrected to "she probably
+just means the AI layer generally", which asserted *less* than the source did.
+The fix for both was the same and it was available the whole time: **read the
+original.** `docs/00-CONTEXT.md` §2 now carries her verbatim words.
+
+Neither existing phase produces this. Phase 4B answers *questions across the
+corpus*; Phase 5 pulls *structured facts* into `extractions`. Neither produces
+"what does this one message say", which is what *"view the messages and have ai
+summarize"* describes for an **admin view** — a board you look at, with the AI
+telling you what each thing says.
 
 **Decision.** A new **Phase 4A**, sequenced **before** the assistant. Summaries
 are written by **Groq** (ADR-003) in the worker on ingest, and stored as rows in

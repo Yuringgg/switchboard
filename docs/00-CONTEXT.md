@@ -21,6 +21,49 @@ the other option didn't. It doubles as a genuine internal tool iOzera could use.
 
 ## 2. What Ms. Maria actually described
 
+### 2a. The founding request, verbatim — added 2026-08-02
+
+**Everything below this was reconstructed from a meeting transcript. This is the
+original written ask**, from WhatsApp on 2026-07-25, recovered from the thread a
+week later. Where the two differ, **this wins.**
+
+> **00:16 — Ms. Maria:** *"Do you think you can make a live webapp that can view
+> whatsapp messages real time and have ai summarize bebe? Parang admin view"*
+>
+> **00:16 — Ms. Maria:** *"we have this project in the loop and isa yan sa
+> features"*
+>
+> **00:18 — Ms. Maria:** *"lmk if you need help ill try to compile a short brd or
+> feats you can add. pero for now you can put it under the project name Aika as
+> well"*
+
+Five things in there that the reconstruction lost:
+
+1. **"and have ai summarize"** — the AI summarizer is in the *founding sentence*,
+   attached directly to viewing the messages. It is not a later addition and not
+   a nice-to-have: it is half of what she asked for. It reached
+   `docs/04-ROADMAP.md` only on 2026-08-02, as Phase 4A. See ADR-015.
+2. **"real time"** — stated explicitly, first sentence. Supabase Realtime was
+   treated as a Phase 3 enhancement and pulled forward on instinct in Phase 1
+   (`docs/04-ROADMAP.md`). That instinct was right and it was answering a
+   requirement, not adding polish.
+3. **"Parang admin view"** — an operator looking at a board, not each end user
+   connecting their own accounts. Consistent with WhatsApp being
+   admin-provisioned (ADR-009), and worth holding onto when the multi-tenancy
+   question comes up: isolated tenants, yes; *self-serve consumer product*, no.
+4. **"we have this project in the loop and isa yan sa features"** — this is a
+   **feature of a real iOzera project**, not a standalone exercise. It raises the
+   stakes on scope confirmation (§7) and it is why she keeps checking in.
+5. **"put it under the project name Aika"** — iOzera files this work under
+   **Aika**. *Switchboard* is Yuri's name for the build (R2). Both are correct;
+   use Aika when talking to iOzera, Switchboard in the repo.
+
+⚠ **She offered a BRD** — *"ill try to compile a short brd or feats you can
+add"*. That was never delivered and it is very likely what she meant on
+2026-08-01 by *"set aside the answers and recommendations"*. **Chase it** — Q6.
+
+### 2b. The meeting, as reconstructed
+
 Reconstructed from the meeting transcript, in her framing:
 
 > Messages arrive via WhatsApp. They sync to a private server. The server logs

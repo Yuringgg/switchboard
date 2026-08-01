@@ -7,11 +7,31 @@ to the bottom with their answer.*
 
 ## 🔴 Outstanding input from the mentor
 
+### Q8 — What came out of Ms. Maria's meeting with Fatima?
+**Raised:** 2026-08-02 · **Relevant by:** now — it may close the biggest open risk
+
+In the same WhatsApp thread she mentioned *"nakausap ko palang sila fati now"* —
+she had just spoken with Fatima. `docs/00-CONTEXT.md` §6 item 3 lists exactly
+that meeting as pending, and §7 records the standing risk that **the project
+scope has never been formally confirmed by iOzera** — everything in these docs
+rests on her verbal description.
+
+That conversation may be where her *"answers and recommendations"* (Q6) came
+from. **Ask about both together.** If scope was confirmed, §7's open-scope risk
+can finally be closed.
+
 ### Q6 — Where are Ms. Maria's recommendations?
 **Raised:** 2026-08-01 · **Blocking:** nothing yet, but it is real input we do not have
 
 She wrote: *"i checked your systems and querries and set aside the answers snd
-recommendations"*. **They have not arrived.** Checked exhaustively on 2026-08-02
+recommendations"*. **They have not arrived.**
+
+**This is very likely the BRD she offered on day one** — *"lmk if you need help
+ill try to compile a short brd or feats you can add"* (`docs/00-CONTEXT.md`
+§2a). A business requirements document from the sole source of requirements is
+the single most valuable outstanding input to this project, and it would settle
+scope questions that are currently guesses. **Name it when you ask her:** *"Ms,
+yung short BRD/feats mo — saan mo po sinend?"* Checked exhaustively on 2026-08-02
 — they are **not on GitHub**: no issues, no pull requests, no comments, no
 branches besides `main`, no forks, and every event on the repo is Yuri's own
 push. She is not a collaborator on it.
