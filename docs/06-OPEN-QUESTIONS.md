@@ -5,6 +5,28 @@ to the bottom with their answer.*
 
 ---
 
+## 🔴 Outstanding input from the mentor
+
+### Q6 — Where are Ms. Maria's recommendations?
+**Raised:** 2026-08-01 · **Blocking:** nothing yet, but it is real input we do not have
+
+She wrote: *"i checked your systems and querries and set aside the answers snd
+recommendations"*. **They have not arrived.** Checked exhaustively on 2026-08-02
+— they are **not on GitHub**: no issues, no pull requests, no comments, no
+branches besides `main`, no forks, and every event on the repo is Yuri's own
+push. She is not a collaborator on it.
+
+**Action: Yuri asks her where she put them.** Likeliest places are WhatsApp,
+email, or a Notion page — note that Q5 already records her asking for a Notion
+write-up, so a shared Notion space may be where she expects this to live.
+
+Ask about **consent and retention in the same conversation** — Phase 4A sends
+message bodies to a third-party LLM for the first time (ADR-015), which makes
+the Q2/RA 10173 question in `docs/02-ARCHITECTURE.md` §6 concrete rather than
+theoretical.
+
+---
+
 ## 🟡 Needs a decision, not blocking
 
 ### Q2 — Where does the assistant's conversation history live?

@@ -351,6 +351,26 @@ exists to avoid — do not. Full note: `docs/03-RESOURCES.md` §2.
   path with `.limit(1)`.** That is worse than the crash: it delivers one
   tenant's mail to whichever row sorted first, and no RLS policy catches it.
 
+**⭐ NEW REQUIREMENT FROM MS. MARIA, 2026-08-01 — `Phase 4A`.** *"dont forget to
+incorporate an llm din to summarize each emails received ha"*. She is the sole
+source of requirements, so this is scope, not a suggestion. It is a **third AI
+workload** — not the assistant (answers questions across the corpus) and not
+extraction (structured rows) — and it is sequenced **before** the assistant
+because it is far cheaper and proves the Groq path first. Full plan in
+`docs/04-ROADMAP.md` Phase 4A; storage decision in **ADR-015**.
+
+⚠ **It is also the first time message bodies leave this system.** Nothing has
+ever been sent to a third party. That makes Q2's consent conversation with Ms.
+Maria more urgent, and it makes prompt injection a real surface — an email can
+try to dictate its own summary, and a human reads the result.
+
+**She also said (2026-08-01) she "checked your systems and queries and set aside
+the answers and recommendations".** Checked exhaustively on 2026-08-02: **they
+are not on GitHub** — no issues, no pull requests, no comments, no branches
+besides `main`, no forks, and every repo event is Yuri's own push. She is not a
+collaborator. **Yuri needs to ask her where she put them**; they are an
+outstanding input to this project.
+
 **→ Next action: Yuri's Meta clicks.** Developer account, an app with the
 WhatsApp product, the free test number, up to 5 verified recipients, the webhook
 registered with the **`messages` field subscribed**, the four `WHATSAPP_*`
@@ -472,7 +492,43 @@ personal conversations, and no library changes that legitimately.
 
 ---
 
-*Last updated: 2026-08-02 · Phase 2 **pushed and deployed** (adapter, ingest,
-worker, migration 0006, ADR-014). Gmail ingest now fans out to every owner of a
-shared mailbox. The 7-day refresh-token expiry was found and written up — read
-the warning at the top of §5 before anything else. 295 tests.*
+---
+
+## 7. Where this is, right now — read this and you know what to do
+
+**Date of this block: 2026-08-02.**
+
+| | State |
+|---|---|
+| **Phase 0** | ✅ complete |
+| **Phase 1 — Gmail** | ✅ complete and **live**. 49 real messages, watch renewing itself in production |
+| **Phase 2 — WhatsApp** | 🟡 **code complete, pushed, deployed.** Dormant until Meta credentials exist |
+| **Phase 3 — console** | ⬜ not started. **Search is the useful thing to build while Meta is blocked** — no new credentials, 49 messages to search |
+| **Phase 4A — summaries** | ⬜ **NEW, Ms. Maria's request.** Planned in full, not started |
+| **Phase 4B / 5** | ⬜ not started |
+
+**Blocked on exactly one thing, and it is not code:** Yuri cannot get past Meta's
+developer-account phone verification (*"You can only complete this action in
+Accounts Center"*). Everything after that is ~15 minutes — copy four values into
+Vercel, redeploy, subscribe the `messages` webhook field, run
+`provision-whatsapp.ts`, send a test message. Checklist with the traps:
+`docs/03-RESOURCES.md` §6.
+
+**Two standing obligations that are easy to forget:**
+
+1. **Reconnect Gmail every 7 days** and on the morning of any demo — see the
+   warning above. Last reconnect 2026-08-01; next lapse **2026-08-08**.
+2. **Ask Ms. Maria where she put her recommendations.** They are not on GitHub.
+
+**If you are a session picking this up and Meta is still blocked**, build Phase 3
+search or Phase 4A summaries. Both are unblocked, both are visible, and 4A is
+the one the mentor explicitly asked for.
+
+295 tests. `pnpm check`, `next build` and the worker bundle are all green.
+
+---
+
+*Last updated: 2026-08-02 · Phase 2 pushed and deployed (adapter, ingest,
+worker, migration 0006, ADR-014); Gmail ingest fans out to every owner of a
+shared mailbox; the 7-day refresh-token expiry found and written up; Phase 4A
+added on Ms. Maria's instruction (ADR-015)*

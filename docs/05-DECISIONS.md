@@ -645,6 +645,72 @@ it null and keeps resolving on `display_name`.
 
 ---
 
+## ADR-015 — Per-message summaries: their own phase, stored as extractions
+
+**Status:** Accepted · 2026-08-02
+
+**Context.** Ms. Maria, on 2026-08-01: *"dont forget to incorporate an llm din to
+summarize each emails received ha"*. She proposed and scoped this project and is
+its **sole source of requirements** (`AGENTS.md` §2), so this is a requirement.
+
+The plan had no place for it. Phase 4 answers *questions across the corpus*;
+Phase 5 pulls *structured facts* into `extractions`. Neither produces "what does
+this one message say", which is what she asked for.
+
+**Decision.** A new **Phase 4A**, sequenced **before** the assistant. Summaries
+are written by **Groq** (ADR-003) in the worker on ingest, and stored as rows in
+**`extractions` with `kind='summary'`**, keyed unique per message.
+
+**Why 4A comes first.** It needs no embeddings, no chunking and no retrieval, so
+it is a fraction of the assistant's work — and it exercises the Groq path
+against real Taglish mail before Phase 4B's harder problem depends on a provider
+this project has never called. It is also the cheapest visible intelligence in
+the whole build, which matters for a mentor demo.
+
+**Why `extractions` rather than a column on `messages`.** `messages` is the
+record of **what arrived**; a summary is a **machine's opinion about it**.
+Keeping them in separate tables means a bad prompt or a model change can never
+corrupt the message record, re-running is a delete-and-insert rather than an
+UPDATE over the corpus, and `extractions.model` makes *"did the new prompt
+help?"* answerable — which it is not if the previous answer was overwritten in
+place. ADR-006 already decided this shape for derived data; a summary is derived
+data. The cost is a join on the timeline query, and that is the cheaper side.
+
+**Consequences.**
+
+- **Message bodies leave the system for the first time.** Nothing has ever been
+  sent to a third party before this. `docs/02-ARCHITECTURE.md` §6 and Q2 in
+  `docs/06-OPEN-QUESTIONS.md` gate real *client* data on a consent conversation
+  with Ms. Maria, and this raises the stakes of that conversation. Dogfooding on
+  Yuri's own accounts remains fine.
+- **Message bodies become prompt input**, so prompt injection is now a real
+  surface: an email can attempt to dictate its own summary, and the summary is
+  shown to a human. Mitigated by delimiting the body as data, by a test fixture
+  that tries it, and — most importantly — by the summary never replacing the
+  original text on screen.
+- Summarization is **non-blocking**. A Groq outage must degrade to "no summary",
+  never to "no mail".
+
+**Rejected:**
+
+- **A `summary` column on `messages`.** Simpler to query and it is the obvious
+  build. Rejected because it merges the record with an opinion about the record,
+  and because re-summarizing then rewrites rows the console treats as immutable
+  history.
+- **Folding it into Phase 5 extraction.** Same prompt shape and same provider,
+  so it looks like the same job. It is not: extraction produces structured rows
+  for a "needs attention" view, summaries produce prose shown inline on every
+  message. Bundling them would delay something Ms. Maria asked for behind the
+  largest phase in the plan.
+- **Summarizing in the ingest webhook.** Would put an LLM call on the path that
+  must return in milliseconds. ADR-011 exists to prevent exactly this.
+- **Showing the summary as the timeline preview line.** Tempting — it is the
+  denser list. Rejected outright: the console's headline rule is *whatever the
+  message leads with*, and putting a paraphrase where a person's own sentence
+  belongs is how a monitoring tool stops being trustworthy.
+
+---
+
 ## Template for new ADRs
 
 ```markdown
