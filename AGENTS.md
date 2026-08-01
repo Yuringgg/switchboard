@@ -472,6 +472,7 @@ personal conversations, and no library changes that legitimately.
 
 ---
 
-*Last updated: 2026-07-28 · Phase 2 built to the edge of what needs credentials —
-the WhatsApp adapter, ingest, worker, migration 0006, and the refactor
-checkpoint's finding (ADR-014)*
+*Last updated: 2026-08-02 · Phase 2 **pushed and deployed** (adapter, ingest,
+worker, migration 0006, ADR-014). Gmail ingest now fans out to every owner of a
+shared mailbox. The 7-day refresh-token expiry was found and written up — read
+the warning at the top of §5 before anything else. 295 tests.*
