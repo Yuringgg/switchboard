@@ -1,6 +1,7 @@
 import { parsePushNotification, verifyPushToken } from '@switchboard/adapter-gmail';
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { fanOutToChannels } from '@/lib/ingest';
 import { createServiceClient } from '@/lib/supabase/service';
 
 /**
@@ -61,12 +62,19 @@ export async function POST(request: NextRequest) {
   // mailbox we know, owned by a specific tenant". Getting it wrong puts one
   // user's mail in another's console, and RLS cannot catch it because this
   // client bypasses RLS.
-  const { data: channel, error: lookupError } = await supabase
+  //
+  // ⚠ NOT `.maybeSingle()`. A shared mailbox has more than one owner.
+  //   Migration 0003 keys `channels` on (owner_id, type, display_name) and says
+  //   in as many words that two tenants connecting one mailbox is legitimate —
+  //   so this query can match several rows, and `.maybeSingle()` treated that
+  //   as an error, 500'd, and left Pub/Sub retrying the mailbox forever.
+  //   `.limit(1)` would have been worse: it would deliver one tenant's mail to
+  //   whichever row sorted first.
+  const { data: channelRows, error: lookupError } = await supabase
     .from('channels')
     .select('id, owner_id')
     .eq('type', 'gmail')
-    .eq('display_name', emailAddress)
-    .maybeSingle();
+    .eq('display_name', emailAddress);
 
   if (lookupError) {
     // A database problem, not a bad request. 500 so Pub/Sub retries with
@@ -75,45 +83,60 @@ export async function POST(request: NextRequest) {
     return new NextResponse('Lookup failed', { status: 500 });
   }
 
-  if (!channel) {
-    // Authentic notification for a mailbox we do not have connected — most
-    // likely a watch outliving a disconnect. 200, because retrying will never
-    // make a channel appear and repeated failures degrade the subscription.
+  // ── Queue it, once per owner ──────────────────────────────────────────────
+  // The notification carries no message content — only a cursor. The worker
+  // calls history.list from here. Ingest does no more than this by design
+  // (ADR-011): providers disable webhooks that answer slowly.
+  //
+  // Pub/Sub's messageId is stable across redeliveries, so it is the idempotency
+  // key, and it repeats across these rows on purpose: `raw_events` is keyed
+  // (channel_id, external_id) per migration 0004, so two channels queuing the
+  // same notification are two distinct rows while a redelivery to either still
+  // collides.
+  const rows = fanOutToChannels(channelRows ?? [], messageId, {
+    emailAddress,
+    historyId,
+    pubsubMessageId: messageId,
+  });
+
+  if (rows.length === 0) {
+    // Authentic notification for a mailbox nobody has connected — most likely a
+    // watch outliving a disconnect. 200, because retrying will never make a
+    // channel appear and repeated failures degrade the subscription.
     console.warn('[webhooks/gmail] no channel for the notified mailbox; ignoring');
     return NextResponse.json({ received: true, ignored: true });
   }
 
-  // ── Queue it ──────────────────────────────────────────────────────────────
-  // The notification carries no message content — only a cursor. The worker
-  // calls history.list from here. Ingest does no more than this by design
-  // (ADR-011): providers disable webhooks that answer slowly.
-  const { error: insertError } = await supabase.from('raw_events').insert({
-    owner_id: channel.owner_id,
-    channel_id: channel.id,
-    // Pub/Sub's messageId is stable across redeliveries, so it is the
-    // idempotency key. Migration 0004 enforces it.
-    external_id: messageId,
-    payload: { emailAddress, historyId, pubsubMessageId: messageId },
-    status: 'pending',
-  });
+  let queued = 0;
+  let duplicates = 0;
 
-  if (insertError) {
-    // 23505 is unique_violation: Pub/Sub redelivered something already queued.
-    // That is normal at-least-once behaviour and a success from our side —
-    // returning non-2xx would make Pub/Sub retry a duplicate even harder.
-    if (insertError.code === '23505') {
-      console.info(`[webhooks/gmail] duplicate delivery ignored pubsubId=${messageId}`);
-      return NextResponse.json({ received: true, duplicate: true });
+  for (const row of rows) {
+    const { error: insertError } = await supabase.from('raw_events').insert(row);
+
+    if (insertError) {
+      // 23505 is unique_violation: Pub/Sub redelivered something already
+      // queued. That is normal at-least-once behaviour and a success from our
+      // side — returning non-2xx would make Pub/Sub retry a duplicate harder.
+      if (insertError.code === '23505') {
+        duplicates += 1;
+        continue;
+      }
+
+      // One tenant's insert failed. 500 so Pub/Sub retries the whole
+      // notification: the rows that did land are protected by the same unique
+      // index, so the retry re-queues only the one that did not.
+      console.error(`[webhooks/gmail] failed to queue: ${insertError.message}`);
+      return new NextResponse('Queue failed', { status: 500 });
     }
 
-    console.error(`[webhooks/gmail] failed to queue: ${insertError.message}`);
-    return new NextResponse('Queue failed', { status: 500 });
+    queued += 1;
   }
 
-  // IDs only — never the address, never content. docs/02-ARCHITECTURE.md §6.
+  // IDs and counts only — never the address, never content. §6.
   console.info(
-    `[webhooks/gmail] queued channel=${channel.id} historyId=${historyId} pubsubId=${messageId}`,
+    `[webhooks/gmail] queued=${queued} duplicates=${duplicates} owners=${rows.length} ` +
+      `historyId=${historyId} pubsubId=${messageId}`,
   );
 
-  return NextResponse.json({ received: true });
+  return NextResponse.json({ received: true, queued });
 }

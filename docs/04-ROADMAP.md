@@ -370,7 +370,7 @@ a row, without intervention.
 | Calendar write-back duplicates events | Medium | Medium | `calendar_event_id` checked before every insert. |
 | Google forces production verification | Low | High | Stay in OAuth testing mode with allowlisted users. Publishing with Gmail restricted scopes triggers a CASA assessment. |
 | **Gmail refresh token expires every 7 days** | **Certain — it is the documented behaviour of testing mode** | **High: mail stops** | Verified 2026-08-02. External + Testing expires every refresh token **7 days from consent**, per user, not configurable. The watch sweep catches it and shows *Needs attention* on `/channels`, so it is visible — but **reconnect on the morning of any demo.** `docs/03-RESOURCES.md` §2. |
-| Multi-user Gmail: two tenants connect the **same** mailbox | Low now, higher with more users | Medium | Migration 0003 permits it deliberately, but `/api/webhooks/gmail` resolves with `.maybeSingle()`, which errors on two rows — ingest then 500s for that mailbox until one disconnects. Fix is to fan out to every matching channel. Not yet done. |
+| ~~Multi-user Gmail: two tenants connect the **same** mailbox~~ | — | — | **Fixed 2026-08-02.** `.maybeSingle()` errored on two rows, so ingest 500'd for a shared mailbox and Pub/Sub retried it forever. Now fans out: one `raw_events` row per owner, via `fanOutToChannels` in `apps/console/src/lib/ingest.ts`, with 9 tests. `.limit(1)` was rejected as the fix — it would deliver one tenant's mail to whichever row sorted first. |
 | **Scope grew: multi-tenancy + calendar write** | — | — | Both landed in planning rather than mid-build, which is the cheap time for them. Held in check by the team-features non-goal — *isolated, not collaborative*. |
 
 ---

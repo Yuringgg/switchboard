@@ -342,9 +342,14 @@ exists to avoid — do not. Full note: `docs/03-RESOURCES.md` §2.
 - **WhatsApp's limit is what WhatsApp is:** there is no personal WhatsApp API, so
   a user cannot connect "their own". An admin assigns a **business number** —
   2 per WABA, up to 20 once business-verified (ADR-009).
-- **One known gap:** two tenants connecting the *same* mailbox is permitted by
-  migration 0003 but breaks `/api/webhooks/gmail`, which uses `.maybeSingle()`
-  and errors on two rows. Fan out to every matching channel when this matters.
+- **A shared mailbox fans out to every owner** (fixed 2026-08-02). Two tenants
+  connecting the same address is permitted by migration 0003 and used to break
+  ingest: `.maybeSingle()` errors on two rows, so the route 500'd and Pub/Sub
+  retried that mailbox forever while both consoles stayed empty. It now writes
+  one `raw_events` row per owner — `fanOutToChannels`,
+  `apps/console/src/lib/ingest.ts`. ⚠ **Never "fix" a multi-row lookup on this
+  path with `.limit(1)`.** That is worse than the crash: it delivers one
+  tenant's mail to whichever row sorted first, and no RLS policy catches it.
 
 **→ Next action: Yuri's Meta clicks.** Developer account, an app with the
 WhatsApp product, the free test number, up to 5 verified recipients, the webhook
