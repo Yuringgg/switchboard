@@ -29,6 +29,9 @@ importers:
       '@switchboard/adapter-gmail':
         specifier: workspace:*
         version: link:../../packages/adapters/gmail
+      '@switchboard/adapter-whatsapp':
+        specifier: workspace:*
+        version: link:../../packages/adapters/whatsapp
       '@switchboard/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -84,6 +87,12 @@ importers:
       '@switchboard/adapter-gmail':
         specifier: workspace:*
         version: link:../../packages/adapters/gmail
+      '@switchboard/adapter-whatsapp':
+        specifier: workspace:*
+        version: link:../../packages/adapters/whatsapp
+      '@switchboard/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@switchboard/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -119,10 +128,21 @@ importers:
         specifier: ^10.9.1
         version: 10.9.1
 
+  packages/adapters/whatsapp:
+    dependencies:
+      '@switchboard/core':
+        specifier: workspace:*
+        version: link:../../core
+
+  packages/ai: {}
+
   packages/core: {}
 
   packages/db:
     dependencies:
+      '@switchboard/core':
+        specifier: workspace:*
+        version: link:../core
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(postgres@3.4.9)

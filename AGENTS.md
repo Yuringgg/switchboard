@@ -153,9 +153,27 @@ timeline, and CI asserts tenant isolation on every push.
   running warm in Malaysia West, on the real ghcr image pinned by digest.**
 - Ingest webhook routes, WhatsApp signature verification tested
 - Supabase keepalive as a daily Vercel cron
-- Git repository **pushed to https://github.com/Yuringgg/switchboard**, CI green,
-  with a **working pre-commit secret scan** (`.githooks/`, wired via
-  `core.hooksPath` by `pnpm install`)
+- Git repository **pushed to https://github.com/Yuringgg/switchboard**, with a
+  **working pre-commit secret scan** (`.githooks/`, wired via `core.hooksPath`
+  by `pnpm install`)
+
+> **⚠ CI was RED from 2026-07-28 to 2026-08-02, and this file said it was
+> green.** Runs #31–#39 all failed at `pnpm install --frozen-lockfile`. The
+> cause: Phase 2 added `packages/adapters/whatsapp` and new dependencies to
+> `apps/console` and `apps/worker` **without regenerating `pnpm-lock.yaml`** —
+> the lockfile is simply absent from that commit's diff. `--frozen-lockfile` is
+> on by default in CI, so every push since failed before running a single test,
+> including four docs-only commits.
+>
+> It stayed invisible because **`pnpm` was not installed on the build machine**,
+> so nobody could run the failing command locally, and `vitest`/`tsc` invoked
+> directly were all green. Fixed 2026-08-02 by installing `pnpm@11.17.0` (the
+> pinned `packageManager`) and regenerating the lockfile.
+>
+> **The rule that follows: adding or changing ANY `package.json` means running
+> `pnpm install` and committing `pnpm-lock.yaml` in the same commit.** If pnpm
+> is missing, `npm i -g pnpm@11.17.0` — it takes twenty seconds and it is the
+> difference between CI meaning something and CI being decoration.
 - `.env.example`, `.gitignore`, `.gitattributes`, CI workflow
 - Every not-yet-built directory holds a README naming what lands there and when
 
@@ -492,8 +510,13 @@ isolation working rather than only testing it.
 
 **Environment notes for builders** — both cost time to rediscover:
 
-- Node 25+ unbundled corepack, so `pnpm` was installed globally with
-  `npm i -g pnpm`.
+- Node 25+ unbundled corepack, so `pnpm` must be installed globally:
+  **`npm i -g pnpm@11.17.0`** (match `packageManager` in the root
+  `package.json` — a different major writes a lockfile CI will reject).
+  ⚠ **It goes missing after a Node upgrade**, and when it is missing the
+  temptation is to run `vitest`/`tsc` directly and call it green. That is
+  exactly how CI stayed red for five days without anyone noticing — see the
+  warning above. Reinstall it rather than working around it.
 - **TypeScript is pinned to `^5` and must stay there.** 7.x is the native Go
   port and exposes no classic compiler API, which breaks `next build`'s type
   check with a misleading error. `tsc --noEmit` passes either way, so the
