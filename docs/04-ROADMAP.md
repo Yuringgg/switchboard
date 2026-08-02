@@ -776,6 +776,21 @@ ingest path lands when the Container App is repointed at the new image
       both. ⚠ Deliberately **not** solved by pattern-matching for injections:
       `summarize.ts` already records why that gives false confidence. The
       defence that holds regardless is ADR-010's confirmation gate.
+      **Measured after both fixes, over the whole corpus: 77/77 messages, 0
+      failures, 3 rows** — the two real meetings, both with the right Manila
+      time, plus one residual. Against 27 rows of which 22 were navigation, that
+      is a 96% cut in noise with both real meetings kept.
+      ⚠ **One residual weakness, recorded rather than hidden** — the same way
+      Phase 4A recorded its in-band identity claim. A Supabase *"project
+      paused"* notification still yields an `action_item`: *"You can unpause
+      your project from the dashboard within 90 days."* It is automated mail, so
+      strictly it should be nothing — but the quote is a real sentence stating a
+      real deadline, not a button label, which is the defensible end of the
+      error. **Left alone deliberately.** Tightening to catch it is tuning
+      against one case, which ADR-016 and ADR-017 both identify as how a rule
+      ends up fitting five examples and failing the sixth; and the cost of
+      erring this way is one row a person dismisses, against losing a real
+      commitment.
 - [x] **"Needs attention" view over extractions** (2026-08-03) — `/attention`,
       an ordinary RLS-scoped table read through the user's session. No RPC and
       no `service_role`.

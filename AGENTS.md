@@ -692,19 +692,29 @@ personal conversations, and no library changes that legitimately.
 | **Phase 4B — assistant** | ✅ **shipped and deployed.** Migrations 0009, local embeddings, `/assistant`. **75/75 messages embedded (397 chunks)**, worker serving `/embed`. ⚠ Prompt owes one tuning pass — see below |
 | **Phase 5** | ✅ **shipped 2026-08-03.** Extraction pass (migration 0011), `/attention` (US-9), and calendar write-back on `/messages/[id]` (US-7b, ADR-010). Remaining Phase 5 items are polish: daily digest, error audit, README from a clean clone, diagram, demo rehearsal |
 
-### Verified live on 2026-08-02, by querying — not by inference
+### Verified live on 2026-08-03, by querying — not by inference
 
 | | |
 |---|---|
-| Messages | **76** · 21 contacts · 2 users |
-| Summaries | **66 / 66 eligible** (100%) |
-| Embeddings | **76 / 76 messages, 398 chunks** (100%), 0 missing |
-| Queue | **0 stuck, 0 failed** |
-| Channels | 1 Gmail, **0 in error**. Watch expires **2026-08-08** |
-| Worker | rev `--0000013`, healthy, `{"embedder":true}` |
-| Console | all routes 307 → `/login` (gated correctly) |
-| Tests | **389** (was 356) · typecheck, `next build`, worker bundle, `assert-rls` all green |
-| Migrations | **0010** applied — search results carry summaries |
+| Messages | **79** · 21 contacts · 2 users |
+| Summaries | **67** |
+| Embeddings | **78 / 79 messages, 412 chunks**. ⚠ The one gap is a body that is nothing but `\r\n` — correctly skipped, not a defect |
+| **Extraction** | **77 / 77 eligible messages processed, 0 failures, 3 items.** 74 of those runs wrote 0 rows, which is the ORDINARY result |
+| Queue | **0 not done** |
+| Channels | 1 Gmail, **0 in error**. Watch expires **2026-08-08 19:34:54 UTC** |
+| Worker | rev **`--0000014`**, healthy, `{"embedder":true}`, logging `[extract] enabled` |
+| Console | `/attention`, `/contacts`, `/messages/[id]` all 307 → `/login` (gated correctly) |
+| Tests | **467** (was 389) · typecheck, `next build`, `assert-rls` (11 tables) all green |
+| Migrations | **0011** applied and negative-controlled |
+| Extraction eval | **10/10**, including both injection cases |
+
+⚠ **The assistant eval still has no complete score.** The 2026-08-03 run
+measured **answerable 4/4, must-refuse 0/0, 12 provider errors** — the daily
+token cap swallowed twelve of sixteen cases, *including every must-refuse case*.
+Roughly 90% of that day's budget was already spent before the run started
+(three questions succeeded ≈ 10K tokens against ~100K/day). **Run it first thing
+on a day nobody has used `/assistant` yet.** It now stops as soon as the daily
+scope is reported rather than waiting a minute per remaining case.
 
 **The full pipeline runs unattended:** a new email arrives → webhook → queue →
 worker normalises → **summarises** → **chunks and embeds** → timeline. All three
