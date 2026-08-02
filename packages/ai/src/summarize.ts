@@ -17,6 +17,31 @@ export const SUMMARY_MIN_BODY = 280;
 /** Hard ceiling on what we will store, in characters. */
 export const SUMMARY_MAX_CHARS = 240;
 
+/**
+ * How much of a body is actually sent to the model.
+ *
+ * ── ⚠ Discovered by running a backfill, not by reading a docs page ───────────
+ *
+ * Groq's binding limit for this workload is **tokens per minute (6,000)**, not
+ * requests per day (14,400). Read from the live headers on 2026-08-02:
+ * `x-ratelimit-remaining-tokens: 4825` while `remaining-requests` was 14,399.
+ * Four long newsletters — ~7,000 characters each, roughly 1,750 tokens — 429'd
+ * the fifth request inside a minute, with 99.97% of the daily request
+ * allowance untouched.
+ *
+ * This is the same shape as ADR-003's finding for the assistant: for large
+ * prompts *tokens per minute is the constraint, not requests*. It is worth
+ * knowing that it applies to summaries too, at a tenth of the prompt size.
+ *
+ * 4,000 characters is roughly 1,000 tokens, and it costs almost nothing in
+ * quality: a message's substance is at the top. What is past 4,000 characters
+ * in this corpus is quoted reply chains, footers, and unsubscribe blocks —
+ * summarising those adds nothing and paying tokens for them is what caused the
+ * 429. It also matches `BODY_LIMIT` in the console, so the model reads
+ * approximately what a person opening the row reads.
+ */
+export const SUMMARY_INPUT_LIMIT = 4000;
+
 export type SkipReason = 'empty' | 'already-short';
 
 export type SummaryDecision =
@@ -136,15 +161,29 @@ export function buildSummaryPrompt(
   if (message.senderName) header.push(`From: ${message.senderName}`);
   if (message.subject) header.push(`Subject: ${message.subject}`);
 
+  /*
+   * Truncation is STATED, not silent.
+   *
+   * A model handed a body that stops mid-sentence with no explanation will
+   * sometimes describe the message as incomplete, or speculate about what
+   * followed. Saying the tail was removed lets it summarise what it has and
+   * makes the omission a known fact rather than a puzzle.
+   */
+  const body = message.bodyText.slice(0, SUMMARY_INPUT_LIMIT);
+  const truncated = message.bodyText.length > SUMMARY_INPUT_LIMIT;
+
   return [
     ...header,
     '',
     `-----BEGIN MESSAGE ${nonce}-----`,
-    message.bodyText,
+    body,
+    truncated ? '[message truncated here — summarise only what is above]' : '',
     `-----END MESSAGE ${nonce}-----`,
     '',
     'Summarise the message above.',
-  ].join('\n');
+  ]
+    .filter((line, index, all) => line !== '' || index === 0 || all[index - 1] !== '')
+    .join('\n');
 }
 
 /**

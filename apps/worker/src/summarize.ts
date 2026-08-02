@@ -33,7 +33,13 @@ import { sql } from 'drizzle-orm';
 export type SummaryOutcome =
   | { status: 'written' }
   | { status: 'skipped'; reason: string }
-  | { status: 'failed'; reason: string; retryable: boolean };
+  | {
+      status: 'failed';
+      reason: string;
+      retryable: boolean;
+      /** From the provider's `retry-after`, when it gave one. */
+      retryAfterMs?: number;
+    };
 
 /** `extends Record<string, unknown>` to satisfy `db.execute`'s row constraint,
  *  the same way `ChannelRow` does in gmail-ingest.ts. */
@@ -107,7 +113,14 @@ export async function summariseMessage(
 
     const completion = await provider.complete(SUMMARY_SYSTEM_PROMPT, prompt);
     if (!completion.ok) {
-      return { status: 'failed', reason: completion.reason, retryable: completion.retryable };
+      return {
+        status: 'failed',
+        reason: completion.reason,
+        retryable: completion.retryable,
+        ...(completion.retryAfterMs === undefined
+          ? {}
+          : { retryAfterMs: completion.retryAfterMs }),
+      };
     }
 
     const validated = validateSummary(completion.text);

@@ -254,6 +254,33 @@ pins the choice with the numbers beside it.
 Summarising one short message is not a task that needs a 70B model. If quality
 ever proves otherwise, the answer is a better prompt before a bigger model.
 
+### ⚠⚠ The limit that actually bites is TOKENS per minute — found 2026-08-02
+
+**6,000 TPM, not 14,400 requests/day.** A backfill 429'd on its fifth message
+while the daily request allowance was **99.97% unused**:
+
+```
+x-ratelimit-remaining-requests: 14399     ← looks completely fine
+x-ratelimit-remaining-tokens:    4825     ← this is what ran out
+x-ratelimit-reset-tokens:       11.75s
+```
+
+Four ~7,000-character newsletters — roughly 1,750 tokens each — exhaust the
+window inside a minute. **Anyone reading only the request counter concludes the
+quota is healthy and goes looking for a bug that is not there.**
+
+This is the *same finding as ADR-003*, one layer down: for large prompts, tokens
+per minute is the binding constraint, not requests per minute. ADR-003 used it
+to route the assistant to Gemini; it turns out to apply to per-message summaries
+too, at a tenth of the prompt size.
+
+Two fixes, both shipped: the body sent to the model is capped at **4,000
+characters** (`SUMMARY_INPUT_LIMIT` — a message's substance is at the top; past
+that is quoted chains and footers), and the backfill reads Groq's `retry-after`
+and waits rather than abandoning the run. ⚠ **`retry-after` can be fractional
+("11.75") — `parseFloat`, not `parseInt`,** or an 11.75s wait becomes 11s and
+429s again immediately.
+
 Extraction is the opposite shape from Q&A: **many small self-contained prompts**,
 one per message. That's bounded by requests/day, where Groq's 14,400 is generous
 and its latency is excellent. Limits are per-model, so extraction never competes

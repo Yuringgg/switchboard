@@ -29,7 +29,21 @@ export interface CompletionOptions {
  */
 export type CompletionResult =
   | { ok: true; text: string; model: string }
-  | { ok: false; reason: string; retryable: boolean };
+  | {
+      ok: false;
+      reason: string;
+      retryable: boolean;
+      /**
+       * How long the provider asked us to wait, from its `retry-after` header.
+       *
+       * Present only on a rate limit. It is the difference between a backfill
+       * that stops for the day and one that pauses for eleven seconds — and
+       * the number comes from the provider rather than from a guess, which
+       * matters because the binding limit here is tokens-per-minute and its
+       * reset is a sliding window, not a fixed one.
+       */
+      retryAfterMs?: number;
+    };
 
 export interface CompletionProvider {
   /** Which model produced a result — recorded on every row (ADR-006). */

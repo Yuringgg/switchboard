@@ -401,9 +401,18 @@ which matters, because Ms. Maria asked for it and will look for it.
       point the request is spent.
 - [x] **Backfill the existing corpus** — `apps/worker/scripts/backfill-summaries.ts`.
       `--limit` defaults to 25 rather than "everything", a delay between
-      requests, `--dry-run`, and **it stops dead on a retryable failure** so one
-      429 does not become twenty-five. Run against real mail 2026-08-02:
-      3 written, 0 failed.
+      requests, `--dry-run`, and it **waits out a rate limit once** using Groq's
+      own `retry-after`, then stops if still limited — so a busy minute does not
+      abandon the run and an exhausted allowance does not grind through fifty
+      failures.
+      ⚠ **Running it found the real limit, which is not the documented one.**
+      The first version stopped dead on any retryable failure, and a backfill
+      429'd on message five with `x-ratelimit-remaining-requests: 14399` and
+      `x-ratelimit-remaining-tokens: 4825`. **The binding constraint is 6,000
+      tokens/minute, not 14,400 requests/day** — the same finding as ADR-003,
+      one layer down. Fixed by capping the body sent at 4,000 characters and by
+      honouring `retry-after` (⚠ fractional — `parseFloat`). Full note in
+      `docs/03-RESOURCES.md` §4b.
 - [x] **Prompt hardening.** The body is fenced between markers carrying a
       **per-request random nonce** — text inside cannot close a delimiter it
       cannot predict, which is what makes "this is data, not instructions"

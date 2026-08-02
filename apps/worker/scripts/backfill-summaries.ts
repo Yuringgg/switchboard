@@ -105,27 +105,54 @@ async function main(): Promise<void> {
     let failed = 0;
 
     for (const [index, row] of pending.entries()) {
-      const outcome = await summariseMessage(db, provider, row.id);
+      const position = `${index + 1}/${pending.length}`;
+      let outcome = await summariseMessage(db, provider, row.id);
+
+      /*
+       * ── Wait out a rate limit once, rather than abandoning the run ─────────
+       *
+       * The first version of this stopped dead on any retryable failure, and
+       * running it proved that too blunt. The binding limit is Groq's **6,000
+       * tokens per minute**, not its 14,400 requests per day — four long
+       * newsletters exhausted the token window with 99.97% of the daily request
+       * allowance untouched. That is a pause of a few seconds, not a quota
+       * gone for the day, and treating the two the same abandoned 57 messages
+       * over an eleven-second wait.
+       *
+       * So: if the provider says how long to wait, wait that long and try
+       * once more. `retry-after` comes from Groq rather than from a guess,
+       * which matters because the token window slides.
+       *
+       * A second failure still stops the run — see below. Retrying forever is
+       * how a script quietly burns an allowance nobody is watching.
+       */
+      if (outcome.status === 'failed' && outcome.retryable && outcome.retryAfterMs) {
+        const waitMs = Math.min(outcome.retryAfterMs + 500, 60_000);
+        console.warn(
+          `[backfill] ${position} rate limited, waiting ${Math.round(waitMs / 1000)}s — ${outcome.reason}`,
+        );
+        await sleep(waitMs);
+        outcome = await summariseMessage(db, provider, row.id);
+      }
 
       if (outcome.status === 'written') {
         written += 1;
-        console.info(`[backfill] ${index + 1}/${pending.length} written  message=${row.id}`);
+        console.info(`[backfill] ${position} written  message=${row.id}`);
       } else if (outcome.status === 'skipped') {
         skipped += 1;
-        console.info(
-          `[backfill] ${index + 1}/${pending.length} skipped  message=${row.id} (${outcome.reason})`,
-        );
+        console.info(`[backfill] ${position} skipped  message=${row.id} (${outcome.reason})`);
       } else {
         failed += 1;
-        console.error(
-          `[backfill] ${index + 1}/${pending.length} FAILED   message=${row.id}: ${outcome.reason}`,
-        );
+        console.error(`[backfill] ${position} FAILED   message=${row.id}: ${outcome.reason}`);
 
-        // ⚠ Stop, do not continue. See the header: a 429 will hit every
-        // remaining message identically, and grinding through them turns one
-        // rate-limit response into twenty-five.
+        // ⚠ Still stop on a retryable failure that survived the wait above.
+        // At that point it is not a busy minute, it is the daily allowance —
+        // and grinding on turns one rate-limit response into fifty.
         if (outcome.retryable) {
-          console.error('[backfill] stopping: the failure is retryable, so the rest would fail too.');
+          console.error(
+            '[backfill] stopping: still limited after waiting, so the rest would fail too. ' +
+              'Nothing is lost — re-run later and it resumes where it left off.',
+          );
           break;
         }
       }

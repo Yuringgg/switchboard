@@ -106,13 +106,34 @@ export function createGroqProvider({
            */
           const retryable = response.status === 429 || response.status >= 500;
 
-          // ⚠ The status and nothing else. An error body from a completion API
-          // can echo the prompt back, and the prompt is a message body.
-          // docs/02-ARCHITECTURE.md §6: never log message content.
+          /*
+           * ⚠ The binding limit here is TOKENS per minute, not requests per
+           * day. Verified from the live headers on 2026-08-02: a 429 arrived
+           * with `x-ratelimit-remaining-requests: 14399` and
+           * `x-ratelimit-remaining-tokens: 4825`. Anyone reading only the
+           * request counter concludes the quota is fine and goes looking for a
+           * bug that is not there.
+           *
+           * `retry-after` is seconds, and Groq may send a fractional value
+           * ("11.75") — parseFloat, not parseInt, or an 11.75s wait becomes
+           * 11s and 429s again immediately.
+           */
+          const retryAfter = Number.parseFloat(response.headers.get('retry-after') ?? '');
+          const remainingTokens = response.headers.get('x-ratelimit-remaining-tokens');
+
+          // ⚠ Status and rate-limit headers only. An error body from a
+          // completion API can echo the prompt back, and the prompt is a
+          // message body. docs/02-ARCHITECTURE.md §6: never log message content.
           return {
             ok: false,
-            reason: `groq http ${response.status}`,
+            reason:
+              response.status === 429
+                ? `groq rate limit (tokens left this window: ${remainingTokens ?? 'unknown'})`
+                : `groq http ${response.status}`,
             retryable,
+            ...(Number.isFinite(retryAfter) && retryAfter > 0
+              ? { retryAfterMs: Math.ceil(retryAfter * 1000) }
+              : {}),
           };
         }
 

@@ -11,6 +11,7 @@ export {
   buildSummaryPrompt,
   randomNonce,
   shouldSummarise,
+  SUMMARY_INPUT_LIMIT,
   SUMMARY_MAX_CHARS,
   SUMMARY_MIN_BODY,
   SUMMARY_SYSTEM_PROMPT,

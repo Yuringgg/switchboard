@@ -4,6 +4,7 @@ import {
   buildSummaryPrompt,
   randomNonce,
   shouldSummarise,
+  SUMMARY_INPUT_LIMIT,
   SUMMARY_MAX_CHARS,
   SUMMARY_MIN_BODY,
   SUMMARY_SYSTEM_PROMPT,
@@ -78,6 +79,26 @@ describe('buildSummaryPrompt', () => {
     expect(prompt).toContain('-----END MESSAGE abc123-----');
     expect(prompt.indexOf('-----BEGIN')).toBeLessThan(prompt.indexOf('hello'));
     expect(prompt.indexOf('hello')).toBeLessThan(prompt.indexOf('-----END'));
+  });
+
+  /**
+   * The fix for the 429 that a real backfill produced. Groq's binding limit is
+   * 6,000 tokens/minute, not 14,400 requests/day — four ~7,000-character
+   * newsletters exhausted the token window while 99.97% of the daily request
+   * allowance was still untouched.
+   */
+  it('caps the body it sends, and says so rather than stopping mid-sentence', () => {
+    const long = 'x'.repeat(SUMMARY_INPUT_LIMIT + 5_000);
+    const prompt = buildSummaryPrompt({ bodyText: long }, 'n');
+
+    // The prompt carries the cap, not the whole body.
+    expect(prompt.length).toBeLessThan(SUMMARY_INPUT_LIMIT + 500);
+    expect(prompt).toContain('[message truncated here');
+  });
+
+  it('does not announce truncation when nothing was truncated', () => {
+    const prompt = buildSummaryPrompt({ bodyText: 'short body' }, 'n');
+    expect(prompt).not.toContain('truncated');
   });
 
   it('includes context only when it exists', () => {
