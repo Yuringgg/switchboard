@@ -294,8 +294,27 @@ to invest, and it's what makes the system feel finished.
       **Manila** days (`manilaDayStart`/`End`), matching the timeline's own
       grouping — on UTC bounds "1 August" would drop everything sent after 4pm
       that day and the screen would contradict its own filter.
+- [x] **Search results carry their AI summary** (2026-08-02) — migration `0010`.
+      The same message used to show a summary in the timeline and nothing in
+      search, which on a console promising one record of everything is the kind
+      of inconsistency that quietly teaches people not to trust it.
+      ⚠ `create or replace function` **cannot change a RETURNS TABLE**, so 0010
+      drops and recreates `search_messages` — and **DROP takes the grants with
+      it.** Without re-granting EXECUTE to `authenticated`, PostgREST answers
+      every search `42501` and search breaks for everyone while the migration
+      reports success.
+      ⚠ **LEFT join, and the `kind` filter must sit in the JOIN condition, not
+      the WHERE.** An inner join returns only summarised messages; a WHERE on the
+      right-hand table of a LEFT join becomes an inner join in effect, because an
+      unmatched row yields `ex.kind IS NULL`. Both fail by hiding messages rather
+      than erroring. Negative-controlled live: **76 rows, 66 with a summary, 10
+      without**, and the second account still sees **0**.
 - [ ] Filter by contact — the function already takes `contact_ids`; the UI
       waits on the contact list below
+- [x] **Message detail route `/messages/[id]`** (2026-08-02, ADR-018) — one
+      message in full, the assistant's citation target and the record view the
+      `BODY_LIMIT` note anticipated. Renders the **whole** body: the 4,000-char
+      ceiling bounds the list, not the record.
 - [ ] Contact list; contact detail = merged cross-channel history
 - [ ] **Manual identity merge** — "this email address and this number are the same person"
 - [ ] Channel settings: connect, pause, disconnect, sync status, last error
@@ -506,30 +525,79 @@ ingest path lands when the Container App is repointed at the new image
       (0.8563). The refusal moved onto the model; a **relative** floor replaces
       the absolute one. `apps/worker/scripts/probe-floor.ts` measures it.
 - [x] Prompt: answer strictly from context, cite message ids, refuse otherwise.
+      ⚠ **Three-way as of 2026-08-02 (ADR-017)** — "nothing here is about this"
+      (refuse) is separated from "several things are, none individually decisive"
+      (synthesise, citing each). A two-way test cannot tell those apart and
+      refused questions whose answer *is* the synthesis.
 - [x] Assistant panel in the console; citations numbered to match the `[n]`
       markers in the answer, and an uncited answer renders **as a refusal**.
-- [x] Eval set — `apps/worker/scripts/eval-assistant.ts`, 15 cases, 8 of which
-      **must be refused**.
+- [x] **Citations link to `/messages/[id]`** (ADR-018) — a signed-in, RLS-scoped
+      route rendering one message in full. ⚠ **Not** a jump into the timeline as
+      `docs/02-ARCHITECTURE.md` §4 step 6 originally specified: the timeline holds
+      only the newest 50, so a chip citing anything older would resolve to
+      nothing — which reads as an invented source. The route also gives Phase 5
+      the source-message view ADR-010 requires beside every meeting proposal.
+- [x] Eval set — `apps/worker/scripts/eval-assistant.ts`, 15 cases. **Three
+      expectations, not two** (ADR-017): `answer`, `refuse`, `known-gap`. Cases
+      live in `eval-cases.ts`, shared with the probe so the two cannot drift.
+      `--only "a,b,c"` runs a subset; a full run costs ~half a day's tokens.
+- [x] **`apps/worker/scripts/probe-context.ts`** — prints what actually reaches
+      the model, at **zero quota cost**, for every eval case. This is the tool to
+      reach for when a case fails: it separates "the model judged wrongly" from
+      "the model never saw it", which have opposite fixes and which the
+      answer-level eval cannot distinguish at any price.
+- [x] **Unit tests for the refusal contract** — `packages/ai/test/assistant.test.ts`.
+      ⚠ Until 2026-08-02 **none of the project's 356 tests touched
+      `selectContext` or `parseAnswer`**, the two pure functions that decide what
+      the model sees and whether its answer counts as a refusal.
 
 **Done when:** *"do I have upcoming meetings?"* returns a cited answer, and
 *"what did we agree about the Jakarta office?"* returns a clean refusal.
 — **Both met**, measured 2026-08-02.
 
-> ### ⚠ Where the eval actually stands, stated honestly
+> ### ⚠ Where the eval actually stands — REWRITTEN 2026-08-02, see ADR-017
 >
-> Best measured run: **5/5 refusals correct, 5/7 answerable correct.** Before the
-> prompt was hardened it was the other way round — 7/7 answerable but only 3/8
-> refusals, with the model citing all eight retrieved messages for a question
-> about a submarine.
+> This section used to say the prompt **over-refuses two answerable questions**
+> ("do I have upcoming meetings?", "summarise what needs my attention") and owed
+> one tuning pass. **That diagnosis was wrong, and acting on it would have made
+> the assistant worse.** Measured with the new zero-quota instrument
+> `apps/worker/scripts/probe-context.ts`:
 >
-> The hardened prompt **over-refuses two answerable questions** ("do I have
-> upcoming meetings?", "summarise what needs my attention"). That is the safe
-> direction to fail — ADR-007 is explicit that a fabricated meeting is worse than
-> no answer — but it is **not finished**. One more tuning pass is owed, and the
-> eval is the instrument for it.
+> - *"Summarise what needs my attention"* — the eight messages that reached the
+>   model were a Deepgram welcome, a Coursera announcement, a Huawei promotion,
+>   two ScreenPal mails, a Nike drop and a job alert. **None of the CI failures,
+>   deploy failures or the Supabase pause was in context at all.** The model
+>   cannot summarise what it was never given; no prompt wording reaches this.
+> - *"Do I have any upcoming meetings?"* — **every meeting in the corpus is dated
+>   27–28 July**, and three of the five have bodies reading only "YURI" or
+>   "Meeting". The one naming a time ("9pm tonight") was sent at 19:59 on 2 Aug
+>   and the eval ran at 22:40. **The refusal was correct**, and the case's verdict
+>   depended on the wall clock — answerable at 3pm, correctly refused at 10pm.
 >
-> ⚠ Some eval runs also fail on `groq rate limit`. That is the **daily token
-> cap**, not a logic failure; re-run the next day rather than chasing it.
+> Both are **Phase 5 features being asked of Phase 4B**: US-7 and US-9 below, with
+> R14 already settling that upcoming meetings come from *extraction*, not
+> retrieval. They are now recorded as `known-gap` — still asked and printed on
+> every run, not scored as logic failures, each carrying its reason.
+>
+> **Chasing 7/7 would have meant fabrication with a passing score.** The earlier
+> prompt already demonstrated the destination: 7/7 answerable and **3/8 refusals**,
+> citing all eight retrieved messages for a question about a submarine.
+>
+> **What did change**: the prompt's decision is now three-way — "nothing here is
+> about this" (refuse) versus "several things are, none decisive" (synthesise and
+> cite each). Measured on a synthesis question retrieval *can* serve: it now
+> answers with every claim cited where it previously refused, and the refusals
+> held.
+>
+> ⚠ Scores are reported as **two numbers, never one.** A combined figure reads
+> identically for a prompt that refuses everything and one that answers
+> everything, and ADR-007 is explicit those are not equivalent failures.
+>
+> ⚠ Some eval runs still fail on `groq rate limit`. That is the **daily token
+> cap**, not a logic failure — it is now counted separately as a provider error so
+> a run that lost cases to quota cannot be mistaken for a regression. Re-run the
+> next day rather than chasing it. `--only "a,b,c"` runs a subset, which is what
+> makes iterating affordable at all: a full run is ~half the day's tokens.
 
 > ### ⚠ The assistant no longer runs on Gemini
 >

@@ -2,6 +2,7 @@ import type {
   CompletionOptions,
   CompletionProvider,
   CompletionResult,
+  LimitScope,
 } from './provider';
 
 /**
@@ -86,17 +87,47 @@ export function createGeminiProvider({
         if (!response.ok) {
           const retryable = response.status === 429 || response.status >= 500;
           const retryAfter = Number.parseFloat(response.headers.get('retry-after') ?? '');
+          const retryAfterMs =
+            Number.isFinite(retryAfter) && retryAfter > 0
+              ? Math.ceil(retryAfter * 1000)
+              : undefined;
 
-          // ⚠ Status only. An error body from a completion API can echo the
-          // prompt, and this prompt contains message bodies.
+          /*
+           * ⚠ The body is read ONLY on a 429, and only for the quota's name —
+           * the same bounded exception `groq.ts` makes, for the same reason: a
+           * daily allowance and a per-minute window need different words in
+           * front of a user, and no header distinguishes them. Nothing from the
+           * body is returned, stored or logged; it goes out of scope here.
+           *
+           * Gemini names the quota in `quotaId`, and the free tier's daily one
+           * reads exactly `GenerateRequestsPerDayPerProjectPerModel-FreeTier`
+           * — measured on 2026-08-02, which is how the 20-per-day ceiling was
+           * discovered (`docs/03-RESOURCES.md` §4a). Matching on Day/Minute in
+           * that identifier is more robust than matching prose.
+           */
+          let limitScope: LimitScope | undefined;
+          if (response.status === 429) {
+            const body = await response.text().catch(() => '');
+            limitScope = /PerDay/i.test(body)
+              ? 'day'
+              : /PerMinute/i.test(body)
+                ? 'minute'
+                : retryAfterMs === undefined
+                  ? 'unknown'
+                  : retryAfterMs > 60_000
+                    ? 'day'
+                    : 'minute';
+          }
+
+          // ⚠ Otherwise status only. An error body from a completion API can
+          // echo the prompt, and this prompt contains message bodies.
           // docs/02-ARCHITECTURE.md §6.
           return {
             ok: false,
             reason: `gemini http ${response.status}`,
             retryable,
-            ...(Number.isFinite(retryAfter) && retryAfter > 0
-              ? { retryAfterMs: Math.ceil(retryAfter * 1000) }
-              : {}),
+            ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+            ...(limitScope !== undefined ? { limitScope } : {}),
           };
         }
 

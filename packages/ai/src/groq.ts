@@ -2,6 +2,7 @@ import type {
   CompletionOptions,
   CompletionProvider,
   CompletionResult,
+  LimitScope,
 } from './provider';
 
 /**
@@ -50,6 +51,67 @@ const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
  * model.
  */
 export const GROQ_SUMMARY_MODEL = 'llama-3.1-8b-instant';
+
+/**
+ * Which limit a 429 named — the per-minute window, or the daily allowance.
+ *
+ * ── ⚠ Why this reads the error body, when nothing else here does ─────────────
+ *
+ * Everywhere else in this file the rule is **status and rate-limit headers
+ * only**, because an error body from a completion API can echo the prompt back
+ * and the prompt is a message body (`docs/02-ARCHITECTURE.md` §6). That rule is
+ * intact. This function is the one narrow exception, and it is bounded three
+ * ways: it runs **only on HTTP 429**, it extracts **only** the four-letter limit
+ * code via the regex below, and **it never returns, stores or logs the body** —
+ * the string is discarded on the next line.
+ *
+ * The exception is necessary because the header set cannot answer the question.
+ * Measured against the live API on 2026-08-02 by provoking a real 429 on the
+ * summaries model:
+ *
+ *   retry-after: 2
+ *   x-ratelimit-limit-requests: 14400
+ *   x-ratelimit-remaining-requests: 14370
+ *   x-ratelimit-reset-requests: 3m0s
+ *   {"error":{"message":"Rate limit reached for model `llama-3.1-8b-instant` …
+ *     on requests per minute (RPM): Limit 30, Used 30, Requested 1. Please try
+ *     again in 2s…","type":"requests","code":"rate_limit_exceeded"}}
+ *
+ * Two things that measurement settles:
+ *
+ * 1. **Groq publishes no tokens-per-DAY header at all.** A 200 returns only
+ *    `limit-requests: 1000` (per day) and `limit-tokens: 12000` (per *minute*)
+ *    for the assistant's 70B. The ~100,000 tokens/day ceiling that actually
+ *    binds this project is invisible to headers, so it cannot be detected from
+ *    them — the daily cap announces itself **only** in the body's `(TPD)`.
+ * 2. **When the request limit trips, the token headers disappear entirely.** So
+ *    "is `x-ratelimit-remaining-tokens` low?" is not a usable test either: on
+ *    this response the header is simply absent, and on a daily-token rejection
+ *    it reads a *full* 12,000 (observed 2026-08-02) — the per-minute budget is
+ *    untouched, which is exactly what makes that case so confusing.
+ *
+ * `type: "requests"` distinguishes requests from tokens but never minute from
+ * day, which is the axis a human cares about. The code in the message is the
+ * only field that carries it.
+ */
+function readLimitScope(body: string, retryAfterMs: number | undefined): LimitScope {
+  // Deliberately anchored on Groq's own phrasing, and nothing else from the
+  // body is captured. RPM · RPD · TPM · TPD.
+  const named = /\b(?:on\s+(?:requests|tokens)\s+per\s+(minute|day))\b/i.exec(body);
+  if (named) return named[1]!.toLowerCase() === 'day' ? 'day' : 'minute';
+
+  const code = /\((RPM|RPD|TPM|TPD)\)/.exec(body);
+  if (code) return code[1]!.endsWith('D') ? 'day' : 'minute';
+
+  /*
+   * Groq reworded the message. Fall back to the one signal that is structural
+   * rather than textual: a per-minute window cannot need more than 60 seconds
+   * to clear, so anything longer is a longer-horizon limit. Absent entirely,
+   * say so rather than guessing — the console words 'unknown' without a time.
+   */
+  if (retryAfterMs === undefined) return 'unknown';
+  return retryAfterMs > 60_000 ? 'day' : 'minute';
+}
 
 export interface GroqOptions {
   apiKey: string;
@@ -120,20 +182,35 @@ export function createGroqProvider({
            */
           const retryAfter = Number.parseFloat(response.headers.get('retry-after') ?? '');
           const remainingTokens = response.headers.get('x-ratelimit-remaining-tokens');
+          const retryAfterMs =
+            Number.isFinite(retryAfter) && retryAfter > 0
+              ? Math.ceil(retryAfter * 1000)
+              : undefined;
 
-          // ⚠ Status and rate-limit headers only. An error body from a
-          // completion API can echo the prompt back, and the prompt is a
-          // message body. docs/02-ARCHITECTURE.md §6: never log message content.
+          /*
+           * ⚠ The body is read ONLY on a 429, and only to learn which limit was
+           * hit — see `readLimitScope`. It is never returned, stored or logged,
+           * and it goes out of scope on the next line.
+           *
+           * Everything else here stays status-and-headers-only, because an error
+           * body from a completion API can echo the prompt back and the prompt
+           * is a message body. docs/02-ARCHITECTURE.md §6.
+           */
+          let limitScope: LimitScope | undefined;
+          if (response.status === 429) {
+            const body = await response.text().catch(() => '');
+            limitScope = readLimitScope(body, retryAfterMs);
+          }
+
           return {
             ok: false,
             reason:
               response.status === 429
-                ? `groq rate limit (tokens left this window: ${remainingTokens ?? 'unknown'})`
+                ? `groq rate limit (${limitScope === 'day' ? 'daily allowance' : limitScope === 'minute' ? 'per-minute window' : 'scope unknown'}; tokens left this window: ${remainingTokens ?? 'unknown'})`
                 : `groq http ${response.status}`,
             retryable,
-            ...(Number.isFinite(retryAfter) && retryAfter > 0
-              ? { retryAfterMs: Math.ceil(retryAfter * 1000) }
-              : {}),
+            ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+            ...(limitScope !== undefined ? { limitScope } : {}),
           };
         }
 

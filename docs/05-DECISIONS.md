@@ -868,6 +868,187 @@ because ADR-007's whole point is that a monitoring tool must not invent.
 
 ---
 
+## ADR-017 — The eval was scoring two correct refusals as failures
+
+**Status:** Accepted · 2026-08-02 · *Amends ADR-016's consequences and closes Q9*
+
+**Context.** `docs/04-ROADMAP.md` and Q9 both recorded the assistant as
+over-refusing two answerable questions — *"do I have any upcoming meetings?"* and
+*"summarise what needs my attention"* — and both prescribed the same fix: soften
+the prompt and re-measure. The working hypothesis was that these are **broad,
+aggregate** questions where the answer is spread across several messages, and
+that a prompt telling the model to assume the retrieved list may be entirely
+irrelevant was refusing them wrongly.
+
+The hypothesis was tested before it was acted on, with a new zero-cost
+instrument: `apps/worker/scripts/probe-context.ts` prints exactly what reaches
+the model for every eval question. It costs **no quota at all** — embeddings are
+local and `match_chunks` is Postgres — which is what made it affordable to look
+before spending half a day's tokens tuning.
+
+**It is half right, and the half that is wrong matters more.**
+
+*"Summarise what needs my attention."* The eight messages selected were a
+Deepgram welcome, a Coursera announcement, a Huawei promotion, two ScreenPal
+mails, a Nike drop and a job alert. **None of the CI failures, deploy failures or
+the Supabase pause was in the context at all.** This is not a synthesis failure —
+the model cannot summarise messages it was never given. e5 has no representation
+of *importance*, so the nearest neighbours to "needs my attention" are prose that
+sounds urgent. No prompt wording reaches this.
+
+*"Do I have any upcoming meetings?"* Retrieval is fine — four of six selected
+messages are meetings. But **every meeting in the corpus is dated 27–28 July**,
+and three of the five have bodies reading only "YURI" or "Meeting". The single
+message naming a time, *"Meeting at 9pm tonight"*, was sent at 19:59 on 2 August.
+The eval was run at 22:40. Shown four six-day-old fragments and told today's
+date, **the model's refusal is correct** — and the eval scored it as a failure.
+
+Worse, the case's expected outcome **depended on the wall clock**: answerable at
+3pm, correctly refused at 10pm. An instrument that changes its verdict by the
+hour cannot be tuned against.
+
+**Decision.**
+
+1. **Eval cases carry a three-way expectation** — `answer`, `refuse`, or
+   `known-gap` — instead of a boolean `mustRefuse`. Known gaps are still asked
+   and their output still printed on every run, but they are **not scored as
+   logic failures**, and each carries the measured reason and what would close
+   it. The summary reports `answerable: n/n` and `must-refuse: n/n` **separately,
+   never as one number.**
+2. **Both failing cases are recorded as `known-gap`, and both are Phase 5.**
+   `docs/01-PRODUCT-SPEC.md` US-7 (extracted meetings) and US-9 (a digest of what
+   needs attention) already own them, and R14 already settled that "upcoming
+   meetings" come from **extraction**, not from semantic retrieval.
+3. **The prompt's decision becomes three-way**, which is the part of the original
+   hypothesis that survived. "Nothing here is about this" (refuse) is separated
+   from "several things here are about this, none individually decisive"
+   (synthesise and cite each). The discriminator is stated as *are these messages
+   about the question's **subject***, not *does any one settle it*.
+4. **A synthesis case retrieval can actually serve replaces the unservable one**
+   — *"what kinds of roles have I been sent job alerts about?"*. Measured: all 20
+   retrieved rows are genuine job alerts, none individually the answer.
+5. **A provider failure is counted separately from a logic failure.** `groq rate
+   limit` is the daily token cap, not a regression, and a run that lost cases to
+   quota must not read as a run that got worse.
+6. **The cases live in one file** (`apps/worker/scripts/eval-cases.ts`), shared
+   by the eval and the probe, so the thing that diagnoses cannot drift from the
+   thing that scores.
+7. **`--only` runs a subset.** A full run is fifteen calls ≈ half the day's
+   measured token allowance, so "re-run after every change" previously afforded
+   about two iterations. It takes a **list**, because the useful narrow run is
+   never one case — it is the case a change should move plus the refusals that
+   must not move with it.
+
+**Why not just soften the prompt to 7/7.** Because it would be **fabrication with
+a passing score.** The corpus contains no upcoming meeting; making the model
+answer that question means making it assert one from four six-day-old emails
+reading "YURI". That is the exact failure ADR-007 exists to prevent, and it is
+demonstrably reachable — the earlier prompt scored 7/7 answerable and **3/8
+refusals**, citing all eight retrieved messages for a question about a submarine.
+A target number is not a goal when the honest answer is below it.
+
+**Consequences.**
+
+- The reported score changes shape and **is not comparable to the old one.** It
+  is not "5/7 became 6/6"; it is that two cases were never measurable.
+- Ms. Maria's example question does not work well today, and the assistant's
+  suggestion list has been reordered so measured-answering questions lead —
+  its own docstring already required that, and the two most prominent
+  suggestions were the two guaranteed to disappoint.
+- **The fix for that question is Phase 5, not a prompt.** For a demo before then,
+  one mail naming a genuinely future date makes it real.
+- The relative floor was found to cut the most decision-relevant message for the
+  meetings question by **0.0039**, on a smooth distribution with no cliff. It is
+  **left unchanged** — widening it would not have altered that question's correct
+  answer, so moving it would be tuning against a case it does not decide, which
+  ADR-016 already identifies as how a threshold ends up fitting five examples and
+  failing the sixth. Recorded in `RELATIVE_FLOOR`'s comment with the numbers.
+- `packages/ai/src/assistant.ts` gained the unit tests it never had. 356 tests
+  and **not one** touched `selectContext` or `parseAnswer`, the two pure
+  functions carrying the refusal contract.
+
+**Rejected:**
+
+- **Deleting the two cases.** They are real product goals and one of them is the
+  mentor's own example. Deleting them would lose the requirement along with the
+  failure.
+- **Marking them `mustRefuse: true`.** It would score green and enshrine the
+  wrong behaviour: the product is *supposed* to answer both, eventually.
+- **Inserting a synthetic future-dated meeting into `messages`.** It would make
+  the case pass immediately. Rejected outright — `messages` is the record of
+  **what arrived** (ADR-006, ADR-015), and writing a machine-authored row into it
+  to make a test pass corrupts the one table in the system that must only ever
+  contain things that really happened. A real mail from Yuri is the honest
+  version of the same fix.
+- **Computing the expectation from the corpus at run time.** Genuinely tempting —
+  it would make the meetings case self-correcting. Rejected as more machinery
+  than the problem: it needs date extraction from message text, which *is* Phase
+  5, so the eval would be reimplementing the feature in order to test it.
+
+---
+
+## ADR-018 — Citations link to a message route, not into the timeline
+
+**Status:** Accepted · 2026-08-02 · *Amends `docs/02-ARCHITECTURE.md` §4 step 6 and §6*
+
+**Context.** `docs/02-ARCHITECTURE.md` §4 step 6 specifies the console showing
+*"each citation as a clickable chip that jumps to the message in the timeline"*,
+and `docs/04-ROADMAP.md` carries the same wording. Phase 4B shipped the citations
+as static cards: sender, date and an excerpt, linking nowhere.
+
+**Decision.** Citations link to **`/messages/[id]`**, a new signed-in,
+RLS-scoped route that renders one message in full.
+
+**Why not the timeline jump the doc specified.** The timeline is capped at the
+newest **50** messages and says so. A citation to anything older would scroll to
+nothing — and **a citation that silently fails to resolve is worse than no link
+at all.** It produces exactly the "the assistant invented that source"
+impression ADR-007 exists to prevent, except arriving through the UI rather than
+the model. The cap is not incidental either: it exists because the timeline
+serialises every body into the page.
+
+A route also resolves any message regardless of age, survives being opened in a
+new tab or shared, and is what the code already anticipated — the note on
+`BODY_LIMIT` in `lib/timeline.ts` reads *"When Phase 3 adds a message route, that
+route reads the whole body and this ceiling stays where it is: it bounds the
+list, not the record."* **Phase 5 needs it independently**: ADR-010 requires the
+source message shown beside every meeting proposal.
+
+**⚠ This amends the "bodies render in exactly one place" rule**, stated in
+`message-row.tsx` and in the UX brief. The rule's *intent* — private content is
+not scattered across the app — is intact: this is one deliberate route, behind
+the session gate, scoped by RLS, whose entire purpose is showing one message to
+the person who owns it. The rule is amended here rather than quietly broken,
+because a doc that contradicts the code is worse than either (ADR-013).
+
+**Consequences.**
+
+- A second place message bodies render. Both are now enumerable and both are
+  named in §6.
+- **A message that is not yours and a message that does not exist are the same
+  `notFound()`.** RLS makes them indistinguishable, and that is correct rather
+  than a limitation: confirming which ids exist in another tenant's mailbox is a
+  leak even without the content.
+- The route renders the **whole** body, not `BODY_LIMIT`. Truncating a record
+  view would make a citation resolve to a partial quote, which is the opposite of
+  what a citation is for.
+- `prefetch={false}` on the chips: these are private message bodies and the
+  reader has not asked for them yet.
+- `Citation.channelId` is removed. It was always `''` — a field that always lies
+  is worse than no field.
+
+**Rejected:**
+
+- **`/?message=<id>` scrolling the timeline.** What §4 specified. Broken for any
+  cited message outside the newest 50, and silently so.
+- **Raising the timeline cap so the jump always works.** Trades a correct,
+  documented performance boundary for a worse version of the same feature.
+- **A modal over the assistant.** No URL, so a citation could not be shared,
+  bookmarked or opened in a tab — and the audience for this feature is someone
+  checking a claim, who wants to keep the answer and the source both.
+
+---
+
 ## Template for new ADRs
 
 ```markdown

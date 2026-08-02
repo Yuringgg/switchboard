@@ -165,6 +165,88 @@ export async function fetchTimeline(
 }
 
 /**
+ * One message, in full, by id — the citation target (US-6) and the record view.
+ *
+ * ── Why this exists as its own query ────────────────────────────────────────
+ *
+ * `fetchTimeline` caps the list at 50 and every body at `BODY_LIMIT`, because a
+ * list serialises every row into the page whether or not it is opened. Neither
+ * cap is right for a single message someone asked to see: this reads the whole
+ * body, as the note on `BODY_LIMIT` anticipated — **it bounds the list, not the
+ * record.**
+ *
+ * ⚠ A message that is not yours and a message that does not exist return the
+ * SAME result: null. That is RLS doing its job, and it is the correct behaviour
+ * rather than a limitation — distinguishing them would confirm to a stranger
+ * that a given id exists in someone else's mailbox. The caller renders
+ * `notFound()` for both.
+ *
+ * There is no `owner_id` filter here for the same reason there is none anywhere
+ * else: adding one would imply the policy might not be doing its job.
+ */
+export async function fetchMessage(
+  supabase: SupabaseClient,
+  id: string,
+): Promise<{ message: TimelineMessage | null; error: string | null }> {
+  // Reject anything that is not a uuid before it reaches Postgres: PostgREST
+  // answers a malformed uuid with a 400 whose message names the column and the
+  // type, which is a worse thing to render than "not found".
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return { message: null, error: null };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('messages')
+      .select(
+        'id, direction, subject, body_text, sent_at, channel_id, ' +
+          'sender:contact_identities!messages_sender_identity_fkey(external_id, display_name), ' +
+          'summary:extractions(payload, model, kind)',
+      )
+      .eq('id', id)
+      // ⚠ Filters the EMBEDDED rows, not the parent — the same trap as
+      // `fetchTimeline`. `extractions!inner` would 404 every message without a
+      // summary, which is most of them.
+      .eq('summary.kind', 'summary')
+      // `maybeSingle`, not `single`: no row is an ordinary outcome here (a bad
+      // id, or someone else's message), and `single` reports it as an error.
+      .maybeSingle();
+
+    if (error) return { message: null, error: error.message };
+    if (!data) return { message: null, error: null };
+
+    const raw = data as unknown as Omit<TimelineMessage, 'sender' | 'summary'> & {
+      sender: TimelineMessage['sender'] | TimelineMessage['sender'][] | null;
+      summary:
+        | { payload: { text?: string } | null; model: string | null }[]
+        | { payload: { text?: string } | null; model: string | null }
+        | null;
+    };
+
+    const summaryRow = Array.isArray(raw.summary) ? raw.summary[0] : raw.summary;
+    const summaryText = summaryRow?.payload?.text;
+
+    return {
+      message: {
+        ...raw,
+        sender: Array.isArray(raw.sender) ? (raw.sender[0] ?? null) : raw.sender,
+        summary: summaryText
+          ? { text: summaryText, model: summaryRow?.model ?? 'unknown' }
+          : null,
+      },
+      error: null,
+    };
+  } catch (cause) {
+    return {
+      message: null,
+      // Never include the payload in an error string: this query returns a real
+      // message body. docs/02-ARCHITECTURE.md §6.
+      error: cause instanceof Error ? cause.message : 'That message is unavailable.',
+    };
+  }
+}
+
+/**
  * Label for the "you have unseen mail" pill.
  *
  * Pure and separate from the component so the plural boundary is a test rather

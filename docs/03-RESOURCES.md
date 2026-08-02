@@ -284,9 +284,55 @@ vendor rather than across two.
 **⚠ The real ceiling is ~30 assistant questions per day, and it is a TOKEN cap.**
 One question sends the system prompt plus 8 retrieved messages — **3,000–3,500
 tokens**. Against a documented ~100,000 tokens/day that is roughly 30 questions;
-the 1,000 requests/day never binds. Observed directly: a request rejected with
-`x-ratelimit-remaining-tokens: 12000` — a *full* per-minute budget, refused, which
-is only possible if the daily token cap is what ran out.
+the 1,000 requests/day never binds. Observed directly, twice: a request rejected
+with `x-ratelimit-remaining-tokens: 12000` — a *full* per-minute budget, refused,
+which is only possible if the daily token cap is what ran out.
+
+### ⚠⚠ The daily token cap is INVISIBLE in headers — measured 2026-08-02
+
+Read straight off a live 200 for `llama-3.3-70b-versatile`:
+
+```
+x-ratelimit-limit-requests: 1000       ← per DAY
+x-ratelimit-limit-tokens:  12000       ← per MINUTE
+x-ratelimit-reset-requests: 1m26.4s    ← 86400/1000: a leaky bucket, not a reset
+x-ratelimit-reset-tokens:   185ms
+```
+
+**There is no tokens-per-day header.** The ~100,000/day figure above comes from
+observed 429s, not from anything Groq publishes, so it cannot be checked from
+headers — and note the reset fields show **continuous replenishment**, so
+*"the quota resets at midnight UTC"* would be a confident falsehood. Do not write
+that in UI copy.
+
+The limit type is named **only in the 429 body**. Recorded by provoking a real
+one on the *summaries* model, so the assistant's budget was untouched:
+
+```
+retry-after: 2
+x-ratelimit-limit-requests: 14400
+x-ratelimit-remaining-requests: 14370      ← 99.8% unused
+(no token headers at all on this response)
+{"error":{"message":"Rate limit reached for model `llama-3.1-8b-instant` …
+  on requests per minute (RPM): Limit 30, Used 30, Requested 1. Please try
+  again in 2s…","type":"requests","code":"rate_limit_exceeded"}}
+```
+
+Three things that settles, all of which had a plausible wrong answer:
+
+- The discriminator is the **`(RPM)`/`(RPD)`/`(TPM)`/`(TPD)` code in the message**.
+  `type: "requests"` separates requests from tokens but never minute from day,
+  which is the axis a human cares about.
+- **When the request limit trips, the token headers vanish entirely.** So
+  "is `remaining-tokens` low?" is not a usable test either — sometimes the header
+  is absent, and on a daily-token rejection it reads a *full* 12,000.
+- **Groq's free-tier RPM for these models is 30**, which no documentation page
+  here had recorded.
+
+`packages/ai/src/groq.ts` parses that code — and only that code, only on a 429 —
+into a `limitScope`, so the console can say *"the daily allowance is used up"*
+rather than *"try again in a moment"*. See `docs/02-ARCHITECTURE.md` §6 for why
+that narrow body read is a permitted exception to the never-log-content rule.
 
 Per minute: 12,000 ÷ ~3,200 ≈ **3–4 questions**.
 

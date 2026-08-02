@@ -28,11 +28,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  */
 
 export interface Citation {
+  /** Where the chip links: `/messages/<id>`. See ADR-017. */
   messageId: string;
   subject: string | null;
   senderName: string | null;
   sentAt: string;
-  channelId: string;
   excerpt: string;
 }
 
@@ -77,6 +77,67 @@ async function embedViaWorker(question: string): Promise<number[] | null> {
     );
     return null;
   }
+}
+
+/**
+ * What to say when the provider refuses on quota.
+ *
+ * ── ⚠ Why this is not one sentence ───────────────────────────────────────────
+ *
+ * It used to be: *"The assistant is busy right now. Try again in a moment."*
+ * That is correct for the per-minute window — 12,000 tokens/min, about three or
+ * four questions, and it clears in seconds. It is **wrong for the daily
+ * allowance**, which is the limit that actually binds this project: roughly
+ * 30 questions a day at ~3,200 tokens each, and "in a moment" sends someone
+ * clicking Ask at a wall for hours.
+ *
+ * The two are genuinely hard to tell apart from the outside, which is the whole
+ * problem — a daily-token rejection arrives with a **full** per-minute budget
+ * (`x-ratelimit-remaining-tokens: 12000`, observed twice on 2026-08-02),
+ * so everything visible says the assistant should be fine. `packages/ai`
+ * resolves it from the provider's own 429 and hands the answer down as
+ * `limitScope`.
+ *
+ * ⚠ No claim is made about *when* a daily allowance returns. Groq's buckets
+ * replenish continuously rather than resetting at midnight — measured from the
+ * live headers, one request costs `reset-requests: 1m26.4s`, which is exactly
+ * 86400/1000 — so "resets at midnight UTC" would be a confident falsehood. When
+ * the provider states a wait, that number is used; otherwise the message says
+ * plainly that it does not know.
+ */
+function rateLimitMessage(
+  scope: 'minute' | 'day' | 'unknown' | undefined,
+  retryAfterMs: number | undefined,
+): string {
+  if (scope === 'day') {
+    const wait = retryAfterMs ? ` It should recover in about ${humanWait(retryAfterMs)}.` : '';
+    return (
+      "The assistant's daily question allowance is used up, so it cannot answer " +
+      `anything else today.${wait} Search, the timeline and summaries are ` +
+      'unaffected — they have no such limit.'
+    );
+  }
+
+  if (scope === 'minute') {
+    const wait = retryAfterMs ? ` Try again in about ${humanWait(retryAfterMs)}.` : '';
+    return `The assistant is answering too many questions at once.${wait}`;
+  }
+
+  // Either the provider did not say, or this is a transient failure that is not
+  // a quota at all. Do not invent a horizon for it.
+  return 'The assistant could not answer that just now. Try again shortly.';
+}
+
+/** "45 seconds" · "3 minutes" · "2 hours" — never a bare millisecond count. */
+function humanWait(ms: number): string {
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds < 90) return `${seconds} second${seconds === 1 ? '' : 's'}`;
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 90) return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+
+  const hours = Math.round(minutes / 60);
+  return `${hours} hour${hours === 1 ? '' : 's'}`;
 }
 
 interface MatchRow {
@@ -193,7 +254,7 @@ export async function askAssistant(
       citations: [],
       refused: false,
       error: completion.retryable
-        ? 'The assistant is busy right now. Try again in a moment.'
+        ? rateLimitMessage(completion.limitScope, completion.retryAfterMs)
         : 'The assistant could not answer that.',
     };
   }
@@ -212,7 +273,9 @@ export async function askAssistant(
         subject: message.subject,
         senderName: message.senderName ?? message.senderRef,
         sentAt: message.sentAt,
-        channelId: '',
+        // The retrieved CHUNK, not the body: it is the part that actually
+        // matched, so the excerpt shows why this message was cited rather than
+        // whatever the message happens to open with.
         excerpt: message.content.slice(0, 180),
       },
     ];

@@ -1,6 +1,7 @@
 'use client';
 
-import { CornerDownLeft, Sparkles } from 'lucide-react';
+import { ArrowUpRight, CornerDownLeft, Sparkles } from 'lucide-react';
+import Link from 'next/link';
 import { useActionState } from 'react';
 
 import { Callout } from '@/components/callout';
@@ -150,32 +151,57 @@ function Answer({ answer }: { answer: AssistantAnswer }) {
               Numbered to match the [1] markers inside the answer, so a reader
               can follow a specific claim to a specific message rather than
               being handed an undifferentiated pile of "sources".
-            */}
-            <ol className="mt-2.5 space-y-2">
-              {answer.citations.map((citation, index) => (
-                <li key={citation.messageId} className="flex gap-2.5">
-                  <span
-                    className={cn(
-                      'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md',
-                      'bg-accent font-mono text-label font-semibold text-foreground',
-                    )}
-                    aria-hidden
-                  >
-                    {index + 1}
-                  </span>
 
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-row font-medium">
-                      {citation.subject ?? citation.senderName ?? 'Message'}
-                    </p>
-                    <p className="mt-0.5 font-mono text-meta text-muted-foreground">
-                      {citation.senderName ?? 'unknown sender'} ·{' '}
-                      {formatStamp(citation.sentAt)}
-                    </p>
-                    <p className="mt-1 line-clamp-2 text-note text-muted-foreground">
-                      {citation.excerpt}
-                    </p>
-                  </div>
+              ── ⚠ And each one is a real link (ADR-017) ────────────────────
+              A citation whose whole job is "check this for yourself" and which
+              cannot be opened is doing half the job. It links to
+              `/messages/<id>` rather than scrolling the timeline, because the
+              timeline holds only the newest 50 — a chip pointing at anything
+              older would resolve to nothing, which reads exactly like the
+              invented source ADR-007 exists to prevent.
+
+              A whole-row `<Link>`, so the target is the size of the card rather
+              than a word inside it, and `prefetch={false}`: these are private
+              message bodies and the reader has not asked for them yet.
+            */}
+            <ol className="mt-2.5 space-y-1">
+              {answer.citations.map((citation, index) => (
+                <li key={citation.messageId}>
+                  <Link
+                    href={`/messages/${citation.messageId}`}
+                    prefetch={false}
+                    className={cn(
+                      'focus-ring group -mx-2 flex gap-2.5 rounded-md px-2 py-1.5',
+                      'transition-colors hover:bg-accent/70',
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md',
+                        'bg-accent font-mono text-label font-semibold text-foreground',
+                      )}
+                      aria-hidden
+                    >
+                      {index + 1}
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-1.5 truncate text-row font-medium">
+                        {citation.subject ?? citation.senderName ?? 'Message'}
+                        <ArrowUpRight
+                          className="size-3 shrink-0 text-faint transition-colors group-hover:text-muted-foreground"
+                          aria-hidden
+                        />
+                      </p>
+                      <p className="mt-0.5 font-mono text-meta text-muted-foreground">
+                        {citation.senderName ?? 'unknown sender'} ·{' '}
+                        {formatStamp(citation.sentAt)}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-note text-muted-foreground">
+                        {citation.excerpt}
+                      </p>
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ol>

@@ -27,6 +27,21 @@ export interface CompletionOptions {
  * must still ingest and appear. Losing the summary is a degradation; losing the
  * mail is an outage.
  */
+/**
+ * Which of a provider's limits ran out.
+ *
+ * ⚠ This is a user-facing distinction, not a diagnostic nicety. "The assistant
+ * is busy right now, try again in a moment" is correct for a per-minute window
+ * and **actively misleading** for a daily allowance, where the honest answer is
+ * closer to "not until tomorrow". Telling someone to retry in a moment when the
+ * budget is gone for the day sends them clicking at a wall.
+ *
+ * `'unknown'` is a real and expected value — a provider may rate-limit without
+ * saying which limit, and inventing a scope would be worse than admitting one is
+ * not known. The console words that case without a time estimate.
+ */
+export type LimitScope = 'minute' | 'day' | 'unknown';
+
 export type CompletionResult =
   | { ok: true; text: string; model: string }
   | {
@@ -43,6 +58,8 @@ export type CompletionResult =
        * reset is a sliding window, not a fixed one.
        */
       retryAfterMs?: number;
+      /** Set only on a rate limit (HTTP 429). See `LimitScope`. */
+      limitScope?: LimitScope;
     };
 
 export interface CompletionProvider {

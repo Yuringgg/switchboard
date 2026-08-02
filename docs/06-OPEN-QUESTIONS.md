@@ -49,19 +49,6 @@ theoretical.
 
 ## 🟡 Needs a decision, not blocking
 
-### Q9 — Should the assistant's prompt be tuned further, and which way?
-**Raised:** 2026-08-02 · **Relevant by:** before any demo
-
-Phase 4B's eval, best run: **5/5 must-refuse correct, 5/7 answerable correct.**
-Before hardening it was 7/7 answerable and only 3/8 refusals. It now over-refuses
-*"do I have upcoming meetings?"* and *"summarise what needs my attention"* —
-questions the corpus can answer.
-
-Over-refusing is the **safe** failure (ADR-007), so this is not urgent. But the
-first of those two is **Ms. Maria's own example question**, which makes it the
-one most likely to be asked at a demo. *Leaning:* soften the refusal example
-slightly and re-measure — and **only** via `eval-assistant.ts`, never by eye.
-
 ### Q10 — Raise the assistant's ~30 questions/day ceiling?
 **Raised:** 2026-08-02 · **Relevant by:** if it becomes annoying in practice
 
@@ -243,6 +230,35 @@ signals relevance, though **ranking** is excellent. A relative floor replaces th
 absolute one, which survives only as an empty-corpus backstop. **ADR-016**.
 *2026-08-02*
 
+### R9b — Should the assistant's prompt be tuned to stop over-refusing? *(was Q9)*
+**The premise was wrong — it was not over-refusing.** Q9 recorded the assistant
+as wrongly refusing *"do I have upcoming meetings?"* and *"summarise what needs my
+attention"*, and prescribed softening the prompt. Measured before acting, with
+`apps/worker/scripts/probe-context.ts` (zero quota cost):
+
+- *"needs my attention"* retrieves **eight newsletters and promotions** — none of
+  the CI failures, deploy failures or the Supabase pause reach the model at all.
+- Every meeting in the corpus is **27–28 July**; the only one naming a time was
+  "9pm tonight" sent at 19:59 on 2 Aug, and the eval ran at 22:40. **The refusal
+  was correct**, and the case's verdict depended on the hour of the day.
+
+Both are Phase 5 asks (US-7, US-9; R14 already routes meetings through
+extraction) and are now recorded as `known-gap` — printed every run, not scored.
+Softening the prompt to reach 7/7 would have been **fabrication with a passing
+score**; the earlier prompt already showed the destination at 7/7 answerable and
+3/8 refusals. What did change is that the prompt's decision became **three-way**,
+so genuine synthesis questions are answered rather than refused. **ADR-017.**
+*2026-08-02*
+
+### R21 — Where does a citation link to?
+**`/messages/[id]`, not a position in the timeline.** `docs/02-ARCHITECTURE.md`
+§4 step 6 specified a timeline jump; the timeline is capped at the newest 50, so
+a citation to anything older would silently resolve to nothing — which reads as
+an invented source, the failure ADR-007 exists to prevent. A route resolves any
+message, survives being shared or opened in a tab, and gives Phase 5 the
+source-message view ADR-010 requires beside every meeting proposal. **ADR-018.**
+*2026-08-02*
+
 ### R20 — Can the console run the embedding model itself?
 **No — the worker serves it over one authenticated route.** 129 MB plus native
 ONNX binaries in a serverless function measured a ~35 s cold start, and a demo's
@@ -254,5 +270,7 @@ decides whose messages are searched. *2026-08-02*
 
 ---
 
-*Last updated: 2026-08-02 · Q9 and Q10 added after Phase 4B; Q2 answered in
-practice (single-turn shipped); R18–R20 resolved by measurement.*
+*Last updated: 2026-08-02 (late) · Q9 resolved as R9b — its premise was
+disproved by measurement, which is the fifth time on this project. Q10 still
+open. R21 records where a citation links. Q2 answered in practice (single-turn
+shipped); R18–R20 resolved by measurement.*

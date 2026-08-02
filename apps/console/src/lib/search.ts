@@ -255,6 +255,17 @@ interface SearchRow {
   sender_display_name: string | null;
   snippet: string | null;
   rank: number;
+  /**
+   * Migration 0010. Null for most messages and that is correct — anything under
+   * 280 characters is deliberately never summarised.
+   *
+   * ⚠ The function LEFT joins `extractions`, so an unsummarised message still
+   * comes back. Verified against the live database after 0010: 76 rows, 66 with
+   * a summary, 10 without. An inner join would have returned 66 and search would
+   * have silently lost ten messages.
+   */
+  summary_text: string | null;
+  summary_model: string | null;
 }
 
 /**
@@ -312,6 +323,19 @@ export async function searchMessages(
               display_name: row.sender_display_name,
             }
           : null,
+        /*
+         * Shaped exactly as `fetchTimeline` shapes it, so `MessageRow` renders a
+         * result and a timeline row through one code path rather than two.
+         *
+         * That sameness is the whole point of this column: before 0010 the same
+         * message showed a summary in the timeline and nothing in search, and a
+         * row that knows different things depending on the route you arrived by
+         * is how a console stops being trusted.
+         */
+        summary:
+          row.summary_text
+            ? { text: row.summary_text, model: row.summary_model ?? 'unknown' }
+            : null,
         snippet: row.snippet,
         rank: row.rank,
       }),

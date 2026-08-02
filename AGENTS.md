@@ -96,8 +96,10 @@ Phase 5 ⬜ next.**
 it carries the verified numbers and the next action. Read that, then come back.
 
 > **Joining cold? Read these in order after this file:**
-> `correspondence/2026-08-02-phase-4b-assistant.md` — **most recent.** The
-> assistant, and the two documented decisions that measurement disproved.
+> `correspondence/2026-08-02-assistant-loose-ends.md` — **most recent.** Why the
+> assistant's "over-refusal" was a misdiagnosis, and the three loose ends closed.
+> `correspondence/2026-08-02-phase-4b-assistant.md` — the assistant, and the two
+> documented decisions that measurement disproved.
 > `correspondence/2026-08-02-search-and-summaries.md` — search, summaries, and
 > the CI that was red for five days without anyone noticing.
 > `correspondence/2026-07-28-phase-1-complete-handoff.md` — what is deployed
@@ -105,9 +107,13 @@ it carries the verified numbers and the next action. Read that, then come back.
 > `correspondence/2026-07-28-phase-2-whatsapp.md` — Phase 2 and the refactor
 > checkpoint's finding.
 
-⚠ **This project has now had four documented decisions contradicted by
-measurement** (ADR-012, ADR-014, ADR-016, and ADR-003's provider). The pattern is
-always the same: the doc was right when written and quietly stopped being right.
+⚠ **This project has now had five documented decisions contradicted by
+measurement** (ADR-012, ADR-014, ADR-016, ADR-003's provider, and **ADR-017** —
+the assistant was never over-refusing; the eval was scoring two correct refusals
+as failures). The pattern is always the same: the doc was right when written and
+quietly stopped being right. ⚠ **ADR-017 adds a variant worth knowing: the doc
+was wrong from the moment it was written**, because the failing measurement was
+never traced past its first plausible explanation.
 **Check a claim against the live system before building on it** — the Supabase
 MCP, `az containerapp logs`, and reading a provider's own rate-limit headers have
 each caught something reading could not.
@@ -683,14 +689,15 @@ personal conversations, and no library changes that legitimately.
 
 | | |
 |---|---|
-| Messages | **75** · 63 conversations · 21 contacts · 2 users |
+| Messages | **76** · 21 contacts · 2 users |
 | Summaries | **66 / 66 eligible** (100%) |
-| Embeddings | **75 / 75 messages, 397 chunks** (100%), 0 missing |
-| Queue | 78 `raw_events`, **0 stuck, 0 failed** |
+| Embeddings | **76 / 76 messages, 398 chunks** (100%), 0 missing |
+| Queue | **0 stuck, 0 failed** |
 | Channels | 1 Gmail, **0 in error**. Watch expires **2026-08-08** |
 | Worker | rev `--0000013`, healthy, `{"embedder":true}` |
 | Console | all routes 307 → `/login` (gated correctly) |
-| CI | green |
+| Tests | **389** (was 356) · typecheck, `next build`, worker bundle, `assert-rls` all green |
+| Migrations | **0010** applied — search results carry summaries |
 
 **The full pipeline runs unattended:** a new email arrives → webhook → queue →
 worker normalises → **summarises** → **chunks and embeds** → timeline. All three
@@ -718,25 +725,76 @@ Vercel, redeploy, subscribe the `messages` webhook field, run
 **Do not burn the day's budget the morning of a demo.** Search, embeddings,
 summaries and ingest have no such limit.
 
-**⚠ Phase 4B's prompt owes one tuning pass, and the eval is the instrument.**
-Best measured run: **5/5 refusals correct, 5/7 answerable correct.** Before
-hardening it was 7/7 answerable but only 3/8 refusals. It now over-refuses two
-answerable questions ("do I have upcoming meetings?", "summarise what needs my
-attention") — the *safe* direction to fail, per ADR-007, but not finished. Run
-`apps/worker/scripts/eval-assistant.ts` and adjust; do not tune by eye.
+**⚠ The assistant's "over-refusal" was a MISDIAGNOSIS — read ADR-017.**
+This file used to say the prompt over-refuses two answerable questions and owes
+one tuning pass. Measured on 2026-08-02 with the new zero-quota instrument
+`apps/worker/scripts/probe-context.ts`, **both refusals were correct** and the
+eval was scoring them as failures:
+
+- *"Summarise what needs my attention"* — the eight messages that reached the
+  model were newsletters and promotions. **None of the CI failures, deploy
+  failures or the Supabase pause was in context at all.** e5 has no
+  representation of *importance*; no prompt wording reaches this.
+- *"Do I have any upcoming meetings?"* — **every meeting in the corpus is dated
+  27–28 July** and three of five have bodies reading only "YURI". The one naming
+  a time ("9pm tonight") was sent 19:59 on 2 Aug; the eval ran at 22:40. The
+  case's verdict **depended on the wall clock**.
+
+Both are Phase 5 features asked of Phase 4B (US-7, US-9; R14 routes meetings
+through extraction) and are now `known-gap` — asked and printed every run, not
+scored. **Tuning to 7/7 would have been fabrication with a passing score**: the
+pre-hardening prompt already reached 7/7 answerable at **3/8 refusals**, citing
+all eight retrieved messages for a question about a submarine.
+
+What did change: the prompt's decision is **three-way** — "nothing here is about
+this" (refuse) versus "several things are, none decisive" (synthesise, citing
+each). Verified on a synthesis question retrieval can serve; refusals held.
+
+⚠ **Reach for `probe-context.ts` before `eval-assistant.ts`.** It costs nothing
+and it separates "the model judged wrongly" from "the model never saw it" —
+opposite fixes, and the answer-level eval cannot tell them apart at any price.
+Scores are reported as **two numbers, never one**: a combined figure reads
+identically for a prompt that refuses everything and one that answers everything.
 
 **If you are a session picking this up:** Phase 5 is next — extraction,
 "needs attention", and calendar write-back (ADR-010, **never auto-create**).
 Everything it needs already exists: Groq is wired, `extractions` takes new
 kinds, and the OAuth consent already carries `calendar.events`.
 
-**356 tests.** `pnpm typecheck`, `pnpm test`, `next build`, the worker bundle and
+**389 tests.** `pnpm typecheck`, `pnpm test`, `next build`, the worker bundle and
 `assert-rls` (all ten tables) are green.
+
+### Shipped 2026-08-02 (late) — assistant loose ends closed
+
+- **Citations link** to `/messages/[id]`, a new signed-in RLS-scoped route
+  rendering one message in full (ADR-018). ⚠ **Not** the timeline jump
+  `docs/02-ARCHITECTURE.md` §4 specified — the timeline holds only the newest 50,
+  so a chip citing anything older resolves to nothing, which reads as an invented
+  source. This route is also the source-message view Phase 5 needs (ADR-010).
+- **Search results carry summaries** — migration **0010**. ⚠ Two traps in it, both
+  of which fail by *hiding messages* rather than erroring: `create or replace`
+  cannot change a `RETURNS TABLE`, so the function is dropped and recreated —
+  **and DROP takes the grants with it**; and the `kind` filter must sit in the
+  JOIN condition, because a WHERE on the right side of a LEFT join silently makes
+  it an inner join. Negative-controlled live: 76 rows, 66 summarised, 10 not,
+  second account still 0.
+- **The rate-limit message now distinguishes the two caps.** "Try again in a
+  moment" was correct for the per-minute window and **wrong for the daily
+  allowance**, which is the one that actually binds. ⚠ Groq publishes **no
+  tokens-per-day header at all**, and a daily rejection arrives with a *full*
+  per-minute budget — so the limit type is read from the 429 body's
+  `(RPM|RPD|TPM|TPD)` code. That is a deliberate, bounded exception to §6's
+  never-read-the-body rule; nothing from the body is returned, stored or logged.
+- **`probe-context.ts`** — see the misdiagnosis note above. Free, and the first
+  thing to run when a case fails.
 
 ---
 
-*Last updated: 2026-08-02 (evening) · Phase 3 search + filters, Phase 4A
-summaries and Phase 4B assistant all shipped and deployed. Four docs corrected
-against measurement: Gemini's free tier is 20/day not 250 (ADR-003 amended), the
-similarity floor cannot carry the refusal (ADR-016), the worker needs 1 GiB not
-0.5 (ADR-011 amended), and CI had been red since 2026-07-28 on a stale lockfile.*
+*Last updated: 2026-08-02 (late) · Phase 3 search + filters, Phase 4A summaries
+and Phase 4B assistant all shipped and deployed; the assistant's loose ends
+(citation links, search summaries, rate-limit wording) closed. **Five** docs now
+corrected against measurement: Gemini's free tier is 20/day not 250 (ADR-003
+amended), the similarity floor cannot carry the refusal (ADR-016), the worker
+needs 1 GiB not 0.5 (ADR-011 amended), CI had been red since 2026-07-28 on a
+stale lockfile — and the assistant was never over-refusing; the eval was scoring
+two correct refusals as failures (ADR-017).*

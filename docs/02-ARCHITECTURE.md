@@ -424,7 +424,11 @@ When a user asks a question:
 5. **Generate** — LLM answers *strictly from the provided context*, and must
    emit message IDs for every claim.
 6. **Render** — the console shows the answer with each citation as a clickable
-   chip that jumps to the message in the timeline.
+   chip. ⚠ **AMENDED 2026-08-02 by ADR-018:** the chip links to **`/messages/[id]`**,
+   not to a position in the timeline. The timeline holds only the newest 50
+   messages, so a jump would silently resolve to nothing for anything older — and
+   a citation that fails to resolve reads as an invented source, which is the
+   failure ADR-007 exists to prevent.
 
 **Step 3 is not optional.** The success criteria in `docs/01-PRODUCT-SPEC.md` §7
 require refusal over guessing. A monitoring tool that invents a meeting is
@@ -562,6 +566,28 @@ just delete the line.
 
 **Logging.** Never log message bodies or credentials. Log message *IDs*. When
 debugging needs content, read it from the database directly.
+
+**⚠ One bounded exception, added 2026-08-02.** `packages/ai` reads a provider's
+error body **only on HTTP 429**, and only to extract which limit was hit — Groq's
+`(RPM|RPD|TPM|TPD)` code, Gemini's `quotaId`. The body is never returned, stored
+or logged; it goes out of scope immediately. The exception is necessary because
+no header answers the question: Groq publishes **no tokens-per-day header at
+all**, and a daily-token rejection arrives carrying a *full* per-minute budget
+(`x-ratelimit-remaining-tokens: 12000`, measured twice). Without it the console
+cannot tell "busy for a moment" from "nothing more today", and it told users the
+wrong one. Every other error path stays status-and-headers-only, because a
+completion API's error body can echo the prompt and the prompt is a message body.
+
+**Where message bodies render (⚠ amended 2026-08-02 by ADR-018).** Two places,
+both signed-in and both RLS-scoped, and this list is exhaustive:
+
+- the opened row in the timeline and in search results (`message-row.tsx`)
+- **`/messages/[id]`** — one message in full, the citation target for the
+  assistant and the source-message view Phase 5's meeting proposals need
+
+The rule was previously "the timeline and nowhere else". Its intent — private
+content is not scattered across the app — is unchanged; a third place needs an
+amendment here, not a judgement call at the call site.
 
 **Data handling and consent.** iOzera is a Philippine company, so client
 communications fall under the **Data Privacy Act of 2012 (RA 10173)**. Before any
