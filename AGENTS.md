@@ -734,6 +734,16 @@ Vercel, redeploy, subscribe the `messages` webhook field, run
 **Do not burn the day's budget the morning of a demo.** Search, embeddings,
 summaries and ingest have no such limit.
 
+**⚠⚠ That ~30/day is SHARED BY EVERY TENANT, not granted per user.** Groq's
+limits are scoped to the **organization** — its own 429 says
+`in organization org_01kz09ajk…` — and this deployment holds one Groq key. Five
+users get ~30 questions *between them*, not 150, and **there is no per-user
+throttle in the code**: one person can exhaust the assistant for everyone before
+lunch, leaving the rest with "daily allowance used up" having asked nothing.
+Not urgent at 2 accounts; real the moment iOzera adds a second person. **Q11.**
+⚠ Do not confuse this with Gmail's limits, which genuinely *are* per user (the
+7-day token expiry and the 100-user lifetime cap). The two fail differently.
+
 **⚠ The assistant's "over-refusal" was a MISDIAGNOSIS — read ADR-017.**
 This file used to say the prompt over-refuses two answerable questions and owes
 one tuning pass. Measured on 2026-08-02 with the new zero-quota instrument

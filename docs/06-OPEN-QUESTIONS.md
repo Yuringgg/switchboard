@@ -49,6 +49,40 @@ theoretical.
 
 ## 🟡 Needs a decision, not blocking
 
+### Q11 — The assistant's ~30 questions/day is shared by all tenants. Fair?
+**Raised:** 2026-08-03 · **Relevant by:** the moment a second person at iOzera uses it
+
+Measured and previously undocumented: **Groq's limits are per organization**, not
+per user (its 429 names the org), and Switchboard holds one Groq key for the
+whole deployment. So every tenant draws on the same ~30 questions/day, and
+**there is no per-user throttle in the code** — `askAssistant` handles the
+provider's limit but enforces nothing of its own.
+
+One user can therefore exhaust the assistant for everyone before lunch, and the
+others see *"the assistant's daily question allowance is used up"* having asked
+nothing. The message is accurate but reads as a fault rather than a shared
+budget.
+
+**Not urgent today** — 2 accounts, one of which owns nothing. Three options when
+it becomes real, in ascending cost:
+
+- **Say it plainly in the UI.** A line on `/assistant` naming the shared daily
+  budget and how much is left. Cheapest, honest, and it converts a confusing
+  failure into an understood constraint. Needs a counter — a `usage` table, or
+  reading Groq's own remaining-tokens header.
+- **A per-user daily quota** (say 10/day) enforced in `askAssistant`. Fair, and
+  it stops one tenant starving the rest — but it lowers the ceiling for a solo
+  user from 30 to 10, which is the common case today.
+- **A Groq key per tenant.** Genuinely isolates them and is the only option that
+  actually multiplies the budget. Costs a credential per user and a place to
+  store it — `channels.credentials` already has the encryption pattern.
+
+*Leaning:* the first, and only when a second real user exists. It costs least and
+it is the one that would have prevented the confusion that raised this question.
+⚠ Whatever is chosen, **do not fix this by moving the assistant to the 8B model**
+— it was measurably worse at refusing, which is the property the product is
+judged on (Q10).
+
 ### Q10 — Raise the assistant's ~30 questions/day ceiling?
 **Raised:** 2026-08-02 · **Relevant by:** if it becomes annoying in practice
 

@@ -336,9 +336,43 @@ that narrow body read is a permitted exception to the never-log-content rule.
 
 Per minute: 12,000 ÷ ~3,200 ≈ **3–4 questions**.
 
+### ⚠⚠ That ~30/day is SHARED BY EVERY USER, not granted per user
+
+Asked directly on 2026-08-03, and no doc in this repo answered it either way,
+which on a multi-tenant product is a gap worth closing.
+
+**Groq's limits are scoped to the organization, not to an end user.** Its own 429
+says so — `Rate limit reached for model … in organization org_01kz09ajk…` — and
+Switchboard holds **one** Groq API key for the whole deployment. So:
+
+| Users | Assistant questions per day |
+|---|---|
+| 1 | ~30 |
+| 5 | **~30 between them**, not 150 |
+
+**There is no per-user throttle anywhere in the code.** `askAssistant` handles the
+provider's rate limit but enforces nothing of its own. One person asking thirty
+questions in the morning leaves every other tenant with *"the assistant's daily
+question allowance is used up"* for the rest of the day, through no action of
+their own — and the message, while now accurate about *what* happened, will read
+as a fault rather than as a shared budget.
+
+**This is not urgent today** — there are 2 accounts and only one owns any
+messages. It becomes real the moment a second person at iOzera uses it, so it is
+recorded now rather than discovered then. Tracked as **Q11** in
+`docs/06-OPEN-QUESTIONS.md`.
+
+⚠ **Do not confuse this with the Gmail limits.** Those genuinely *are* per user —
+the 7-day refresh-token expiry (§2) and the 100-user lifetime cap are both
+Google's, per person. The assistant's ceiling is per *deployment*. The two are
+unrelated and they fail differently.
+
 **Nothing else is capped.** Search is Postgres. Embeddings are local — free,
 unlimited, offline, and the reason semantic search keeps working even if every
-provider is down. Ingest and the timeline have no AI in the path.
+provider is down. Ingest and the timeline have no AI in the path. **Summaries sit
+on a different Groq model on purpose**, so no amount of assistant use can stop
+mail being summarised — but note that they are shared across tenants for the same
+reason, on a far larger allowance (14,400 req/day).
 
 If the ceiling ever needs raising, the two levers are: cut `MAX_CONTEXT_MESSAGES`
 from 8 to 4 (roughly doubles the daily questions, costs answer quality on broad
