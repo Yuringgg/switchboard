@@ -737,6 +737,91 @@ data. The cost is a join on the timeline query, and that is the cheaper side.
 
 ---
 
+## ADR-016 — The similarity floor cannot carry the refusal; the model must
+
+**Status:** Accepted · 2026-08-02 · *Amends ADR-007 and `docs/02-ARCHITECTURE.md` §4 step 3*
+
+**Context.** ADR-007 specifies the refusal path as a retrieval-side threshold:
+*"A similarity floor on retrieval. If nothing clears it, the assistant returns
+'I don't have anything about that' **and does not call the model at all**."*
+`docs/02-ARCHITECTURE.md` §4 repeats it as step 3, and `docs/04-ROADMAP.md`
+says to build it before the happy path.
+
+Built first, as instructed — and measuring it against the real corpus showed it
+**does not work.** `apps/worker/scripts/probe-floor.ts`, run over 73 messages
+and 394 chunks on 2026-08-02, with five questions the corpus can answer and
+five it cannot:
+
+| | top similarity |
+|---|---|
+| lowest **answerable** — *"what failed in CI?"* | **0.8487** |
+| highest **unanswerable** — *"what is the recipe for adobo my grandmother sent?"* | **0.8563** |
+| separation | **−0.0076** |
+
+The adobo question, which has no answer anywhere in the corpus, scored *higher*
+against a job-advert email than a question with a correct answer scored against
+its own answer. **No threshold divides these**, and one chosen by intuition —
+0.5, say, which sounds conservative — would admit literally everything.
+
+**Why.** e5 produces L2-normalised embeddings that occupy a narrow cone: any two
+pieces of natural language land somewhere around 0.75–0.90. The absolute value
+is close to meaningless as a measure of "is this relevant"; what carries signal
+is the **ranking within a single query**. And the ranking is genuinely good —
+every answerable question's top hit was the correct message ("Meeting",
+"Failed production deployment", "You got paid by…"). Retrieval works. The
+threshold was the wrong instrument.
+
+**Decision.** Amend the refusal path:
+
+- **The model performs the refusal**, from context it can see, instructed to
+  answer strictly from the provided messages and to say it has nothing when they
+  do not contain the answer. Enforced by requiring a citation for every claim.
+- **A relative floor replaces the absolute one.** Results more than
+  `RELATIVE_FLOOR` below *that query's own* top score are dropped. This uses the
+  signal that exists (ranking) rather than the one that does not (absolute
+  distance), and it stops twelve weakly-related chunks padding the context.
+- **A low absolute floor is kept as a backstop only** — it catches an empty or
+  near-empty corpus, not an irrelevant question. It is explicitly **not** the
+  refusal mechanism, and the constant says so.
+- **The eval set is the check**, not the threshold. Questions that must be
+  refused are part of it, as ADR-007 and the roadmap already required.
+
+**Why not tune the floor harder.** Because the data says the orderings overlap:
+there is no value that admits *"what failed in CI?"* and rejects the adobo
+question. Tuning would produce a number that fits five examples and fails the
+sixth, while looking principled. The honest reading is that this model cannot
+answer "is anything here relevant?" in absolute terms, and pretending otherwise
+would make the refusal path decorative — which is worse than not having one,
+because ADR-007's whole point is that a monitoring tool must not invent.
+
+**Consequences.**
+
+- **Every question now costs a Gemini call**, including ones that will be
+  refused. ADR-007 avoided that. Acceptable: Gemini Flash allows 250K tokens/min
+  and refusals are cheap, and the alternative is a refusal that does not work.
+- The refusal is only as good as the prompt and the model, so it is now a
+  **measured** property rather than a guaranteed one. That is what the eval set
+  is for, and why it includes must-refuse cases.
+- ⚠ **Re-run `probe-floor.ts` after any change to the embedding model, the
+  chunker, or the e5 prefixes.** All three move the distribution, and the
+  relative floor is calibrated against it.
+
+**Rejected:**
+
+- **Keep the absolute floor and pick a number.** It cannot separate the classes;
+  any number is a guess dressed as a threshold.
+- **A different embedding model with wider spread.** Would trade the multilingual
+  property for a metric convenience. ADR-003 requires multilingual because the
+  corpus is Taglish, and that is load-bearing — this same probe showed a Tagalog
+  message out-scoring an English one on an English query.
+- **A cross-encoder re-ranker.** The right answer at scale, and genuinely more
+  discriminating. Rejected for now as a second model to load, hold in memory and
+  deploy, for a corpus of 73 messages — `docs/04-ROADMAP.md`'s "prefer boring,
+  working technology" applies. Revisit if the eval shows the prompt-side refusal
+  failing.
+
+---
+
 ## Template for new ADRs
 
 ```markdown

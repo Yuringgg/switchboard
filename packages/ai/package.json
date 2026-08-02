@@ -14,5 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0"
+  }
 }

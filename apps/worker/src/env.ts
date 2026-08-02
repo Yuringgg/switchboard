@@ -31,3 +31,18 @@ export const MAX_ATTEMPTS = Number(process.env.MAX_ATTEMPTS ?? 5);
  * precise opposite of the "a Groq outage must never stop mail" rule.
  */
 export const GROQ_API_KEY = process.env.GROQ_API_KEY ?? '';
+
+/**
+ * Shared secret for `POST /embed` (Phase 4B).
+ *
+ * The console cannot run the embedding model itself — a 129 MB model plus
+ * native ONNX binaries does not fit a serverless function with an acceptable
+ * cold start — so it asks the worker, which holds the model warm precisely for
+ * this (ADR-011). That endpoint is the only reason the worker has public
+ * ingress, and this secret is the only thing gating it.
+ *
+ * ⚠ Optional, and when it is absent the endpoint is **disabled rather than
+ * open**. An unset secret must never mean "no authentication required" — that
+ * is the failure mode where a misconfiguration silently publishes a service.
+ */
+export const EMBED_API_SECRET = process.env.EMBED_API_SECRET ?? '';

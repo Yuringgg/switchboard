@@ -47,10 +47,51 @@ FROM node:22-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 
+# ── The one thing tsup could not bundle ──────────────────────────────────────
+#
+# `@huggingface/transformers` runs the embedding model (Phase 4B, ADR-003) and
+# depends on `onnxruntime-node`, which ships native `.node` binaries. esbuild
+# cannot inline those, so `tsup.config.ts` marks them external and they have to
+# exist on disk at runtime.
+#
+# Installed with **npm, not pnpm**, and deliberately: npm writes a flat
+# `node_modules` that a plain `node dist/index.js` resolves without any
+# workspace linking. Reproducing pnpm's symlink farm in the runtime stage is the
+# other way this goes wrong, and the Dockerfile above already avoids it once.
+#
+# Done as root BEFORE dropping to `node`, because npm needs to write here and
+# the native postinstall has to run — skip it and the package resolves but
+# cannot construct an inference session, which surfaces as "embeddings are
+# silently unavailable" rather than as an install error.
+#
+# ⚠ The version is pinned to match `packages/ai/package.json`. A mismatch means
+# the vectors in `message_chunks` were produced by a different model build than
+# the one answering queries, which does not error — it just ranks badly.
+# ⚠ Write the manifest FIRST, with `"type": "module"`.
+#
+# `npm install` in an empty directory creates a package.json without it, and the
+# bundle tsup emits is ESM. Node then warns MODULE_TYPELESS_PACKAGE_JSON and
+# "reparses as an ES module… this incurs a performance overhead" — on every
+# start, forever. Caught by running the bundle against a simulated copy of this
+# exact layout, because this image cannot be built locally to check.
+RUN printf '{"name":"switchboard-worker-runtime","private":true,"type":"module"}\n' > package.json
+
+RUN npm install --omit=dev --no-audit --no-fund @huggingface/transformers@4.2.0 \
+ && chown -R node:node /app
+
 # Never run as root.
 USER node
 
 COPY --from=build --chown=node:node /repo/apps/worker/dist ./dist
+
+# Where Transformers.js caches model weights (~129 MB, quantised).
+#
+# Under the app directory rather than the default `~/.cache`, so it is writable
+# by the `node` user and survives for the life of the container. The worker runs
+# `minReplicas: 1` (ADR-011) precisely so this download happens once per
+# revision rather than once per request.
+ENV MODEL_CACHE_DIR=/app/.model-cache
+RUN mkdir -p /app/.model-cache
 
 EXPOSE 8080
 

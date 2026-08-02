@@ -23,6 +23,6 @@ export const NAV_ITEMS: NavItem[] = [
   // sits above Contacts because it is the surface people reach for.
   { label: 'Search', href: '/search', icon: Search, ready: true },
   { label: 'Contacts', href: '/contacts', icon: Users, ready: false },
-  { label: 'Assistant', href: '/assistant', icon: Sparkles, ready: false },
+  { label: 'Assistant', href: '/assistant', icon: Sparkles, ready: true },
   { label: 'Channels', href: '/channels', icon: Plug, ready: true },
 ];

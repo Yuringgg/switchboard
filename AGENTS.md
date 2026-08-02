@@ -471,6 +471,40 @@ touching it must know:
   attribution. The console showing the *real* sender from `contact_identities`
   is what makes that survivable.
 
+**Phase 4B shipped 2026-08-02** — the assistant Ms. Maria described first. Four
+things a session touching it must know, and two of them contradict the docs that
+came before:
+
+- **⚠⚠ GEMINI IS NOT THE ASSISTANT'S PROVIDER ANY MORE.** Its free tier is
+  **20 requests per DAY** — read straight off the quota error
+  (`"quotaValue": "20"`), against the 250 `docs/03-RESOURCES.md` recorded. One
+  eval run is 15 requests. The assistant runs on Groq
+  `llama-3.3-70b-versatile` (1,000/day); summaries stay on
+  `llama-3.1-8b-instant` so the two cannot exhaust each other. ADR-003 amended
+  in `packages/ai/src/assistant-provider.ts`.
+- **⚠⚠ THE SIMILARITY FLOOR DOES NOT WORK. READ ADR-016.** ADR-007 specified
+  refusal as a retrieval threshold. Measured on the real corpus, the lowest
+  *answerable* score (0.8487) sits **below** the highest *unanswerable* one
+  (0.8563) — "recipe for adobo" out-scored "what failed in CI?". e5's normalised
+  embeddings sit in a 0.75–0.90 band, so absolute distance carries almost no
+  relevance signal; **ranking does**, and ranking is excellent. The refusal is
+  now the model's job, a *relative* floor replaces the absolute one, and the
+  eval is what proves it. Re-run `probe-floor.ts` after any change to the model,
+  the chunker or the prefixes.
+- **The e5 prefixes are applied inside `embedQuery`/`embedPassages`**, never at
+  call sites. `query:` for questions, `passage:` for stored text — they are not
+  interchangeable, and omitting them does not error, it just ranks worse.
+- **An answer that cites nothing is rendered as a refusal.** That is a success
+  criterion (`docs/01-PRODUCT-SPEC.md` §7), not a UI detail. Do not "improve"
+  the assistant by letting it answer without citations.
+
+⚠ **The deployed assistant does not work yet, deliberately** — the worker still
+runs the pre-4B image, its ingress is still internal, and four variables are
+unset. The steps are in `docs/04-ROADMAP.md`. The Dockerfile change was verified
+against a *simulated* runtime layout, not a real image build (Docker is not
+installed here), so **watch the logs after repointing and keep the previous
+digest**.
+
 **⚠ CI does not repoint the Container App.** `worker-image.yml` pushes a new
 image to ghcr; the app runs one pinned by **digest**. Until
 `az containerapp update --image <digest>` is run, the deployed worker keeps
@@ -607,7 +641,8 @@ personal conversations, and no library changes that legitimately.
 | **Phase 2 — WhatsApp** | 🟡 **code complete, pushed, deployed.** Dormant until Meta credentials exist |
 | **Phase 3 — console** | 🟡 **search + channel/date filters shipped 2026-08-02** (migration 0007, `/search`). Remaining: contacts, identity merge, attachments, virtualization |
 | **Phase 4A — summaries** | 🟡 **built and proven 2026-08-02** — migration 0008, `packages/ai`, worker step, backfill, 10/10 eval. ⚠ **Deployed worker still runs the old image** until the Container App digest is repointed |
-| **Phase 4B / 5** | ⬜ not started |
+| **Phase 4B — assistant** | 🟡 **built and measured 2026-08-02** — 394 chunks embedded, `/assistant` live in the console, 15-case eval. ⚠ **Not reachable in production** until the worker is repointed, its ingress externalised and 4 variables set. Prompt owes one more tuning pass |
+| **Phase 5** | ⬜ not started |
 
 **Blocked on exactly one thing, and it is not code:** Yuri cannot get past Meta's
 developer-account phone verification (*"You can only complete this action in

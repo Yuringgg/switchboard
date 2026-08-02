@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.110.8",
     "@switchboard/adapter-gmail": "workspace:*",
     "@switchboard/adapter-whatsapp": "workspace:*",
+    "@switchboard/ai": "workspace:*",
     "@switchboard/core": "workspace:*",
     "clsx": "^2.1.1",
     "google-auth-library": "^10.9.1",

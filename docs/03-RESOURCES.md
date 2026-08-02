@@ -211,15 +211,49 @@ long weekend is offline when you open the demo. Mitigation is in Phase 0.
 
 ## 4. AI layer — three providers, matched to workload (ADR-003)
 
-### 4a. Assistant Q&A — Gemini 2.5 Flash
+### 4a. Assistant Q&A — ⚠ **NO LONGER GEMINI.** See ADR-003's amendment.
 
-| Model | Requests/min | Requests/day |
+> ## 🔴 THE NUMBER IN THIS SECTION WAS WRONG BY 12×
+>
+> **Measured against the live API on 2026-08-02, from the quota error itself:**
+>
+> ```json
+> "quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+> "quotaValue": "20",
+> "model": "gemini-2.5-flash"
+> ```
+>
+> **Twenty requests per day.** Not 250. Google cut it again — this file already
+> warned they cut free quotas 50–80% in December 2025 without notice, and they
+> have now done it a second time.
+>
+> Twenty questions a day cannot support a demo, let alone development against
+> it: this project's own 15-case assistant eval consumes **75% of a day's
+> allowance in a single run**, which is exactly how it was discovered.
+>
+> **The assistant now runs on Groq `llama-3.3-70b-versatile` — 1,000
+> requests/day**, fifty times the allowance. `packages/ai/src/assistant-provider.ts`
+> carries the reasoning; `ASSISTANT_PROVIDER=gemini` switches back in one
+> variable if Google ever restores a usable tier.
+>
+> ⚠ **Re-verify any figure below before relying on it.** They were correct when
+> recorded and one of them silently stopped being correct.
+
+The historical table, kept because the *reasoning* it drove is still sound —
+tokens/min binds RAG prompts, not requests/min:
+
+| Model | Requests/min | Requests/day (**as recorded 2026-07-25**) |
 |---|---|---|
 | Gemini 2.5 Pro | 5 | 100 |
-| **Gemini 2.5 Flash** | **10** | **250** |
+| **Gemini 2.5 Flash** | 10 | ~~250~~ → **20, measured 2026-08-02** |
 | Gemini 2.5 Flash-Lite | 15 | 1,000 |
 
 Shared across all three: **250,000 tokens/min**, full **1M-token context window**.
+
+ADR-003's arithmetic also assumed a retrieval prompt of 4,000–8,000 tokens
+carrying ~20 messages. The built design sends at most **8** messages, one chunk
+each — around 2,000–3,000 tokens — so Groq's 12,000 TPM is roughly four
+questions a minute rather than the two ADR-003 calculated.
 
 **Why this and not Groq for the assistant — the numbers decide it.** RAG prompts
 are large, so *tokens per minute is the binding constraint, not requests*. Groq's
@@ -305,9 +339,27 @@ search still works and only the assistant's answers are affected.
 **Taglish**, and `all-MiniLM-L6-v2` is English-only; it degrades badly on
 code-switched text. Use a **multilingual** model:
 
+**✅ Built and measured 2026-08-02.** 73 messages → **394 chunks** in 128s, all
+local, no quota. On disk the quantised model is **129 MB**; loaded once it
+embeds in **~22 ms**. The multilingual choice paid off immediately — against the
+query *"do I have any meetings coming up?"*:
+
+| Passage | Similarity |
+|---|---|
+| Tagalog — *"Nasa office ka ba bukas? Dadaan sana ako around 10."* | **0.8544** |
+| English — *"Can we do 3pm Thursday to go through both?"* | 0.8243 |
+| Unrelated — *"The container left port on Tuesday…"* | 0.7715 |
+
+The Tagalog message out-scored the English one. `all-MiniLM-L6-v2` would have
+ranked it near the bottom, and the symptom would have looked like a ranking bug.
+
+⚠ **But note the narrow band — 0.77 to 0.85.** That compression is why an
+absolute similarity floor cannot decide relevance here, and why the refusal path
+had to move onto the model. **ADR-016** has the measurements.
+
 | Model | Dims | Notes |
 |---|---|---|
-| **`Xenova/multilingual-e5-small`** | 384 | **Chosen.** Multilingual, small, fast. |
+| **`Xenova/multilingual-e5-small`** | 384 | **Chosen and shipped.** Multilingual, small, fast. |
 | `Xenova/paraphrase-multilingual-MiniLM-L12-v2` | 384 | Solid alternative. |
 | `BAAI/bge-m3` | 1024 | Best quality, much heavier. Overkill here. |
 

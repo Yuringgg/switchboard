@@ -11,4 +11,15 @@ allowBuilds:
   # place. drizzle-kit runs on esbuild, so without this the migration tooling
   # is simply broken.
   esbuild: true
+  # onnxruntime-node runs the embedding model (Phase 4B, ADR-003). Its install
+  # script is what puts the native binary in place; skipped, the package
+  # resolves but cannot construct an inference session. protobufjs is its
+  # build-time companion.
+  #
+  # ⚠ Those native binaries are also why the worker cannot simply bundle this:
+  # esbuild cannot inline a `.node` file, and the failure mode is a
+  # crashlooping container rather than a build error — which this project has
+  # already paid for twice. See `apps/worker/tsup.config.ts`.
+  onnxruntime-node: true
+  protobufjs: true
   sharp: false

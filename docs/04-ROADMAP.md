@@ -486,22 +486,79 @@ ingest path lands when the Container App is repointed at the new image
 
 **Goal:** the feature Ms. Maria described first.
 
-- [ ] `EmbeddingProvider` — Transformers.js, **multilingual model** (`Xenova/multilingual-e5-small`, 384d)
-- [ ] **e5 prefixes:** `"query: "` on searches, `"passage: "` on stored text
-- [ ] Chunking for long bodies → `message_chunks` with overlap
-- [ ] Worker: embed on ingest; backfill everything already stored
-- [ ] `CompletionProvider` — **Gemini 2.5 Flash** for assistant Q&A (250K TPM, 1M ctx)
-- [ ] `CompletionProvider` — **Groq/Llama** for per-message extraction (14.4K req/day)
-- [ ] Retrieval: pgvector cosine over `message_chunks`, resolve to parent messages, de-dupe
-- [ ] **Similarity floor + refusal path — build this before the happy path**
-- [ ] Prompt: answer strictly from context, cite message IDs, refuse otherwise
-- [ ] Assistant panel in console; citations render as chips linking to messages
-- [ ] Eval set: ~15 hand-written Q&A pairs over known messages, **including
-      questions that should be refused**
+- [x] `EmbeddingProvider` — Transformers.js, `Xenova/multilingual-e5-small`, 384d,
+      quantised (129 MB on disk, ~22 ms per embed once loaded).
+- [x] **e5 prefixes** — applied *inside* `embedQuery` / `embedPassages`, never
+      left to call sites, because omitting them does not error and only degrades
+      ranking.
+- [x] Chunking with overlap → `message_chunks`. ⚠ Two real bugs the tests caught:
+      the overlap step landed **mid-word** (a chunk began `"ng mga files…"`,
+      slicing the Tagalog "yung" in half), and an overlap larger than the chunk
+      produced **3,690 chunks** from one body. Both fixed and pinned.
+- [x] Worker embeds on ingest **and** a backfill script. 73 messages → **394
+      chunks**, 0 failures, 128s. No quota, because it is local.
+- [x] Retrieval — migration 0009: HNSW index + `match_chunks`, **SECURITY
+      INVOKER** so RLS scopes it, collapsed to one row per message.
+- [x] **Similarity floor + refusal path, built before the happy path** — and
+      building it first is what proved the design wrong. **See ADR-016.**
+      The floor **cannot** separate answerable from unanswerable: the lowest
+      answerable top-score (0.8487) sits *below* the highest unanswerable one
+      (0.8563). The refusal moved onto the model; a **relative** floor replaces
+      the absolute one. `apps/worker/scripts/probe-floor.ts` measures it.
+- [x] Prompt: answer strictly from context, cite message ids, refuse otherwise.
+- [x] Assistant panel in the console; citations numbered to match the `[n]`
+      markers in the answer, and an uncited answer renders **as a refusal**.
+- [x] Eval set — `apps/worker/scripts/eval-assistant.ts`, 15 cases, 8 of which
+      **must be refused**.
 
 **Done when:** *"do I have upcoming meetings?"* returns a cited answer, and
-*"what did we agree about the Jakarta office?"* (nothing in the corpus) returns a
-clean refusal.
+*"what did we agree about the Jakarta office?"* returns a clean refusal.
+— **Both met**, measured 2026-08-02.
+
+> ### ⚠ Where the eval actually stands, stated honestly
+>
+> Best measured run: **5/5 refusals correct, 5/7 answerable correct.** Before the
+> prompt was hardened it was the other way round — 7/7 answerable but only 3/8
+> refusals, with the model citing all eight retrieved messages for a question
+> about a submarine.
+>
+> The hardened prompt **over-refuses two answerable questions** ("do I have
+> upcoming meetings?", "summarise what needs my attention"). That is the safe
+> direction to fail — ADR-007 is explicit that a fabricated meeting is worse than
+> no answer — but it is **not finished**. One more tuning pass is owed, and the
+> eval is the instrument for it.
+>
+> ⚠ Some eval runs also fail on `groq rate limit`. That is the **daily token
+> cap**, not a logic failure; re-run the next day rather than chasing it.
+
+> ### ⚠ The assistant no longer runs on Gemini
+>
+> **Gemini 2.5 Flash's free tier is 20 requests per DAY**, measured from the
+> quota error on 2026-08-02 — not the 250 `docs/03-RESOURCES.md` recorded. One
+> eval run is 15 requests. The assistant defaults to Groq
+> `llama-3.3-70b-versatile` (1,000/day) instead; summaries stay on
+> `llama-3.1-8b-instant` so the two cannot exhaust each other, which preserves
+> ADR-003's isolation argument inside one vendor.
+> `ASSISTANT_PROVIDER=gemini` switches back in one variable.
+
+> ### ⚠ Not yet live in production — deliberately
+>
+> The code is pushed and the console builds, but **the deployed assistant will
+> report "could not reach the embedding service" until three things are done**,
+> and none of them was safe to do without watching the result:
+>
+> 1. The Container App must be repointed at the new image (CI builds it; nothing
+>    repoints it — see the Phase 4A note above).
+> 2. The worker's ingress must be switched from **internal** to external, so
+>    Vercel can reach `POST /embed`.
+> 3. `EMBED_API_SECRET` (both sides), `EMBED_API_URL` and `GROQ_API_KEY` must be
+>    set on Vercel, and `EMBED_API_SECRET` on Azure.
+>
+> The Dockerfile change was verified against a **simulated copy of the runtime
+> layout** rather than a real build — Docker is not installed on this machine.
+> That simulation caught two real defects (see the commit), but it is not the
+> same as building the image. **Watch the logs after repointing and keep the
+> previous digest to roll back.**
 
 > Two traps here, both easy to miss and painful to fix late. Use a **multilingual**
 > embedding model — the corpus is Taglish and English-only models degrade badly on
