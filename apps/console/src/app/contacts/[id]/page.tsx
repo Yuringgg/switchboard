@@ -5,9 +5,11 @@ import { notFound, redirect } from 'next/navigation';
 
 import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
+import { MergeContact } from '@/components/merge-contact';
 import { MessageRow } from '@/components/message-row';
 import { CHANNELS, CHANNEL_META, fetchChannels } from '@/lib/channels';
-import { fetchContactDetail } from '@/lib/contacts';
+import { fetchContactDetail, fetchContacts } from '@/lib/contacts';
+import { mergeContacts, suggestMerges, type MergeResult } from '@/lib/merge';
 import { createClient } from '@/lib/supabase/server';
 import { channelChangePoints } from '@/lib/timeline';
 import { LABEL } from '@/lib/ui';
@@ -53,6 +55,51 @@ export default async function ContactPage({
   const { channels: channelRows } = await channels;
   const channelTypeById = new Map(channelRows.map((c) => [c.id, c.type]));
   const changePoints = channelChangePoints(messages, channelTypeById);
+
+  // For the merge control. Only names and ids — no identities, no messages.
+  const { contacts: allContacts } = contact
+    ? await fetchContacts(supabase)
+    : { contacts: [] };
+
+  const candidates = allContacts
+    .filter((c) => c.id !== contact?.id)
+    .map((c) => ({ id: c.id, displayName: c.displayName }));
+
+  const suggestions = contact
+    ? suggestMerges({ id: contact.id, displayName: contact.displayName }, candidates)
+    : [];
+
+  /**
+   * The merge server action (Q3).
+   *
+   * ⚠ Manual only, and the UI proposes rather than decides. Same-name-across-
+   * channels is weak evidence: two different Marias exist, and auto-merging the
+   * wrong two corrupts data in a way that is tedious to unwind.
+   *
+   * Defined here so it closes over nothing but the request — it builds its own
+   * client, so RLS decides whether either contact is the caller's.
+   */
+  async function merge(
+    _previous: MergeResult | null,
+    formData: FormData,
+  ): Promise<MergeResult> {
+    'use server';
+
+    const client = await createClient();
+    const {
+      data: { user: caller },
+    } = await client.auth.getUser();
+
+    // A server action is its own endpoint and does not inherit the page's guard.
+    if (!caller) {
+      return { ok: false, message: 'Your session expired. Reload the page and sign in again.' };
+    }
+
+    return mergeContacts(client, {
+      sourceId: String(formData.get('sourceId') ?? ''),
+      targetId: String(formData.get('targetId') ?? ''),
+    });
+  }
 
   return (
     <AppShell
@@ -127,6 +174,19 @@ export default async function ContactPage({
                   person writes from another connected channel.
                 </p>
               )}
+
+              {/*
+                ⚠ Manual merge, and the control starts CLOSED. Q3: auto-merging
+                on a matching display name corrupts data in a way that is
+                tedious to unwind, because two different Marias exist. The
+                suggestions rank; the person decides; nothing is preselected.
+              */}
+              <MergeContact
+                subject={{ id: contact.id, displayName: contact.displayName }}
+                candidates={candidates}
+                suggestions={suggestions}
+                action={merge}
+              />
             </section>
 
             <section className="mt-7">

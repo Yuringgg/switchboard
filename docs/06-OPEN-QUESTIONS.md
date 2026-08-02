@@ -88,12 +88,8 @@ retrieval alone with no memory of the previous one — so "what about next week?
 as a follow-up does not work. Multi-turn adds a table and context-window
 management. *Leaning unchanged:* polish, not v1.
 
-### Q3 — How aggressive should automatic contact merging be?
-**Relevant by:** Phase 3
-
-Same display name across channels is weak evidence — two different Marias exist.
-Auto-merging wrong contacts corrupts data in a way that's tedious to unwind.
-*Leaning:* manual merge only in v1, with the UI *suggesting* likely matches.
+### ~~Q3 — How aggressive should automatic contact merging be?~~ → **R23**
+**Built exactly as the leaning said, 2026-08-03.** Moved to Resolved below.
 
 ### Q4 — Retention policy?
 **Relevant by:** Phase 5
@@ -111,6 +107,26 @@ WhatsApp reality check are the two things she'll actually care about.
 ---
 
 ## ✅ Resolved
+
+### R23 — How aggressive should automatic contact merging be? *(was Q3)*
+**Manual only, with the UI suggesting — built 2026-08-03 exactly as the leaning
+said.** `/contacts/[id]` carries a merge control that starts **closed**, offers
+ranked suggestions, **preselects nothing**, and states the consequence in words
+— naming both contacts — before the button.
+
+The heuristic deliberately refuses more than it offers: an exact name, or a
+first name plus an abbreviated surname, and **never on a handle in either
+direction**. Two numbers on the same network share a format, not a person; two
+addresses at one company share a domain, not a human. *"Maria Santos"* and
+*"Maria dela Cruz"* — the pair this question named by hand — are not offered,
+and that is a test rather than a claim.
+
+A merge moves `contact_identities.contact_id` and removes the emptied contact.
+**No message is touched**, because `messages` references `contact_identities`
+rather than `contacts`. Notes are carried over — the only thing on a contact row
+that is not recoverable from its identities — and the identities move *before*
+the delete, since `on delete set null` means the reverse order would detach them
+silently instead of erroring. To undo one, merge back the other way. *2026-08-03*
 
 ### R22 — Ms. Maria's BRD and the Fatima meeting *(closes Q6 and Q8)*
 **Withdrawn by Yuri, 2026-08-03: neither is needed any more.** Q6 chased the

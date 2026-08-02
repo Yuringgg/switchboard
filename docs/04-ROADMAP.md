@@ -338,7 +338,25 @@ to invest, and it's what makes the system feel finished.
       fifty rows; obvious in a column of them. A display name with no letters is
       now treated as a handle and takes the last two digits, which is the rule
       that already existed one branch down.
-- [ ] **Manual identity merge** — "this email address and this number are the same person"
+- [x] **Manual identity merge** — *"this email address and this number are the
+      same person"* (2026-08-03, Q3). On `/contacts/[id]`, a control that
+      **starts closed**, offers ranked suggestions, preselects nothing, and
+      states the consequence in words — naming both contacts — before the
+      button.
+      **⚠ Manual, and it stays manual.** Q3: *"Same display name across channels
+      is weak evidence — two different Marias exist."* The heuristic therefore
+      refuses more than it offers: an exact name or an abbreviated surname, and
+      **never** on a handle in either direction, because two numbers on the same
+      network or two addresses at one company share a format and not a person.
+      "Maria Santos" and "Maria dela Cruz" are explicitly not offered — that
+      pair is a test.
+      A merge moves `contact_identities.contact_id` and removes the emptied
+      contact. **No message is touched**: `messages` references
+      `contact_identities`, not `contacts`, so every message follows its handle.
+      Notes are carried over rather than dropped — they are the only thing on a
+      contact row that is not recoverable — and the identities move **before**
+      the delete, because `on delete set null` means the reverse order would
+      detach them silently rather than erroring.
 - [ ] Channel settings: connect, pause, disconnect, sync status, last error
 - [ ] **Attachments → Azure Blob; rows in `attachments`** — moved here from
       Phase 1, and **now covers WhatsApp media too** (moved here from Phase 2,
