@@ -105,7 +105,7 @@ async function embedViaWorker(question: string): Promise<number[] | null> {
  * the provider states a wait, that number is used; otherwise the message says
  * plainly that it does not know.
  */
-function rateLimitMessage(
+export function rateLimitMessage(
   scope: 'minute' | 'day' | 'unknown' | undefined,
   retryAfterMs: number | undefined,
 ): string {
