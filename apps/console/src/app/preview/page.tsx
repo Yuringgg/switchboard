@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { AppShell } from '@/components/app-shell';
+import { AttentionEmpty, AttentionList } from '@/components/attention-list';
 import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
 import { SearchForm } from '@/components/search-form';
 import {
@@ -12,6 +13,7 @@ import {
   SearchSkeleton,
 } from '@/components/search-results';
 import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
+import type { AttentionItem } from '@/lib/attention';
 import type { ChannelRow } from '@/lib/channels';
 import type { SearchResult } from '@/lib/search';
 import type { TimelineMessage } from '@/lib/timeline';
@@ -243,6 +245,120 @@ function searchFixtures(): SearchResult[] {
   ];
 }
 
+/**
+ * Attention-queue fixtures (US-9).
+ *
+ * Written to exercise what actually varies on this screen rather than to look
+ * tidy: an item already past its time, one starting soon, one with **no date at
+ * all** (the common case for an action item), one already confirmed onto a
+ * calendar, a Taglish quote, and a long title that has to wrap.
+ *
+ * ⚠ The quotes are the point. Every row shows the sentence it came from, so a
+ * fixture whose quote is a neat one-liner would flatter a layout that has to
+ * survive a two-line one out of a real mail.
+ */
+function attentionFixtures(): AttentionItem[] {
+  const now = Date.now();
+  const at = (hoursFromNow: number) =>
+    new Date(now + hoursFromNow * 3_600_000).toISOString();
+
+  const message = (
+    id: string,
+    subject: string | null,
+    channel: string,
+    name: string,
+    ref: string,
+    hoursAgo: number,
+  ) => ({
+    id,
+    subject,
+    sentAt: new Date(now - hoursAgo * 3_600_000).toISOString(),
+    channelId: channel,
+    senderName: name,
+    senderRef: ref,
+  });
+
+  return [
+    {
+      id: 'x1',
+      kind: 'meeting',
+      title: 'Project sync with Ms. Maria',
+      quote:
+        'Confirming our project sync on Friday 7 August 2026 at 3:00 PM, at the iOzera office. Agenda: Switchboard demo and Phase 5 scope.',
+      startsAt: at(30),
+      dueAt: null,
+      location: 'iOzera office',
+      participants: ['Ms. Maria'],
+      confidence: 0.95,
+      model: 'llama-3.1-8b-instant',
+      calendarEventId: null,
+      confirmedAt: null,
+      message: message('m1', 'Project sync with Ms. Maria', 'ch-gmail', 'Maria Santos', 'maria@iozera.com', 20),
+    },
+    {
+      id: 'x2',
+      kind: 'action_item',
+      title: 'Review the Phase 5 scope before Monday',
+      quote: 'Can you review the Phase 5 scope before then?',
+      startsAt: null,
+      dueAt: at(-6),
+      location: null,
+      participants: [],
+      confidence: 0.8,
+      model: 'llama-3.1-8b-instant',
+      calendarEventId: null,
+      confirmedAt: null,
+      message: message('m1', 'Project sync with Ms. Maria', 'ch-gmail', 'Maria Santos', 'maria@iozera.com', 20),
+    },
+    {
+      id: 'x3',
+      kind: 'commitment',
+      title: 'Send the files on Drive',
+      quote: 'Sige, sending the files na — nasa drive na lahat. Salamat!',
+      startsAt: null,
+      dueAt: null,
+      location: null,
+      participants: [],
+      confidence: 0.6,
+      model: 'llama-3.1-8b-instant',
+      calendarEventId: null,
+      confirmedAt: null,
+      message: message('m2', null, 'ch-whatsapp', 'Fatima R.', '+639170000001', 3),
+    },
+    {
+      id: 'x4',
+      kind: 'meeting',
+      title: 'Standup',
+      quote: 'Standup moved to 9am tomorrow, same link.',
+      startsAt: at(11),
+      dueAt: null,
+      location: null,
+      participants: [],
+      confidence: 0.9,
+      model: 'llama-3.1-8b-instant',
+      calendarEventId: 'sb0000000000000000000000000000000a',
+      confirmedAt: new Date(now - 3_600_000).toISOString(),
+      message: message('m3', 'Standup', 'ch-gmail', 'Luis', 'luis@iozera.com', 26),
+    },
+    {
+      id: 'x5',
+      kind: 'question',
+      title: 'Which invoice number covers the July retainer?',
+      quote:
+        'Kailangan po namin ng confirmation bago mag Friday kasi may cutoff ang accounting team namin — alin pong invoice ang para sa July retainer?',
+      startsAt: null,
+      dueAt: null,
+      location: null,
+      participants: [],
+      confidence: 0.55,
+      model: 'llama-3.1-8b-instant',
+      calendarEventId: null,
+      confirmedAt: null,
+      message: message('m4', 'Follow up: invoice', 'ch-gmail', 'Accounting', 'ar@vendor.example', 50),
+    },
+  ];
+}
+
 export default async function PreviewPage({
   searchParams,
 }: {
@@ -278,6 +394,37 @@ export default async function PreviewPage({
             <ChannelList rows={rows} error={null} />
           )}
         </Suspense>
+      </AppShell>
+    );
+  }
+
+  if (screen === 'attention') {
+    /*
+     * ⚠ The two empty states here are the reason this screen is in the preview
+     * at all. "Nothing has been read yet" and "nothing needs your attention"
+     * look similar and mean opposite things — one is a pipeline that has not
+     * run, the other is a pipeline that ran and found nothing. This console has
+     * already paid a full debugging session for two empty states that
+     * converged (the timeline's), and they are otherwise impossible to look at
+     * side by side, because reaching either needs a particular real corpus.
+     */
+    const items =
+      state === 'empty' || state === 'unread' ? [] : attentionFixtures();
+
+    return (
+      <AppShell
+        title="Needs attention"
+        description="Meetings, commitments and requests found in your messages."
+        userEmail="preview@switchboard.local"
+        userId={PREVIEW_USER_ID}
+        activeHref="/attention"
+        channels={channels}
+      >
+        {items.length === 0 ? (
+          <AttentionEmpty extracted={state !== 'unread'} />
+        ) : (
+          <AttentionList items={items} channels={rows} now={new Date()} />
+        )}
       </AppShell>
     );
   }

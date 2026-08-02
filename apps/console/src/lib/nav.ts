@@ -1,4 +1,5 @@
 import {
+  ListChecks,
   MessagesSquare,
   Plug,
   Search,
@@ -22,6 +23,9 @@ export const NAV_ITEMS: NavItem[] = [
   // Directly under Timeline: search is the same record, asked a question. It
   // sits above Contacts because it is the surface people reach for.
   { label: 'Search', href: '/search', icon: Search, ready: true },
+  // Above Contacts and below Search: this is a *doing* surface, and it belongs
+  // with the two screens people arrive at the console to use. Phase 5, US-9.
+  { label: 'Needs attention', href: '/attention', icon: ListChecks, ready: true },
   { label: 'Contacts', href: '/contacts', icon: Users, ready: false },
   { label: 'Assistant', href: '/assistant', icon: Sparkles, ready: true },
   { label: 'Channels', href: '/channels', icon: Plug, ready: true },

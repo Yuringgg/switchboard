@@ -594,16 +594,27 @@ cannot tell "busy for a moment" from "nothing more today", and it told users the
 wrong one. Every other error path stays status-and-headers-only, because a
 completion API's error body can echo the prompt and the prompt is a message body.
 
-**Where message bodies render (⚠ amended 2026-08-02 by ADR-018).** Two places,
-both signed-in and both RLS-scoped, and this list is exhaustive:
+**Where message bodies render (⚠ amended 2026-08-02 by ADR-018, and again
+2026-08-03 for Phase 5).** Three places, all signed-in and all RLS-scoped, and
+this list is exhaustive:
 
 - the opened row in the timeline and in search results (`message-row.tsx`)
 - **`/messages/[id]`** — one message in full, the citation target for the
   assistant and the source-message view Phase 5's meeting proposals need
+- **`/attention` and the proposal card** — the **verbatim quote** carried on
+  every extraction row (`attention-list.tsx`, `meeting-proposal.tsx`). Not a
+  whole body: one sentence, the one the model drew the item from.
 
 The rule was previously "the timeline and nowhere else". Its intent — private
-content is not scattered across the app — is unchanged; a third place needs an
+content is not scattered across the app — is unchanged; a further place needs an
 amendment here, not a judgement call at the call site.
+
+⚠ **The third entry is not an exception to the rule, it is required by
+ADR-010.** *"Always show the source message next to the proposal — the user
+needs to see what the model read before agreeing with it."* A proposal without
+its quote is a claim the reader cannot check, which is the thing ADR-007 and
+ADR-010 both exist to prevent. The quote is also what `validateExtractions`
+verifies against the body, so it is the same text either way.
 
 **Data handling and consent.** iOzera is a Philippine company, so client
 communications fall under the **Data Privacy Act of 2012 (RA 10173)**. Before any
