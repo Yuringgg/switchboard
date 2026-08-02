@@ -31,6 +31,7 @@ local and cannot fail at all, so semantic search survives every provider outage.
 | `assistant.ts` | The system prompt, context selection, citation parsing. **The refusal lives here.** |
 | `assistant-provider.ts` | Which model answers questions, and why it is not Gemini |
 | `summarize.ts` | Phase 4A's one-prompt-per-message summariser |
+| `extract.ts` | Phase 5's structured extraction. **The quote check lives here.** |
 | `chunk.ts` · `embed.ts` | Overlapping chunks and the e5 prefixes |
 | `groq.ts` · `gemini.ts` | Native `fetch`, no SDK — the worker's tsup bundle has already lost a container to a dependency that could not survive it |
 
@@ -54,9 +55,25 @@ local and cannot fail at all, so semantic search survives every provider outage.
 - **The prompt's decision is three-way** (ADR-017): "nothing here is about this"
   (refuse) versus "several things are, none individually decisive" (synthesise,
   citing each). A two-way test refuses questions whose answer *is* the synthesis.
-- **Extraction output is validated, not trusted** — define the shape in Zod and
-  parse the model's response through it. A parse failure is a job to retry, not
-  a row to insert.
+- **Extraction output is validated, not trusted** — the shape is a **Zod**
+  schema in `extract.ts` and the model's response is parsed through it. A parse
+  failure is a job to retry, not a row to insert: nothing is written and no run
+  is recorded, so the backfill picks the message up again.
+- **⚠ Every extracted item must QUOTE the message, and the quote is checked.**
+  `validateExtractions` drops any row whose quote is not in the body. That is
+  the only hallucination guard this feature has — a fabricated meeting has to
+  fabricate a sentence, and a fabricated sentence is not found. It is also what
+  ADR-010 requires beside every calendar proposal. Whitespace and smart quotes
+  are normalised; **different words are not**, because a paraphrase is exactly
+  what the rule forbids and accepting one would hollow the check out.
+- **Relative dates resolve against the message's SEND time, not today.** "9pm
+  tonight" only means anything relative to when it was sent. Getting this wrong
+  produces a well-formed row on the wrong week with no error — the failure shape
+  ADR-017 was written about.
+- **"Did not return JSON" is reported as two different failures**, because they
+  have opposite fixes: *ended mid-structure* means the output ceiling is too low
+  (measured: 900 tokens was, because Taglish-with-emoji JSON tokenises at ~2
+  chars/token), *answered in prose* means the prompt.
 
 ## Rate limits, and why a 429 is read carefully
 

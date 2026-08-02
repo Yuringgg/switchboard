@@ -229,6 +229,36 @@ export const extractions = pgTable(
   ],
 );
 
+/**
+ * One row per message that has been through the Phase 5 extraction pass
+ * (migration 0011).
+ *
+ * ⚠ Its presence means **a model looked**, which is not the same as "a model
+ * found something". `rowsWritten = 0` is the ordinary outcome for most mail.
+ *
+ * `extractions` cannot answer this question: Phase 5's kinds are deliberately
+ * many-per-message, so there is no unique key to conflict on and a message that
+ * legitimately yields nothing is indistinguishable from one never processed.
+ * Without this table every redelivery and every backfill re-pays Groq to be
+ * told nothing again.
+ */
+export const messageExtractionRuns = pgTable(
+  'message_extraction_runs',
+  {
+    /** The primary key IS the idempotency guard — a second pass is an upsert. */
+    messageId: uuid('message_id')
+      .primaryKey()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    ownerId: uuid('owner_id').notNull(),
+    /** Which model looked. Same reason `extractions.model` exists (ADR-006). */
+    model: text('model').notNull(),
+    /** Zero is the common case, and recording it is the point. */
+    rowsWritten: integer('rows_written').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('message_extraction_runs_owner_idx').on(t.ownerId)],
+);
+
 export const rawEvents = pgTable(
   'raw_events',
   {
@@ -279,3 +309,5 @@ export type RawEvent = typeof rawEvents.$inferSelect;
 export type NewRawEvent = typeof rawEvents.$inferInsert;
 export type Extraction = typeof extractions.$inferSelect;
 export type NewExtraction = typeof extractions.$inferInsert;
+export type MessageExtractionRun = typeof messageExtractionRuns.$inferSelect;
+export type NewMessageExtractionRun = typeof messageExtractionRuns.$inferInsert;

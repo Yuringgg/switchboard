@@ -341,6 +341,22 @@ extractions (
   created_at        timestamptz default now()
 )
 
+-- Has the Phase 5 extraction pass been over this message? (migration 0011,
+-- ADR-019.) Worker-only, like sync_state, and policed identically.
+--
+-- ⚠ `extractions` cannot answer this. Phase 5's kinds are many-per-message by
+--   design, so there is no unique key to conflict on — and a message that
+--   legitimately yields NOTHING (most of a real mailbox) is indistinguishable
+--   from one never processed. Without this row every redelivery and every
+--   backfill re-pays a shared daily allowance to be told nothing again.
+message_extraction_runs (
+  message_id    uuid pk references messages(id) on delete cascade,
+  owner_id      uuid not null references auth.users(id),
+  model         text not null,       -- which model looked
+  rows_written  int  not null default 0,   -- ← 0 is the COMMON case, and the point
+  created_at    timestamptz default now()
+)
+
 -- Ingestion queue + cursor tracking
 raw_events (
   id            uuid pk,

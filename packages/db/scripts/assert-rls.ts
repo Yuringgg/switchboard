@@ -4,7 +4,7 @@
  * Migrations are hand-written SQL, and `packages/db/src/schema.ts` is a mirror
  * that can drift silently. This is the check that catches the drift that
  * matters — the kind `drizzle-kit generate` proposed on 2026-07-26, which would
- * have disabled RLS on all ten tables and dropped all ten policies.
+ * have disabled RLS on every table and dropped every policy.
  *
  * The point is that it runs in CI on every push. The other mitigations in
  * ADR-012 (a gitignored `out` dir, remembering to run `pull`) depend on someone
@@ -29,6 +29,10 @@ const EXPECTED_TABLES = [
   'conversations',
   'extractions',
   'message_chunks',
+  // Phase 5, migration 0011. Worker-only, like `sync_state`, and policed like
+  // everything else for the same reason: a table exempted "because nothing
+  // user-facing reads it" is a table nobody checks the day something does.
+  'message_extraction_runs',
   'messages',
   'raw_events',
   'sync_state',

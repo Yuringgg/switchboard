@@ -677,11 +677,43 @@ ingest path lands when the Container App is repointed at the new image
 > structured rows rather than prose similarity. That is a design decision worth
 > an ADR, not a quiet addition — it changes what the assistant is grounded in.
 
-- [ ] Extraction pass in worker: commitments, meetings, action items → `extractions`
-      *(the table already accepts these `kind`s — migration 0008 widened the
-      constraint and negative-controlled it. Groq is wired, and it is the 8B
-      model this should use, not the assistant's 70B: limits are per-model and
-      extraction is the many-small-prompts shape.)*
+- [x] **Extraction pass in worker** (2026-08-03): commitments, meetings, action
+      items and questions → `extractions`. `packages/ai/src/extract.ts` is pure
+      (prompt, **Zod** schema, validation); `apps/worker/src/extract.ts` does the
+      I/O. Runs on **`llama-3.1-8b-instant`**, never the assistant's 70B —
+      re-verified from live headers 2026-08-03: 14,400 req/day against 1,000.
+      **⚠ It must NEVER fail an event.** Sits between ingest and `markDone`,
+      wrapped so nothing it does can reach `markFailed` — the same contract as
+      summaries and embeddings, and it runs **last of the three** on purpose: if
+      the shared token window runs out mid-batch, a proposal read hours later is
+      the right thing to lose, not a summary the timeline shows immediately.
+      **⚠ Idempotency needed a new table — migration 0011, ADR-019.**
+      `extractions` has no unique key for these kinds (they are many-per-message
+      by design), and a message that legitimately yields nothing is
+      indistinguishable from one never processed. `message_extraction_runs`
+      records that the pass ran, including `rows_written = 0`. Negative-controlled:
+      RLS disabled on it → `assert-rls` exits 1 and names it; restored → 11/11.
+      **⚠ The quote check is the hallucination guard.** Every item must carry the
+      verbatim sentence it came from, and `validateExtractions` **drops any row
+      whose quote is not in the body**. A fabricated meeting has to fabricate a
+      sentence, and a fabricated sentence is not found. It is also what ADR-010
+      requires beside every proposal.
+      **⚠ Relative dates resolve against the message's SEND time**, never today.
+      "9pm tonight" in a mail from 2 Aug means 2 Aug — measured correct against
+      the live model. Resolving against the current clock produces a well-formed
+      row on the wrong week, with no error anywhere. That is the shape of failure
+      ADR-017 spent a session on.
+      ⚠ Two measurements worth keeping: one request costs **~3,500 tokens**
+      (3,370 of them the *prompt*) against a **6,000/minute** window shared with
+      the summariser, so ~1.7 requests/minute is the real throughput and a
+      backfill spending most of its time waiting is correct, not broken. And
+      **`max_tokens: 900` was too low** — two Taglish messages returned 1,798
+      characters of JSON that stopped mid-structure, because non-ASCII inside
+      quoted strings tokenises at ~2 chars/token rather than 4. Raised to 1,600,
+      which costs nothing: `max_tokens` is a ceiling, not a reservation.
+      ⚠ It was only diagnosable because `validateExtractions` reports "ended
+      mid-structure" separately from "answered in prose" — the same words, two
+      opposite fixes.
 - [ ] "Needs attention" view over extractions
 - [ ] **Calendar write-back (US-7b, ADR-010):**
   - [ ] Meeting proposals in the UI, **source message shown beside each one**

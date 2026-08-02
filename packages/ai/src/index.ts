@@ -5,7 +5,7 @@ export type {
   EmbeddingProvider,
 } from './provider';
 
-export { createGroqProvider, GROQ_SUMMARY_MODEL } from './groq';
+export { createGroqProvider, GROQ_EXTRACTION_MODEL, GROQ_SUMMARY_MODEL } from './groq';
 
 export { createGeminiProvider, GEMINI_ASSISTANT_MODEL } from './gemini';
 
@@ -46,6 +46,24 @@ export {
   toVectorLiteral,
   warmEmbedder,
 } from './embed';
+
+export {
+  buildExtractionPrompt,
+  EXTRACTION_INPUT_LIMIT,
+  EXTRACTION_KINDS,
+  EXTRACTION_MIN_BODY,
+  EXTRACTION_SYSTEM_PROMPT,
+  MAX_EXTRACTIONS_PER_MESSAGE,
+  shouldExtract,
+  validateExtractions,
+  type ExtractableMessage,
+  type ExtractedItem,
+  type ExtractionDecision,
+  type ExtractionKind,
+  type ExtractionSkipReason,
+  type ExtractionValidation,
+  type ValidatedExtraction,
+} from './extract';
 
 export {
   buildSummaryPrompt,

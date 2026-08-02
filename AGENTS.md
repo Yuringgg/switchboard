@@ -689,7 +689,7 @@ personal conversations, and no library changes that legitimately.
 | **Phase 3 — console** | 🟡 **search + filters shipped and deployed.** Migration 0007, `/search`. Remaining: contacts, identity merge, attachments, virtualization |
 | **Phase 4A — summaries** | ✅ **shipped, deployed, running.** Migration 0008, Groq 8b. **66/66 eligible messages summarised**, and new mail is summarised automatically on ingest |
 | **Phase 4B — assistant** | ✅ **shipped and deployed.** Migrations 0009, local embeddings, `/assistant`. **75/75 messages embedded (397 chunks)**, worker serving `/embed`. ⚠ Prompt owes one tuning pass — see below |
-| **Phase 5** | ⬜ not started. **This is the next thing to build.** |
+| **Phase 5 — extraction** | 🟡 **extraction pass shipped 2026-08-03.** Migration 0011, `packages/ai/src/extract.ts`, worker step, backfill + eval scripts. Remaining: "needs attention" view, calendar write-back |
 
 ### Verified live on 2026-08-02, by querying — not by inference
 
@@ -807,6 +807,41 @@ measured and ruled out.
 
 **389 tests.** `pnpm typecheck`, `pnpm test`, `next build`, the worker bundle and
 `assert-rls` (all ten tables) are green.
+
+### Phase 5a shipped 2026-08-03 — the extraction pass (ADR-019)
+
+The worker now pulls **commitments, meetings, action items and questions** out
+of every message into `extractions`. Five things a session touching it must know:
+
+- **⚠ It must NEVER fail an event**, the same contract as summaries and
+  embeddings, and it runs **last of the three** on purpose: if the shared
+  6,000 tokens/minute window runs out mid-batch, the step that should lose is
+  the one whose output is read hours later on another screen.
+- **⚠ `llama-3.1-8b-instant`, never the 70B.** Re-verified from live headers on
+  2026-08-03: 14,400 req/day against the assistant's 1,000.
+- **⚠ Idempotency needed migration 0011 — `message_extraction_runs`.**
+  `extractions` has no unique key for these kinds (many-per-message by design)
+  and a message that legitimately yields **nothing** — most of a real mailbox —
+  is indistinguishable from one never processed. Without it every redelivery and
+  every backfill re-pays for work already done. **It is an ELEVENTH table, and
+  `assert-rls.ts` fails on any table it does not list.** Negative-controlled.
+- **⚠ The quote check is the hallucination guard.** Every item carries the
+  verbatim sentence it came from, and a row whose quote is not in the body is
+  **dropped**. A fabricated meeting has to fabricate a sentence. Whitespace and
+  smart quotes are normalised; different *words* are not.
+- **⚠ Relative dates resolve against the message's SEND time**, never today.
+  Measured correct against the live model: *"Meeting at 9pm tonight"* sent
+  2 Aug 19:59 → `2026-08-02T21:00+08:00`. Against the current clock it would be
+  a well-formed row on the wrong day, with no error anywhere.
+
+Two measurements worth carrying: one request costs **~3,500 tokens, 3,370 of
+them the prompt**, so throughput is ~1.7/minute and **a backfill that spends most
+of its time waiting is correct**. And **`max_tokens: 900` was too low** — two
+Taglish messages returned 1,798 characters of JSON that stopped mid-structure,
+because non-ASCII in quoted strings tokenises at ~2 chars/token, not 4. Now
+1,600, which is free: `max_tokens` is a ceiling, not a reservation. It was only
+diagnosable because the validator reports *"ended mid-structure"* separately from
+*"answered in prose"* — same words, opposite fixes.
 
 ### Shipped 2026-08-02 (late) — assistant loose ends closed
 

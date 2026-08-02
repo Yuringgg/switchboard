@@ -53,6 +53,27 @@ const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 export const GROQ_SUMMARY_MODEL = 'llama-3.1-8b-instant';
 
 /**
+ * Phase 5 extraction runs on the SAME model as summaries. Deliberately.
+ *
+ * `docs/04-ROADMAP.md` is explicit that extraction must not use the assistant's
+ * `llama-3.3-70b-versatile`: Groq's limits are per-model, extraction is the
+ * many-small-prompts shape, and the 70B has **1,000 requests/day** against this
+ * model's **14,400** — verified again from live headers on 2026-08-03
+ * (`x-ratelimit-limit-requests: 14400`, `limit-tokens: 6000`). Spending the
+ * 70B's allowance on extraction would stop the assistant answering.
+ *
+ * ⚠ **The consequence, stated because it is new:** extraction and summarisation
+ * now share one **6,000 tokens/minute** window. Ingesting a batch does two
+ * prompts per message where Phase 4A did one, so the minute budget is reached
+ * roughly twice as fast. That is why both steps are sequential, both cap their
+ * input at 4,000 characters, and both stop the batch on a retryable failure
+ * rather than grinding through it — anything left is picked up by the backfill,
+ * which honours `retry-after`. The alternative, a second model, would move
+ * extraction onto an allowance the assistant needs.
+ */
+export const GROQ_EXTRACTION_MODEL = GROQ_SUMMARY_MODEL;
+
+/**
  * Which limit a 429 named — the per-minute window, or the daily allowance.
  *
  * ── ⚠ Why this reads the error body, when nothing else here does ─────────────

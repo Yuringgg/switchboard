@@ -425,6 +425,37 @@ and waits rather than abandoning the run. ⚠ **`retry-after` can be fractional
 ("11.75") — `parseFloat`, not `parseInt`,** or an 11.75s wait becomes 11s and
 429s again immediately.
 
+### ⚠ What Phase 5 extraction actually costs — measured 2026-08-03
+
+Re-verified from the live headers on the day extraction shipped, so the numbers
+above are not being taken on trust: `llama-3.1-8b-instant` returns
+`x-ratelimit-limit-requests: 14400`, `x-ratelimit-limit-tokens: 6000`,
+`x-ratelimit-reset-requests: 6s` (= 86400/14400, a leaky bucket).
+
+One extraction request, on a newsletter capped to 4,000 characters:
+
+```
+prompt_tokens: 3370   completion_tokens: 159   total_tokens: 3529
+```
+
+Three things follow, and each had a plausible wrong answer:
+
+- **~1.7 extraction requests per minute**, against the 6,000/minute window —
+  which extraction now **shares with summaries**, since both run on this model
+  and both run on the same message. A full-corpus backfill therefore takes tens
+  of minutes and spends most of that waiting. **That is correct behaviour, not a
+  bug**, and the script's `retry-after` handling is what makes it safe to leave
+  running. Live ingest handles a few messages at a time and never notices.
+- **The cost is the PROMPT, not the answer** — 3,370 against 159. So the lever
+  is the input cap (`EXTRACTION_INPUT_LIMIT`, 4,000 characters), not
+  `max_tokens`, which is a ceiling rather than a reservation and is not billed
+  unless used.
+- **`max_tokens: 900` was nonetheless too low**, and the way it failed is worth
+  keeping: two messages returned **1,798 characters** of JSON that stopped
+  mid-structure. That is nowhere near 900 tokens at four-characters-per-token —
+  but this corpus is **Taglish with emoji**, and non-ASCII inside quoted strings
+  tokenises at roughly *two* characters per token. Raised to 1,600.
+
 Extraction is the opposite shape from Q&A: **many small self-contained prompts**,
 one per message. That's bounded by requests/day, where Groq's 14,400 is generous
 and its latency is excellent. Limits are per-model, so extraction never competes

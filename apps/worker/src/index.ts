@@ -2,11 +2,18 @@ import { createServer } from 'node:http';
 
 import { timingSafeEqual } from 'node:crypto';
 
-import { createGroqProvider, embedQuery, isEmbedderLoaded, warmEmbedder } from '@switchboard/ai';
+import {
+  createGroqProvider,
+  embedQuery,
+  GROQ_EXTRACTION_MODEL,
+  isEmbedderLoaded,
+  warmEmbedder,
+} from '@switchboard/ai';
 import { createDbClient } from '@switchboard/db';
 
 import { claimNextEvent, markDone, markFailed } from './claim';
 import { embedBatch } from './embed-messages';
+import { extractBatch } from './extract';
 import {
   DATABASE_URL,
   EMBED_API_SECRET,
@@ -50,6 +57,30 @@ if (summariser) {
   console.info(`[summary] enabled, model=${summariser.model}`);
 } else {
   console.info('[summary] disabled: GROQ_API_KEY is not set. Mail still ingests.');
+}
+
+/**
+ * Phase 5 extractor, or null when no key is configured.
+ *
+ * ⚠ The SAME model as the summariser, and the same provider shape — but a
+ * separate handle, because the two ask for different things: extraction needs
+ * far more output tokens for JSON and runs at temperature 0.
+ *
+ * `GROQ_EXTRACTION_MODEL` is `llama-3.1-8b-instant`, deliberately **not** the
+ * assistant's 70B: Groq's limits are per-model, this one allows 14,400
+ * requests/day against the 70B's 1,000, and the assistant needs that 1,000.
+ *
+ * Null is a supported state, exactly as it is for summaries: no key means no
+ * proposals and mail flows exactly as before.
+ */
+const extractor = GROQ_API_KEY
+  ? createGroqProvider({ apiKey: GROQ_API_KEY, model: GROQ_EXTRACTION_MODEL })
+  : null;
+
+if (extractor) {
+  console.info(`[extract] enabled, model=${extractor.model}`);
+} else {
+  console.info('[extract] disabled: GROQ_API_KEY is not set. Mail still ingests.');
 }
 
 let running = true;
@@ -292,6 +323,41 @@ async function processOne(): Promise<boolean> {
       } catch (error) {
         console.error(
           `[embed] event=${event.id} escaped its own error handling:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+
+    /*
+     * ── Phase 5: extraction → `extractions` (US-7, US-9, ADR-010) ────────────
+     *
+     * Same contract as the two steps above and for the same reason: wrapped so
+     * nothing here can reach the `catch` that calls `markFailed`. A missing
+     * proposal is a degradation; mail not arriving is an outage.
+     *
+     * ⚠ Runs LAST of the three, and that ordering is deliberate. Summaries and
+     * embeddings are what the timeline and search need to look right the moment
+     * a message lands; a proposal is read minutes or hours later on a different
+     * screen. If the shared 6,000 tokens/minute window runs out mid-batch, the
+     * step that should lose is this one.
+     *
+     * ⚠ Nothing here touches a calendar. Every row lands unconfirmed, with
+     * `calendar_event_id` null. ADR-010: propose, never assert.
+     */
+    if (extractor && createdIds.length > 0) {
+      try {
+        const extracted = await extractBatch(db, extractor, createdIds);
+        if (extracted.rows > 0 || extracted.failed > 0) {
+          console.info(
+            `[extract] event=${event.id} messages=${extracted.written} ` +
+              `rows=${extracted.rows} skipped=${extracted.skipped} failed=${extracted.failed}`,
+          );
+        }
+      } catch (error) {
+        // Unreachable by design. Logged rather than swallowed silently so that
+        // if the guarantee is ever broken, it is visible.
+        console.error(
+          `[extract] event=${event.id} escaped its own error handling:`,
           error instanceof Error ? error.message : error,
         );
       }

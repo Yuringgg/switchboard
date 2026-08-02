@@ -45,17 +45,28 @@ migrations/0003_channels_unique_account.sql   a reconnect cannot double a mailbo
 migrations/0004_raw_events_idempotency.sql    the guard a redelivery hits first
 migrations/0005_realtime_messages.sql     messages → supabase_realtime
 migrations/0006_channels_external_account.sql  the WhatsApp tenant lookup key
+migrations/0007_message_search.sql        full-text search, SECURITY INVOKER
+migrations/0008_summary_extractions.sql   Phase 4A: one summary per message
+migrations/0009_chunk_retrieval.sql       HNSW index + match_chunks
+migrations/0010_search_summaries.sql      search results carry their summary
+migrations/0011_extraction_runs.sql       Phase 5: "the pass has run" (ADR-019)
 
 tests/tenant_isolation.sql           two tenants, one shared contact, no bleed
 tests/idempotency.sql                replay 3×, assert one row, across 4 guards
-scripts/assert-rls.ts                CI: RLS + force + USING/WITH CHECK, 10 tables
+scripts/assert-rls.ts                CI: RLS + force + USING/WITH CHECK, 11 tables
 scripts/provision-whatsapp.ts        assign a business number to an owner
 src/schema.ts                        Drizzle tables for typed queries
 src/supabase-types.ts                generated types, kept in step by hand
 ```
 
-All six migrations are applied to project `ytrkpcryztwgflmbhfdu`
+All eleven migrations are applied to project `ytrkpcryztwgflmbhfdu`
 (`ap-southeast-1`), verified by introspection rather than assumed.
+
+⚠ **Adding a table to `public` makes CI red until `EXPECTED_TABLES` in
+`scripts/assert-rls.ts` lists it.** That is deliberate (ADR-012): the script
+rejects any table it does not recognise, so a new tenant-data table cannot slip
+past the boundary check unnoticed. Update it in the same commit as the
+migration, and negative-control the result.
 
 **Run the isolation test after any change to a policy or to `owner_id`.** It is
 self-verifying — every assertion raises, so a clean run is the pass — and it

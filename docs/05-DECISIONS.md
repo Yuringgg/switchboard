@@ -1051,6 +1051,82 @@ because a doc that contradicts the code is worse than either (ADR-013).
 
 ---
 
+## ADR-019 — Extraction records that it ran, in its own table
+
+**Status:** Accepted · 2026-08-03 · *Migration 0011*
+
+**Context.** Phase 4A could ask *"is this message already summarised?"* because
+migration 0008 gave `extractions` a partial unique index on `(message_id) where
+kind = 'summary'`. Exactly one summary per message, so the row's presence **is**
+the answer, and `apps/worker/src/summarize.ts` reads it before spending a
+request.
+
+Phase 5's kinds are deliberately the opposite. One message can carry two
+commitments, a meeting and a question, so there is no unique key to conflict on
+— and the part that actually bites: **a message that legitimately yields nothing
+is indistinguishable from one that was never processed.** Most of a real mailbox
+is newsletters, receipts and notifications; "no rows" is the ordinary outcome,
+not a failure.
+
+Without a marker, every Pub/Sub redelivery, every Meta retry (seven days of
+them) and every backfill run re-sends those messages to Groq to be told nothing
+again. `summarize.ts` already names that cost precisely: *"Paying for the same
+summary twice is the mild outcome; exhausting a 14,400/day allowance on work
+already done is the real one."*
+
+**Decision.** A separate table, `message_extraction_runs` — `message_id` as the
+primary key, plus `owner_id`, `model`, `rows_written` and `created_at`. RLS
+enabled, forced, one policy carrying USING **and** WITH CHECK, exactly like
+every other table (ADR-009). `extractMessage` reads it before the API call and
+writes it **inside the same transaction** as the rows.
+
+**Why a table rather than a row in `extractions`.**
+
+`extractions` means *"something a model found"*. This means *"a model looked"*.
+Those are different facts, and a marker row in `extractions` would put a row in
+that table which is not an extraction — so every query over it (the timeline's
+PostgREST embed, `search_messages`'s LEFT join, the "needs attention" view)
+grows a filter whose only job is to exclude bookkeeping. One of them eventually
+forgets it, and this project has already shipped that exact class of bug twice
+in one migration (0010's LEFT-join traps).
+
+It also makes re-running with a better prompt a clean operation: delete the runs
+for a model, delete that model's rows, re-run. As a marker kind those two
+deletes are the same statement, and getting it wrong deletes real extractions.
+
+**`rows_written` is not decoration.** Zero is the common case, and recording it
+is what separates *"extraction ran and this message contains no commitments"*
+from *"extraction has not run"*. Without it the table answers half the question
+it exists to answer.
+
+**Consequences.**
+
+- **An eleventh table, and `packages/db/scripts/assert-rls.ts` fails until it is
+  listed there.** That is the guard working as designed (ADR-012): the script
+  rejects any table in `public` it does not recognise, so a new tenant-data
+  table cannot slip past the boundary check. Updated in the same commit, and
+  negative-controlled — RLS disabled on the new table, the check exits 1 and
+  names it; re-enabled, all eleven pass.
+- The rows and the run record must be written in **one transaction**. Rows
+  without a run mean the next pass doubles every proposal; a run without its
+  rows means the message is marked done and its real commitments are lost with
+  no way to notice.
+- **A failure records nothing.** A rate limit, an outage or an unparseable
+  response leaves the message outstanding, which is what makes the backfill
+  resumable and what makes "stop the batch on a retryable failure" safe.
+
+**Rejected:**
+
+- **Guard on `exists(select 1 from extractions where message_id = X)`.** Zero
+  schema change, and wrong for the majority case: every message that correctly
+  yields nothing is re-sent on every redelivery and every backfill run.
+- **A marker `kind` in `extractions`.** Reasons above.
+- **A column on `messages`.** `messages` is the record of **what arrived**
+  (ADR-006, ADR-015). Derived processing state does not belong in it, and the
+  console treats those rows as immutable history.
+
+---
+
 ## Template for new ADRs
 
 ```markdown

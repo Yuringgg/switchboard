@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./groq": "./src/groq.ts",
     "./summarize": "./src/summarize.ts",
+    "./extract": "./src/extract.ts",
     "./provider": "./src/provider.ts"
   },
   "scripts": {
@@ -15,6 +16,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0"
+    "@huggingface/transformers": "^4.2.0",
+    "zod": "^4.1.13"
   }
 }

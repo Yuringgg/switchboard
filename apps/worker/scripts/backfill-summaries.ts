@@ -76,14 +76,20 @@ async function main(): Promise<void> {
      * The length filter mirrors `shouldSummarise`'s `already-short` rule so the
      * count printed below is honest: without it this would report "40 pending"
      * and then skip 30 of them locally, which reads as a broken backfill.
+     *
+     * ⚠ `btrim` with ONE argument trims spaces only — not tabs, not newlines.
+     * JavaScript's `.trim()`, which `shouldSummarise` uses, strips all of them,
+     * so the default over-counts a body padded with blank lines and lists a
+     * message this script then skips. Corrected 2026-08-03 while writing the
+     * extraction backfill, where the same default surfaced a `\r\n`-only body.
      */
     const pending = await db.execute<{ id: string; length: number }>(sql`
-      select m.id, length(btrim(m.body_text)) as length
+      select m.id, length(btrim(m.body_text, E' \t\r\n')) as length
         from messages m
         left join extractions e
           on e.message_id = m.id and e.kind = 'summary'
        where e.id is null
-         and length(btrim(m.body_text)) >= 280
+         and length(btrim(m.body_text, E' \t\r\n')) >= 280
        order by m.sent_at desc
        limit ${LIMIT}
     `);
