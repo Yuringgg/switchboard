@@ -8,6 +8,30 @@ Everything below was measured against the live system, not inferred.
 
 ---
 
+> ## ⚠ Corrections, 2026-08-03 — read before §4 and §5
+>
+> This file is left as written, because it is the record of what was true that
+> night. Three things changed the next morning:
+>
+> 1. **`/assistant` answers in production.** The three Vercel variables were set
+>    and the deployment recreated. §5's "still unset on Vercel" is **no longer
+>    true**.
+> 2. **The "upcoming meetings" known gap is closed for now.** Yuri sent the mail
+>    described in §4 — *"Project sync with Ms. Maria"*, Fri 7 Aug 2026 3:00 pm —
+>    and the assistant answers the question correctly, citing it. The eval case
+>    is back to `answer`. ⚠ **It expires on 8 August**, when that date stops
+>    being upcoming; `staleAfter` in `eval-cases.ts` now makes the eval say so
+>    out loud instead of quietly turning red. Phase 5 extraction is the durable
+>    fix (US-7, R14).
+> 3. **Ms. Maria's BRD and the Fatima meeting are withdrawn** (R22). §4's
+>    "still outstanding" list is stale on that point. The **consent** question
+>    (Q2) is separate and remains open.
+>
+> Still accurate: the full unfiltered eval has **not** been run, and the ~30
+> questions/day is **shared across all users**, not per user (Q11).
+
+---
+
 ## 1. The headline: the prompt was not the problem
 
 Three documents — `AGENTS.md` §7, `docs/04-ROADMAP.md`, and Q9 in

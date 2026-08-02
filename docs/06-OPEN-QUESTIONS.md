@@ -5,48 +5,6 @@ to the bottom with their answer.*
 
 ---
 
-## 🔴 Outstanding input from the mentor
-
-### Q8 — What came out of Ms. Maria's meeting with Fatima?
-**Raised:** 2026-08-02 · **Relevant by:** now — it may close the biggest open risk
-
-In the same WhatsApp thread she mentioned *"nakausap ko palang sila fati now"* —
-she had just spoken with Fatima. `docs/00-CONTEXT.md` §6 item 3 lists exactly
-that meeting as pending, and §7 records the standing risk that **the project
-scope has never been formally confirmed by iOzera** — everything in these docs
-rests on her verbal description.
-
-That conversation may be where her *"answers and recommendations"* (Q6) came
-from. **Ask about both together.** If scope was confirmed, §7's open-scope risk
-can finally be closed.
-
-### Q6 — Where are Ms. Maria's recommendations?
-**Raised:** 2026-08-01 · **Blocking:** nothing yet, but it is real input we do not have
-
-She wrote: *"i checked your systems and querries and set aside the answers snd
-recommendations"*. **They have not arrived.**
-
-**This is very likely the BRD she offered on day one** — *"lmk if you need help
-ill try to compile a short brd or feats you can add"* (`docs/00-CONTEXT.md`
-§2a). A business requirements document from the sole source of requirements is
-the single most valuable outstanding input to this project, and it would settle
-scope questions that are currently guesses. **Name it when you ask her:** *"Ms,
-yung short BRD/feats mo — saan mo po sinend?"* Checked exhaustively on 2026-08-02
-— they are **not on GitHub**: no issues, no pull requests, no comments, no
-branches besides `main`, no forks, and every event on the repo is Yuri's own
-push. She is not a collaborator on it.
-
-**Action: Yuri asks her where she put them.** Likeliest places are WhatsApp,
-email, or a Notion page — note that Q5 already records her asking for a Notion
-write-up, so a shared Notion space may be where she expects this to live.
-
-Ask about **consent and retention in the same conversation** — Phase 4A sends
-message bodies to a third-party LLM for the first time (ADR-015), which makes
-the Q2/RA 10173 question in `docs/02-ARCHITECTURE.md` §6 concrete rather than
-theoretical.
-
----
-
 ## 🟡 Needs a decision, not blocking
 
 ### Q11 — The assistant's ~30 questions/day is shared by all tenants. Fair?
@@ -128,6 +86,30 @@ WhatsApp reality check are the two things she'll actually care about.
 ---
 
 ## ✅ Resolved
+
+### R22 — Ms. Maria's BRD and the Fatima meeting *(closes Q6 and Q8)*
+**Withdrawn by Yuri, 2026-08-03: neither is needed any more.** Q6 chased the
+*"answers and recommendations"* she mentioned on 2026-08-01 and the short BRD she
+offered on 2026-07-25; Q8 chased the outcome of her conversation with Fatima.
+Both were checked exhaustively on 2026-08-02 and are not on GitHub.
+
+**Stop chasing them.** The product owner has decided the project proceeds on the
+scope already built, and that is their call to make (R2 set the same precedent on
+naming).
+
+⚠ **What this does NOT close, stated plainly so nobody assumes it did:**
+`docs/00-CONTEXT.md` §7 records that **the scope has never been formally
+confirmed by iOzera** — everything in these docs rests on Ms. Maria's verbal
+description. That risk is now **accepted rather than resolved**. It is very
+likely fine: the built system matches her founding message closely, including the
+summarizer and "real time" (§2a). But a future session should not read the
+absence of Q6/Q8 as evidence that scope was signed off.
+
+⚠ **The consent conversation is a separate question and is still open.** Q6 used
+to carry it along, so it needs saying on its own: Phase 4A sends message bodies
+to a third-party LLM, and `docs/02-ARCHITECTURE.md` §6 gates **real iOzera client
+data** on an RA 10173 consent discussion. Dogfooding on Yuri's own accounts —
+which is all that has ever happened — remains fine and unaffected. *2026-08-03*
 
 ### R1 — Can we use the Azure credit for the LLM?
 **No.** Azure for Students cannot provision Azure OpenAI. → Groq/Llama instead

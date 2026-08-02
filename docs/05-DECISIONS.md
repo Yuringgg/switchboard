@@ -703,7 +703,9 @@ Maria, WhatsApp, 00:16 on 2026-07-25 — the message that started this project:
 
 Followed at 00:16 by *"we have this project in the loop and isa yan sa
 features"*, and at 00:18 by *"lmk if you need help ill try to compile a short
-brd or feats you can add"* — a BRD that never arrived (Q6).
+brd or feats you can add"* — a BRD that never arrived, and which Yuri stopped
+chasing on 2026-08-03 (R22). It changes nothing about this ADR: the founding
+request quoted above is the requirement, and it is verbatim.
 
 Then on 2026-08-01, replying to *"Gmail works, emails pop up on the website"*:
 

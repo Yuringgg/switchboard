@@ -429,11 +429,15 @@ Maria more urgent, and it makes prompt injection a real surface — an email can
 try to dictate its own summary, and a human reads the result.
 
 **She also said (2026-08-01) she "checked your systems and queries and set aside
-the answers and recommendations".** Checked exhaustively on 2026-08-02: **they
-are not on GitHub** — no issues, no pull requests, no comments, no branches
-besides `main`, no forks, and every repo event is Yuri's own push. She is not a
-collaborator. **Yuri needs to ask her where she put them**; they are an
-outstanding input to this project.
+the answers and recommendations".** Checked exhaustively on 2026-08-02: they are
+not on GitHub — no issues, pull requests, comments, branches besides `main` or
+forks, and every repo event is Yuri's own push. **✅ CLOSED 2026-08-03 — Yuri
+withdrew the chase; the project proceeds on the scope already built (R22). Do not
+re-open it.** ⚠ That accepts `docs/00-CONTEXT.md` §7's open-scope risk rather
+than resolving it: do not read the absence of the question as scope having been
+formally confirmed by iOzera. The **consent** question (Q2 / RA 10173) is
+separate and stays open — it gates real *client* data, not the dogfooding on
+Yuri's own accounts that is all this system has ever seen.
 
 **→ Next action: Yuri's Meta clicks.** Developer account, an app with the
 WhatsApp product, the free test number, up to 5 verified recipients, the webhook
@@ -534,10 +538,12 @@ its own size once the runtime and Node's heap are counted. Now **0.5 vCPU /
   nothing is logged. **Size memory before loading a model** — an error handler
   is not a substitute.
 
-⚠ **`/assistant` is not answering in production yet.** Three variables are still
-unset on **Vercel** — `EMBED_API_URL`, `EMBED_API_SECRET`, `GROQ_API_KEY`. Until
-then it renders a clean "could not reach the embedding service" error. Values
-and the redeploy caveat are in `docs/04-ROADMAP.md`.
+✅ **`/assistant` ANSWERS IN PRODUCTION.** Confirmed by Yuri on 2026-08-03:
+`EMBED_API_URL`, `EMBED_API_SECRET` and `GROQ_API_KEY` are set on Vercel and the
+deployment was recreated, so the whole path — question → worker `/embed` →
+`match_chunks` under the user's own session → Groq → cited answer — runs live.
+Verified end to end against a real question, with the citation resolving to the
+right message. *(Earlier docs said this was still outstanding; it is not.)*
 
 **⚠ CI does not repoint the Container App.** `worker-image.yml` pushes a new
 image to ghcr; the app runs one pinned by **digest**. Until
@@ -714,7 +720,10 @@ Vercel, redeploy, subscribe the `messages` webhook field, run
 
 1. **Reconnect Gmail every 7 days** and on the morning of any demo. Last
    reconnect 2026-08-01; next lapse **2026-08-08**.
-2. **Ask Ms. Maria where she put her recommendations / the BRD.** Not on GitHub.
+2. ~~Ask Ms. Maria for her recommendations / the BRD.~~ **Withdrawn by Yuri
+   2026-08-03 — stop chasing it (R22).** ⚠ Note what that does *not* mean:
+   `docs/00-CONTEXT.md` §7's open-scope risk is now **accepted**, not resolved.
+   Do not read the absence of the question as scope having been signed off.
 3. **⚠ Rotate the Groq and Gemini keys before this repo is shown to iOzera** —
    both were pasted into a chat transcript on 2026-08-02, at Yuri's explicit
    instruction. Nothing was committed; `.env` is gitignored.
@@ -722,11 +731,14 @@ Vercel, redeploy, subscribe the `messages` webhook field, run
    last session's run was cut short by the daily token cap after measuring 1/1
    answerable and 2/2 must-refuse. A full run costs ~half a day's tokens, so do
    it first thing, not after burning budget on something else.
-5. **Send yourself one email naming a genuinely future date** if a demo is
-   coming. *"Do I have any upcoming meetings?"* is Ms. Maria's own example
-   question and it currently, correctly, refuses — the newest meeting in the
-   mailbox is from 27 July. Exact steps:
-   `correspondence/2026-08-02-assistant-loose-ends.md` §4.
+5. **⚠ Keep a genuinely future-dated meeting in the mailbox.** *"Do I have any
+   upcoming meetings?"* is Ms. Maria's own example question, and it can only be
+   answered from a mail whose date is still ahead. Yuri sent one on 2026-08-03
+   (*"Project sync with Ms. Maria"*, Fri 7 Aug 3:00 pm) and the assistant answers
+   it correctly — **but that expires on 8 August.** The eval now prints a loud
+   STALE warning past `staleAfter` rather than just going red, so a failure is
+   not mistaken for a prompt regression again. **Phase 5 extraction is the
+   permanent fix** (US-7, R14).
 
 **⚠ The assistant is capped at roughly 30 questions per day.** Measured: Groq's
 70B allows 12,000 tokens/min and ~100,000 tokens/day, and one question costs
@@ -754,14 +766,19 @@ eval was scoring them as failures:
   model were newsletters and promotions. **None of the CI failures, deploy
   failures or the Supabase pause was in context at all.** e5 has no
   representation of *importance*; no prompt wording reaches this.
-- *"Do I have any upcoming meetings?"* — **every meeting in the corpus is dated
-  27–28 July** and three of five have bodies reading only "YURI". The one naming
+- *"Do I have any upcoming meetings?"* — **every meeting in the corpus was dated
+  27–28 July** and three of five had bodies reading only "YURI". The one naming
   a time ("9pm tonight") was sent 19:59 on 2 Aug; the eval ran at 22:40. The
   case's verdict **depended on the wall clock**.
+  ✅ **Resolved 2026-08-03** — Yuri sent a mail naming a real future date and the
+  assistant now answers it correctly in production, citing the right message. The
+  case is back to `answer`, **with a `staleAfter` guard**: it expires again on
+  8 August, and the eval says so out loud rather than quietly turning red.
 
-Both are Phase 5 features asked of Phase 4B (US-7, US-9; R14 routes meetings
-through extraction) and are now `known-gap` — asked and printed every run, not
-scored. **Tuning to 7/7 would have been fabrication with a passing score**: the
+*"Needs my attention"* is a Phase 5 feature asked of Phase 4B (US-9) and remains
+`known-gap` — asked and printed every run, not scored. The meetings question is
+answerable today only because a dated mail exists; **Phase 5 extraction is what
+makes it durable** (US-7, R14). **Tuning to 7/7 would have been fabrication with a passing score**: the
 pre-hardening prompt already reached 7/7 answerable at **3/8 refusals**, citing
 all eight retrieved messages for a question about a submarine.
 

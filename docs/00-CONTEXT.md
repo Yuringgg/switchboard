@@ -61,9 +61,17 @@ Five things in there that the reconstruction lost:
    demo, and anything shown to iOzera. Her suggestion is left in the quote above
    because it is a verbatim record, not because it is still live.
 
-⚠ **She offered a BRD** — *"ill try to compile a short brd or feats you can
-add"*. That was never delivered and it is very likely what she meant on
-2026-08-01 by *"set aside the answers and recommendations"*. **Chase it** — Q6.
+**She offered a BRD** — *"ill try to compile a short brd or feats you can add"*.
+It was never delivered, and it is very likely what she meant on 2026-08-01 by
+*"set aside the answers and recommendations"*. **✅ Yuri withdrew the chase on
+2026-08-03 (R22) — do not re-open it.** The verbatim quote stays above because it
+is a record of what was said, not a live action.
+
+⚠ **What that leaves standing:** §7 below records that the scope has never been
+formally confirmed by iOzera, and closing the chase **accepts** that risk rather
+than resolving it. In practice it looks fine — the built system matches her
+founding message closely, summarizer and "real time" included — but a future
+session must not read the absence of the question as sign-off.
 
 ### 2b. The meeting, as reconstructed
 

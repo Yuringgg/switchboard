@@ -71,6 +71,27 @@ async function main(): Promise<void> {
     const selected = selectCases(process.argv);
     console.info(`${selected.length} case${selected.length === 1 ? '' : 's'} selected\n`);
 
+    /*
+     * ⚠ Say it BEFORE the run, not after it goes red.
+     *
+     * A case whose evidence has aged past the question is what ADR-017 is about:
+     * "do I have any upcoming meetings?" was scored as a failure for days while
+     * the model answered it correctly, because the meeting it rested on had
+     * already happened. A red line at the bottom of a long run is exactly the
+     * signal someone reads as "the prompt regressed".
+     */
+    const today = new Date().toISOString().slice(0, 10);
+    for (const testCase of selected) {
+      if (testCase.staleAfter && today > testCase.staleAfter) {
+        console.info(
+          `⚠ STALE: "${testCase.question}"\n` +
+            `  Its evidence expired on ${testCase.staleAfter}. A failure here is the\n` +
+            `  CORPUS being out of date, not the prompt — send yourself a mail naming a\n` +
+            `  real future date, or close it properly with Phase 5 extraction (US-7).\n`,
+        );
+      }
+    }
+
     const score = {
       answer: { passed: 0, total: 0 },
       refuse: { passed: 0, total: 0 },

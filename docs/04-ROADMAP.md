@@ -626,8 +626,11 @@ ingest path lands when the Container App is repointed at the new image
 > non-fatal by design, and it did not help: the kernel SIGKILLs the process, so
 > no handler runs and nothing is logged. Size memory *before* loading a model.
 >
-> **Still to do — Vercel only.** Until these are set, `/assistant` renders a
-> clean "could not reach the embedding service" error rather than answers:
+> **✅ DONE — the console side landed 2026-08-03.** All three variables are set
+> on Vercel and the deployment was recreated, so **`/assistant` answers in
+> production**: question → worker `/embed` → `match_chunks` on the user's own
+> session → Groq → a cited answer, with the citation resolving to the right
+> message. Confirmed by Yuri against a real question.
 >
 > | Variable | Value |
 > |---|---|
@@ -635,9 +638,10 @@ ingest path lands when the Container App is repointed at the new image
 > | `EMBED_API_SECRET` | the same 64-hex secret set on Azure |
 > | `GROQ_API_KEY` | the same key the worker uses |
 >
-> ⚠ Vercel binds environment variables **when a deployment is created** — adding
-> them does nothing until the next build. **Redeploy after setting them**, and
-> paste values **unquoted**.
+> ⚠ Kept because they are needed again on any new Vercel project or preview
+> scope. Vercel binds environment variables **when a deployment is created** —
+> adding them does nothing until the next build. **Redeploy after setting them**,
+> and paste values **unquoted**.
 >
 > The Dockerfile change was verified against a **simulated copy of the runtime
 > layout** before it shipped, because Docker is not installed on this machine.

@@ -52,6 +52,17 @@ export interface EvalCase {
   expectSomeOf?: string[];
   /** `known-gap` only: why it cannot be measured yet, and what would close it. */
   gap?: string;
+  /**
+   * `YYYY-MM-DD` after which this case's answer depends on something that has
+   * expired — a dated message that is no longer in the future.
+   *
+   * ⚠ This field exists because a case that quietly goes stale is the exact bug
+   * ADR-017 was written about: "do I have any upcoming meetings?" was scored as
+   * a failure for days while the model was answering it correctly, because the
+   * evidence behind it had aged past the question. The eval now says so out loud
+   * instead of just going red.
+   */
+  staleAfter?: string;
 }
 
 export const CASES: EvalCase[] = [
@@ -112,17 +123,33 @@ export const CASES: EvalCase[] = [
   },
   { question: 'Which supplier won the tender for the new warehouse?', expect: 'refuse' },
 
-  // ── Known gaps — asked and printed, deliberately not scored ───────────────
+  // ── Ms. Maria's own example question ──────────────────────────────────────
+  //
+  // ⚠ This was a `known-gap` for one day, and the history is worth keeping.
+  //
+  // On 2026-08-02 every meeting in the corpus was dated 27–28 Jul, three of the
+  // five bodies read only "YURI", and the one naming a time ("9pm tonight") was
+  // already in the past by the time the eval ran. The model refused, correctly,
+  // and the eval scored that as a failure — ADR-017.
+  //
+  // On 2026-08-03 Yuri sent one mail naming a real future date ("Project sync
+  // with Ms. Maria", Fri 7 Aug 2026 3:00 pm). probe-context.ts confirms it is
+  // now retrieved and kept, and the assistant answers it accurately in
+  // production. So this is a genuine `answer` case again.
+  //
+  // ⚠⚠ AND IT WILL GO STALE ON 8 AUGUST, for exactly the reason it was broken
+  // before: 7 Aug stops being "upcoming". `staleAfter` makes the eval say so
+  // rather than quietly turning red and inviting another prompt-tuning session.
+  // **Phase 5 extraction is the permanent fix** (US-7, R14) — until then this
+  // case is only as fresh as the newest dated mail in the mailbox.
   {
     question: 'Do I have any upcoming meetings?',
-    expect: 'known-gap',
-    gap:
-      'No future-dated meeting exists in the corpus. All five meeting messages ' +
-      'are 27–28 Jul and three have empty bodies; the only one naming a time ' +
-      '("9pm tonight", sent 19:59 on 2 Aug) is in the past for most of the day. ' +
-      'Closed by Phase 5 extraction (US-7, R14) — or, for a demo, by sending ' +
-      'yourself one mail naming a real future date.',
+    expect: 'answer',
+    expectSomeOf: ['aug', 'august', 'sync', 'maria', 'meeting', '3'],
+    staleAfter: '2026-08-07',
   },
+
+  // ── Known gaps — asked and printed, deliberately not scored ───────────────
   {
     question: 'Summarise what needs my attention.',
     expect: 'known-gap',
