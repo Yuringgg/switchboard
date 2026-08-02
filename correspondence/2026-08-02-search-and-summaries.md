@@ -143,8 +143,18 @@ az containerapp update -n switchboard-worker -g rg-switchboard \
 ```
 
 …the deployed worker keeps running the previous code **while the commit looks
-deployed** — the same shape as the BOM incident. Done manually for this release
-(revision `--0000009`, healthy, 1 replica).
+deployed** — the same shape as the BOM incident. Done manually for this release:
+revision **`--0000010`**, healthy, 1 replica, logging
+`[summary] enabled, model=llama-3.1-8b-instant` at startup.
+
+Resolving `latest` to a digest without Docker installed:
+
+```powershell
+$img = "yuringgg/switchboard-worker"
+$tok = (Invoke-RestMethod "https://ghcr.io/token?scope=repository:$img`:pull&service=ghcr.io").token
+$h = @{ Authorization = "Bearer $tok"; Accept = "application/vnd.oci.image.index.v1+json" }
+(Invoke-WebRequest "https://ghcr.io/v2/$img/manifests/latest" -Headers $h -Method Head -UseBasicParsing).Headers['Docker-Content-Digest']
+```
 
 `packages/ai/**` was also missing from that workflow's `paths` filter, which
 would have let an AI-only change silently ship the old image. Added.
