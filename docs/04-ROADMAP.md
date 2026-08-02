@@ -541,24 +541,40 @@ ingest path lands when the Container App is repointed at the new image
 > ADR-003's isolation argument inside one vendor.
 > `ASSISTANT_PROVIDER=gemini` switches back in one variable.
 
-> ### ⚠ Not yet live in production — deliberately
+> ### Deployment state — worker DONE, console waiting on 3 Vercel variables
 >
-> The code is pushed and the console builds, but **the deployed assistant will
-> report "could not reach the embedding service" until three things are done**,
-> and none of them was safe to do without watching the result:
+> **Done on the worker side, 2026-08-02:**
+> revision `--0000013`, healthy, `[embed] model ready in 5.6s`. Ingress is
+> external and `POST /embed` is verified from the public internet — no token
+> → 401, wrong token → 401, correct token → a 384-dimension vector.
+> `EMBED_API_SECRET` is an Azure secret.
 >
-> 1. The Container App must be repointed at the new image (CI builds it; nothing
->    repoints it — see the Phase 4A note above).
-> 2. The worker's ingress must be switched from **internal** to external, so
->    Vercel can reach `POST /embed`.
-> 3. `EMBED_API_SECRET` (both sides), `EMBED_API_URL` and `GROQ_API_KEY` must be
->    set on Vercel, and `EMBED_API_SECRET` on Azure.
+> **⚠ It crashlooped first, with exit code 137 — OOM.** The worker was sized
+> **0.25 vCPU / 0.5 GiB**, and a 129 MB quantised ONNX model needs far more than
+> its own size once the runtime and Node's heap are counted. Resized to
+> **0.5 vCPU / 1.0 GiB**. Two consequences, both in ADR-011's amendment:
+> the running cost roughly **doubles to ~$20–30/month**, and — the part worth
+> remembering — **graceful degradation cannot survive OOM.** `warmEmbedder()` is
+> non-fatal by design, and it did not help: the kernel SIGKILLs the process, so
+> no handler runs and nothing is logged. Size memory *before* loading a model.
+>
+> **Still to do — Vercel only.** Until these are set, `/assistant` renders a
+> clean "could not reach the embedding service" error rather than answers:
+>
+> | Variable | Value |
+> |---|---|
+> | `EMBED_API_URL` | `https://switchboard-worker.jollyriver-9d68797d.malaysiawest.azurecontainerapps.io` |
+> | `EMBED_API_SECRET` | the same 64-hex secret set on Azure |
+> | `GROQ_API_KEY` | the same key the worker uses |
+>
+> ⚠ Vercel binds environment variables **when a deployment is created** — adding
+> them does nothing until the next build. **Redeploy after setting them**, and
+> paste values **unquoted**.
 >
 > The Dockerfile change was verified against a **simulated copy of the runtime
-> layout** rather than a real build — Docker is not installed on this machine.
-> That simulation caught two real defects (see the commit), but it is not the
-> same as building the image. **Watch the logs after repointing and keep the
-> previous digest to roll back.**
+> layout** before it shipped, because Docker is not installed on this machine.
+> That simulation caught two real defects — it did not catch the OOM, which only
+> a real deployment could.
 
 > Two traps here, both easy to miss and painful to fix late. Use a **multilingual**
 > embedding model — the corpus is Taglish and English-only models degrade badly on

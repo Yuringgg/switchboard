@@ -498,12 +498,28 @@ came before:
   criterion (`docs/01-PRODUCT-SPEC.md` §7), not a UI detail. Do not "improve"
   the assistant by letting it answer without citations.
 
-⚠ **The deployed assistant does not work yet, deliberately** — the worker still
-runs the pre-4B image, its ingress is still internal, and four variables are
-unset. The steps are in `docs/04-ROADMAP.md`. The Dockerfile change was verified
-against a *simulated* runtime layout, not a real image build (Docker is not
-installed here), so **watch the logs after repointing and keep the previous
-digest**.
+**Worker side is deployed and verified (2026-08-02):** revision `--0000013`,
+`[embed] model ready in 5.6s`, ingress external, `POST /embed` answering from
+the public internet with 401 on a missing or wrong token.
+
+⚠ **It crashlooped first — exit code 137, OOM.** The worker was sized
+**0.25 vCPU / 0.5 GiB** and a 129 MB quantised ONNX model needs far more than
+its own size once the runtime and Node's heap are counted. Now **0.5 vCPU /
+1.0 GiB**. Two things to carry forward:
+
+- **Running cost roughly doubles, to ~$20–30/month** (ADR-011 amended). Over
+  four months that approaches the whole $100 credit — the "meaningful headroom"
+  `docs/03-RESOURCES.md` §1 predicted is now spent.
+- **⚠ Graceful degradation cannot survive OOM.** `warmEmbedder()` is
+  deliberately non-fatal so a bad image degrades instead of crashlooping, and it
+  did not help at all: the kernel SIGKILLs the process, so no handler runs and
+  nothing is logged. **Size memory before loading a model** — an error handler
+  is not a substitute.
+
+⚠ **`/assistant` is not answering in production yet.** Three variables are still
+unset on **Vercel** — `EMBED_API_URL`, `EMBED_API_SECRET`, `GROQ_API_KEY`. Until
+then it renders a clean "could not reach the embedding service" error. Values
+and the redeploy caveat are in `docs/04-ROADMAP.md`.
 
 **⚠ CI does not repoint the Container App.** `worker-image.yml` pushes a new
 image to ghcr; the app runs one pinned by **digest**. Until

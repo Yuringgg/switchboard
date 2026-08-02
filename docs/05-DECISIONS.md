@@ -452,6 +452,52 @@ a student project, worth flagging if iOzera ever runs this for real.
 warm (~$28/mo, exceeds the credit); worker on Vercel (serverless timeouts make
 queue processing and model loading impractical).
 
+**⚠ Amendment · 2026-08-02 — the worker needed twice the memory, and the cost
+estimate above is now low.**
+
+Phase 4B put the embedding model in the worker, as this ADR always intended.
+The revision **crashlooped with exit code 137** — SIGKILL, out of memory — at
+the original sizing of **0.25 vCPU / 0.5 GiB**. Loading a 129 MB quantised ONNX
+model needs materially more than the model's own size once the runtime, the
+session and Node's heap are counted. Resized to **0.5 vCPU / 1.0 GiB**, the
+model loads in **5.6 s** and the revision is healthy.
+
+Two things follow, and the second is the important one:
+
+1. **The cost estimate doubles.** This ADR's *"roughly $10–15/month"* was for
+   the old sizing. At 0.5 vCPU / 1 GiB expect roughly **$20–30/month**, which
+   over four months approaches or exceeds the whole $100 credit. Still the
+   credit's correct job, but it is no longer comfortably inside it —
+   `docs/03-RESOURCES.md` §1's "expect meaningful headroom left over" should be
+   read as spent.
+2. **⚠ Graceful degradation cannot survive OOM.** `warmEmbedder()` is
+   deliberately non-fatal so an image lacking the native ONNX binaries degrades
+   to "no semantic search" instead of crashlooping. That design is correct and
+   it did not help here: the kernel kills the process, so no `catch` runs and no
+   log is written. **Right-sizing memory is a prerequisite, not a mitigation** —
+   an error handler cannot protect against SIGKILL. If the worker ever loads a
+   second model, size it first.
+
+**Amendment · 2026-08-02 — the worker's ingress is now external.**
+
+This ADR left the worker unreachable from outside, which was right while nothing
+outside needed it. Phase 4B changed that: the console must turn a question into
+a query vector, and it cannot hold the model itself — 129 MB plus native
+binaries in a serverless function is a ~35 s cold start, and a demo's first
+question *is* a cold start.
+
+So the worker exposes exactly one route, `POST /embed`, behind a bearer secret
+compared timing-safely. It is deliberately the narrowest possible surface: **it
+takes text and returns numbers, never touches the database, and has no notion of
+a user.** Retrieval stays in the console through `match_chunks` on the user's own
+session, so RLS — not this process — decides whose messages are searched. Moving
+retrieval into the worker would have put it behind `service_role`, where a wrong
+tenant id is a silent cross-tenant leak no policy catches.
+
+Verified from the public internet on 2026-08-02: no token → 401, wrong token →
+401, correct token → a 384-dimension vector. An **unset** secret disables the
+route rather than opening it.
+
 ---
 
 ## ADR-012 — Hand-written SQL migrations; Drizzle Kit not used
