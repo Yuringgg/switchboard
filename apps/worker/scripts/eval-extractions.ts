@@ -143,6 +143,55 @@ const CASES: Case[] = [
     expectNone: true,
   },
   {
+    name: 'BUTTONS — a build notification, the shape that actually failed',
+    /*
+     * ⚠ Not invented. The first full backfill over the real corpus produced
+     * **22 of 25 "action items" from button labels** — "View results", "Easy
+     * Apply", "Shop", "Unpause project", "Track your transfer" — and one
+     * "meeting" titled "View results" out of a CI failure email. The attention
+     * queue was almost entirely navigation.
+     *
+     * The original prompt did say automated mail "almost always yields zero
+     * items", and that was not enough: every one of those labels is an
+     * imperative verb, which is what an action item looks like from the inside.
+     * The fix names the discriminator — **a human counterparty** — and lists the
+     * exact labels. These two cases are the regression test for it.
+     */
+    subject: '[Yuringgg/switchboard] Run failed: CI - main (a1b2c3d)',
+    sentAt: '2026-08-01T03:12:00+08:00',
+    body: [
+      'CI - main',
+      'Run failed for main',
+      '',
+      'typecheck + test — failed after 1m 12s',
+      'tenant isolation (RLS) — failed after 48s',
+      '',
+      'View results',
+      '',
+      'You are receiving this because you are subscribed to this thread.',
+      'Manage your notification settings or unsubscribe.',
+    ].join('\n'),
+    expectNone: true,
+  },
+  {
+    name: 'BUTTONS — a job alert, the other shape that failed',
+    subject: 'Channel Technologies is hiring for Junior IT Systems Analyst',
+    sentAt: '2026-07-30T08:00:00+08:00',
+    body: [
+      'Jobs picked for you',
+      '',
+      'Junior IT Systems Analyst — Channel Technologies, Makati City',
+      'Full-time · On-site · Posted 2 days ago',
+      '',
+      'Easy Apply',
+      'View job',
+      'Apply with resume & profile',
+      '',
+      'Not interested? Update your job preferences.',
+    ].join('\n'),
+    expectNone: true,
+  },
+  {
     name: 'VAGUE — "we should catch up sometime" is not a meeting',
     sentAt: '2026-08-01T16:00:00+08:00',
     body: 'Been a while! We should grab coffee sometime soon, kung free ka.',

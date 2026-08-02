@@ -7,6 +7,31 @@ to the bottom with their answer.*
 
 ## 🟡 Needs a decision, not blocking
 
+### Q12 — Should the assistant read `extractions` as well as `message_chunks`?
+**Raised:** 2026-08-03 · **Relevant by:** 8 August, when the meetings mail expires
+
+Phase 5 shipped, so the follow-on `docs/04-ROADMAP.md` anticipated is now live —
+and the roadmap itself set the condition: *"a design decision worth an ADR, not
+a quiet addition, because it changes what the assistant is grounded in."*
+
+**ADR-020 is written and deliberately marked PROPOSED.** The short version:
+
+- US-9 no longer needs it. *"What needs my attention"* is `/attention` now.
+- The remaining gap is narrow: *"do I have any upcoming meetings?"* is
+  answerable today only because a real future-dated mail exists, and **that mail
+  stops being upcoming on 8 August**. Extraction holds the same fact as a
+  structured row that does not expire.
+- ⚠ It changes what a citation means. Today every claim traces to text somebody
+  wrote; an extraction row is a model's reading of that text. The verbatim
+  `quote` makes this recoverable, but only if the answer is built from the quote
+  rather than the title.
+- ⚠ **It reopens the refusal**, which ADR-016 put entirely on the model reading
+  its context. It would have to be re-measured on both numbers, and the eval
+  cannot be run reliably on a day the assistant has also been used.
+
+*Leaning:* the narrow version — a date-window lookup for explicitly time-based
+questions only — or nothing. **Yuri's call.**
+
 ### Q11 — The assistant's ~30 questions/day is shared by all tenants. Fair?
 **Raised:** 2026-08-03 · **Relevant by:** the moment a second person at iOzera uses it
 

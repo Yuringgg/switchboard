@@ -689,7 +689,7 @@ personal conversations, and no library changes that legitimately.
 | **Phase 3 — console** | 🟡 **search + filters shipped and deployed.** Migration 0007, `/search`. Remaining: contacts, identity merge, attachments, virtualization |
 | **Phase 4A — summaries** | ✅ **shipped, deployed, running.** Migration 0008, Groq 8b. **66/66 eligible messages summarised**, and new mail is summarised automatically on ingest |
 | **Phase 4B — assistant** | ✅ **shipped and deployed.** Migrations 0009, local embeddings, `/assistant`. **75/75 messages embedded (397 chunks)**, worker serving `/embed`. ⚠ Prompt owes one tuning pass — see below |
-| **Phase 5 — extraction** | 🟡 **extraction pass shipped 2026-08-03.** Migration 0011, `packages/ai/src/extract.ts`, worker step, backfill + eval scripts. Remaining: "needs attention" view, calendar write-back |
+| **Phase 5** | ✅ **shipped 2026-08-03.** Extraction pass (migration 0011), `/attention` (US-9), and calendar write-back on `/messages/[id]` (US-7b, ADR-010). Remaining Phase 5 items are polish: daily digest, error audit, README from a clean clone, diagram, demo rehearsal |
 
 ### Verified live on 2026-08-02, by querying — not by inference
 
@@ -842,6 +842,49 @@ because non-ASCII in quoted strings tokenises at ~2 chars/token, not 4. Now
 1,600, which is free: `max_tokens` is a ceiling, not a reservation. It was only
 diagnosable because the validator reports *"ended mid-structure"* separately from
 *"answered in prose"* — same words, opposite fixes.
+
+### Phase 5b/5c shipped 2026-08-03 — the queue, and the one outward write
+
+**`/attention` (US-9)** reads `extractions` directly — an ordinary RLS-scoped
+table query through the user's session, no RPC and no `service_role`.
+
+- **⚠ The ordering IS the feature.** Overdue first (soonest-missed), then
+  upcoming (soonest), then undated by newest message. Ordered by *when the
+  message arrived*, a meeting starting in an hour sits under six newsletters —
+  the same failure ADR-017 measured for the assistant, arriving through the UI.
+- **⚠ Confidence is a tiebreak, never a rank and never a filter.** Self-reported,
+  not calibrated. Filtering on it would be ADR-016's mistake in a new costume.
+- **⚠ Every row shows its verbatim quote**, and `docs/02-ARCHITECTURE.md` §6 is
+  **amended** to list this as the third place message content renders.
+
+**Calendar write-back (US-7b)** lives on `/messages/[id]`, above the body.
+
+- **⚠ ADR-010 holds: nothing is created without a form submission.** The worker
+  writes proposals and stops.
+- **⚠ `calendar_event_id` is checked before every insert — and a DETERMINISTIC
+  event id backs it up.** The documented guard has a real gap: the window
+  between a successful insert and the write recording it. A crash there leaves
+  an event with nothing pointing at it, so the next Confirm sees null and
+  creates a **twin**. A client-supplied id (base32hex, from the extraction uuid)
+  makes Google answer `409 duplicate`, which is adopted. Rules read from the
+  API reference, not assumed.
+- **⚠ Attendees are NOT sent.** Adding one makes Google email an invitation
+  *from the user* — a far louder assertion than a calendar entry, off the back
+  of a model reading somebody's mail.
+- **⚠ Times carry an explicit `+08:00`.** Without it Google uses the calendar's
+  own timezone, invisible to this code, and every event lands eight hours out.
+
+⚠ **Measuring this console's contrast needs `lab()` handling.** Computed colours
+come back as CIE `lab()`; an `rgb()` regex reads L,a,b as R,G,B and reports
+~1.2:1 for **everything**. Same shape of false failure as the transitions one.
+WCAG luminance is the Y channel and L\*→Y needs no colour-space adaptation.
+Measured properly: 46/46 pass AA in both schemes, lowest 6.88 dark / 5.27 light.
+
+**⚠⚠ `ASSISTANT` GROUNDING IS AN OPEN QUESTION, NOT A TODO — see ADR-020/Q12.**
+Letting the assistant read `extractions` is the natural follow-on and it is
+written up as **PROPOSED, not accepted**. It changes what a citation means and
+it reopens the refusal ADR-016 put on the model. Do not build it without Yuri,
+and not on a day the eval cannot be run.
 
 ### Shipped 2026-08-02 (late) — assistant loose ends closed
 

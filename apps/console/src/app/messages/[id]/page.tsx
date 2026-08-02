@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { AppShell } from '@/components/app-shell';
+import { MeetingProposal } from '@/components/meeting-proposal';
+import { fetchMessageExtractions, KIND_LABEL } from '@/lib/attention';
 import { CHANNEL_META, fetchChannels } from '@/lib/channels';
+import { confirmMeeting, type ConfirmResult } from '@/lib/proposals';
 import { createClient } from '@/lib/supabase/server';
 import { fetchMessage } from '@/lib/timeline';
 import { LABEL } from '@/lib/ui';
@@ -62,6 +65,49 @@ export default async function MessagePage({
   const { message, error } = await fetchMessage(supabase, id);
 
   if (!message && !error) notFound();
+
+  // Phase 5 (US-7b, ADR-010). Fetched only once the message resolved, so a
+  // `notFound()` costs one query rather than two.
+  const { items: extractions } = message
+    ? await fetchMessageExtractions(supabase, id)
+    : { items: [] };
+
+  /**
+   * The server action.
+   *
+   * Defined here so it closes over nothing but the request — it builds its own
+   * client, so the session it uses is the caller's and RLS decides whether the
+   * proposal is theirs. No user id is passed anywhere in this flow.
+   *
+   * ⚠⚠ This is the ONLY path in Switchboard that writes to the outside world,
+   * and it runs only from a form a person submitted on this screen, with the
+   * source message rendered below it. ADR-010: propose, never assert.
+   */
+  async function confirm(
+    _previous: ConfirmResult | null,
+    formData: FormData,
+  ): Promise<ConfirmResult> {
+    'use server';
+
+    const client = await createClient();
+    const {
+      data: { user: caller },
+    } = await client.auth.getUser();
+
+    // Checked again inside the action: a server action is its own endpoint and
+    // does not inherit the page's guard.
+    if (!caller) {
+      return { ok: false, message: 'Your session expired. Reload the page and sign in again.' };
+    }
+
+    return confirmMeeting(client, {
+      extractionId: String(formData.get('extractionId') ?? ''),
+      title: String(formData.get('title') ?? ''),
+      startsAtLocal: String(formData.get('startsAtLocal') ?? ''),
+      endsAtLocal: String(formData.get('endsAtLocal') ?? ''),
+      location: String(formData.get('location') ?? ''),
+    });
+  }
 
   const rows = (await channels).channels;
   const channelType = rows.find((channel) => channel.id === message?.channel_id)?.type;
@@ -158,6 +204,42 @@ export default async function MessagePage({
               `whitespace-pre-wrap` and never `dangerouslySetInnerHTML`: every
               body in this table was written by somebody else.
             */}
+            {/*
+              ── Phase 5 proposals (US-7, US-7b, ADR-010) ────────────────────
+              ⚠ ABOVE the body, deliberately. ADR-010 requires the source
+              message shown beside every proposal, and "beside" means the
+              reader can see both without hunting: the proposal states what the
+              model read, the body immediately below is what it read it from.
+              Putting proposals under a newsletter's worth of text would make
+              the evidence something you scroll past to reach.
+            */}
+            {extractions
+              .filter((item) => item.kind === 'meeting')
+              .map((item) => (
+                <MeetingProposal key={item.id} item={item} action={confirm} />
+              ))}
+
+            {/*
+              The other kinds are shown but not actionable — there is nothing to
+              write them to. They belong here anyway: this is the record view,
+              and a commitment found in this message is part of the record.
+            */}
+            {extractions.some((item) => item.kind !== 'meeting') && (
+              <section className="mt-6">
+                <p className={cn(LABEL, 'mb-2')}>Also found in this message</p>
+                <ul className="grid gap-2">
+                  {extractions
+                    .filter((item) => item.kind !== 'meeting')
+                    .map((item) => (
+                      <li key={item.id} className="rounded-md border border-border px-3 py-2">
+                        <p className={LABEL}>{KIND_LABEL[item.kind]}</p>
+                        <p className="mt-0.5 text-row">{item.title}</p>
+                      </li>
+                    ))}
+                </ul>
+              </section>
+            )}
+
             <div className="mt-6 border-t border-border pt-5">
               {message.body_text.trim() ? (
                 <p className="max-w-[68ch] text-row whitespace-pre-wrap">

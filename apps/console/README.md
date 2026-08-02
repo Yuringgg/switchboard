@@ -180,6 +180,54 @@ every extraction.
 > than a limitation: confirming which ids exist in another tenant's mailbox is a
 > leak even without the content.
 
+### Needs attention
+
+`/attention` is the Phase 5 queue (US-9) — meetings, commitments, requests and
+questions the worker pulled out of each message on the way in.
+
+⭐ **It is the answer to a question the assistant could not answer**, and that is
+not a coincidence. ADR-017 measured *"summarise what needs my attention"* and
+found the model was never shown a single one of the real problems: semantic
+search returns prose that *sounds* urgent, because importance is not a direction
+in embedding space. The fix was never a prompt.
+
+> ⚠ **The ordering is the feature, not presentation.** Overdue first
+> (soonest-missed), then upcoming (soonest), then undated by newest message. A
+> queue ordered by when the *message arrived* buries a meeting starting in an
+> hour under six newsletters. `sortForAttention` is pure and tested.
+
+> ⚠ **Confidence is a tiebreak, never a rank and never a filter.** It is the
+> model's self-report, not a calibrated probability. Ranking by it puts a
+> confidently-extracted newsletter above a hedged real meeting; filtering by it
+> would be ADR-016's mistake in a new costume.
+
+> ⚠ **Every row shows the verbatim sentence it came from**, on the row. ADR-010
+> requires it, and `docs/02-ARCHITECTURE.md` §6 is amended to list this as the
+> third place message content renders. A proposal without its quote is a claim
+> the reader cannot check.
+
+### Meeting proposals — the one place this app writes outward
+
+On `/messages/[id]`, above the body, a meeting extraction renders as an editable
+proposal (US-7b). **ADR-010 is absolute: never auto-create.** The worker writes
+rows and stops; only a form submission reaches Google.
+
+> ⚠ **`calendar_event_id` is checked before every insert** — and a
+> **deterministic event id** backs it up. The primary guard has a real gap: the
+> window between a successful `events.insert` and the database write recording
+> it. A crash there leaves an event with nothing pointing at it, so the next
+> Confirm sees null and creates a twin. A client-supplied id derived from the
+> extraction id turns that into Google's `409 duplicate`, which is adopted
+> rather than retried.
+
+> ⚠ **Attendees are deliberately not sent.** Adding one makes Google email an
+> invitation *from the user*. Participants go in the description instead.
+
+> ⚠ **Times carry an explicit `+08:00`.** Without it Google uses the calendar's
+> own timezone — a setting on the user's Google account this code cannot see —
+> and every confirmed meeting lands eight hours out, silently. `lib/manila.ts`
+> holds both conversions together because they are inverses that must agree.
+
 ### The assistant
 
 `/assistant` asks one question at a time — single-turn, no history (Q2).
@@ -238,6 +286,9 @@ over fixture rows.
 | `/preview?screen=search&state=prompt` | before anything is asked — carries the query grammar |
 | `/preview?screen=search&state=empty` | **no matches.** Must never converge with the prompt state: one means *you have not asked*, the other means *the answer is no* |
 | `/preview?screen=search&state=filtered` | the form with a channel and a date bound set |
+| `/preview?screen=attention` | the Phase 5 queue — overdue, upcoming, undated, one already confirmed |
+| `/preview?screen=attention&state=unread` | **"nothing has been read yet"** — the pass has not run |
+| `/preview?screen=attention&state=empty` | **"nothing needs your attention"** — it ran and found nothing. These two must never converge |
 
 **Development only**, guarded twice — `notFound()` in the route and a
 conditional entry in `PUBLIC_PATHS`, both keyed on `NODE_ENV`, which Next
@@ -263,9 +314,9 @@ password manager offer to *generate* one rather than fill an existing one.
 ⚠ Both routes must stay in `PUBLIC_PATHS` in `src/proxy.ts`. Miss one and the
 gate redirects it to `/login`, which for `/signup` is an infinite bounce.
 
-Since built: `/search`, `/assistant`, `/channels` and `/messages/[id]`.
-**`/contacts` is the only remaining `soon` nav item** — it flips on by setting
-`ready: true` in `src/lib/nav.ts` once the route exists.
+Since built: `/search`, `/assistant`, `/channels`, `/messages/[id]` and
+`/attention`. **`/contacts` is the only remaining `soon` nav item** — it flips on
+by setting `ready: true` in `src/lib/nav.ts` once the route exists.
 
 The shadcn/ui foundation is in place — `components.json`, the `cn` helper, and
 the CSS variable theme — so `pnpm dlx shadcn@latest add <component>` works

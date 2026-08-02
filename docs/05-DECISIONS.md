@@ -1127,6 +1127,72 @@ it exists to answer.
 
 ---
 
+## ADR-020 — Should the assistant read `extractions` as well as `message_chunks`?
+
+**Status:** 🟡 **PROPOSED — not accepted, not built** · 2026-08-03 · *For Yuri*
+
+**Context.** `docs/04-ROADMAP.md` names this as *"the natural follow-on once
+extraction exists"*, and adds the condition it is being honoured by: *"That is a
+design decision worth an ADR, not a quiet addition — it changes what the
+assistant is grounded in."* Phase 5 shipped, so the question is live.
+
+Today the assistant is grounded in exactly one thing: chunks of message text,
+retrieved by cosine similarity, cited back to their message. ADR-016 put the
+whole refusal on the model reading that context, and ADR-017 established that
+its two known gaps are not prompt problems:
+
+- *"Summarise what needs my attention"* — semantic search returns newsletters,
+  because importance is not a direction in embedding space. **Now answered by
+  `/attention`**, which reads `extractions` directly.
+- *"Do I have any upcoming meetings?"* — answerable today only because a real
+  future-dated mail exists in the mailbox, and **that mail expires on 8 August**.
+  Extraction now holds the same fact as a structured row with a parsed
+  `starts_at`, which does not expire and does not depend on retrieval.
+
+**The proposal.** Before retrieval, check `extractions` for rows whose
+`starts_at` or `due_at` falls in a window the question implies, and put them in
+the context alongside the retrieved chunks — each still carrying its
+`message_id`, so every citation still resolves to a real message.
+
+**Why it is not simply obviously right.**
+
+1. **It changes what "grounded" means.** Every claim the assistant makes today
+   traces to text somebody actually wrote. An extraction row is a *model's
+   reading* of that text. Citing one is citing an inference — and the citation
+   chip would look identical to a citation of a real sentence. The `quote` field
+   makes this recoverable (it is verbatim, and verified against the body), but
+   it has to be deliberate: the answer must be built from the quote, not the
+   title.
+2. **It reopens the refusal.** ADR-016 moved the entire refusal onto the model
+   reading its context. Handing it a *pre-filtered, structured* set changes the
+   distribution that decision is made against, and the refusal is the property
+   the product is judged on. **It would have to be re-measured**, and the eval's
+   eight must-refuse cases are the instrument — which today cannot be run
+   reliably on a day the assistant has also been used.
+3. **It is not needed for the thing it was proposed for.** US-9 is now a screen.
+   The remaining gap is narrow: *the assistant* answering a meetings question
+   durably rather than by luck of the corpus.
+
+**Recommendation.** Take the narrow version, if any: a date-window lookup for
+questions that are explicitly about time, feeding the model the extraction's
+**quote** and its parsed date, cited to the source message — and re-run the full
+eval, both numbers, before and after. Not a general merge of the two sources.
+
+**Do not build this without Yuri's decision**, and not on a day the eval cannot
+be run — a change to grounding that cannot be measured is exactly what ADR-017
+warned about.
+
+**Rejected already:**
+
+- **Quietly adding `extractions` to the retrieval query.** What the roadmap
+  explicitly asked not to happen, and the change would be invisible in a diff of
+  the prompt.
+- **Fixing the meetings question in the prompt instead.** Measured and ruled out
+  (ADR-017). The previous attempt cost the refusals: 7/7 answerable at 3/8
+  refusals, citing all eight retrieved messages for a question about a submarine.
+
+---
+
 ## Template for new ADRs
 
 ```markdown
