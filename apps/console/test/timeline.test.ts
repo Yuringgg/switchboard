@@ -146,6 +146,26 @@ describe('channelChangePoints', () => {
 });
 
 describe('initials', () => {
+  it('does not read a formatted phone number as a first and last name', () => {
+    /*
+     * ⚠ WhatsApp gives a profile name only when the sender set one, so
+     * `display_name` is frequently the number itself — and a formatted number
+     * has spaces in it, so the two-word rule below returned "+0" for every one
+     * of them. Found on the contacts screen, 2026-08-03, where a column of
+     * identical "+0" avatars is visible at once; invisible in a timeline where
+     * they are spread over fifty rows.
+     */
+    expect(initials('+63 917 000 0001', '+639170000001')).toBe('01');
+    // With no external id to fall back on, its own tail is still better than
+    // its punctuation.
+    expect(initials('+63 917 000 0042', null)).toBe('42');
+  });
+
+  it('still treats a name containing digits as a name', () => {
+    // "Team 42" is a name with a number in it, not a number.
+    expect(initials('Team 42', 'team@x.com')).toBe('T4');
+  });
+
   it('takes the first and last word of a name', () => {
     expect(initials('Maria Santos', 'm@x.com')).toBe('MS');
     // First-and-last, not first-two: otherwise "Maria Santos" and "Maria dela

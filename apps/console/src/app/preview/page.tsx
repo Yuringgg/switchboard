@@ -5,6 +5,7 @@ import { Suspense } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { AttentionEmpty, AttentionList } from '@/components/attention-list';
 import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
+import { ContactList, ContactsEmpty } from '@/components/contact-list';
 import { SearchForm } from '@/components/search-form';
 import {
   SearchEmpty,
@@ -15,6 +16,7 @@ import {
 import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
 import type { AttentionItem } from '@/lib/attention';
 import type { ChannelRow } from '@/lib/channels';
+import type { ContactSummary } from '@/lib/contacts';
 import type { SearchResult } from '@/lib/search';
 import type { TimelineMessage } from '@/lib/timeline';
 
@@ -359,6 +361,70 @@ function attentionFixtures(): AttentionItem[] {
   ];
 }
 
+/**
+ * Contact fixtures (US-5).
+ *
+ * ⚠ **The first row is the whole reason this preview exists.** With only Gmail
+ * connected, every real contact has exactly one handle, so the merge — one
+ * person, an email address AND a phone number — cannot be seen anywhere in the
+ * running console. This is the only way to look at it before a WhatsApp number
+ * is provisioned, and it is step 5 of the demo sequence.
+ *
+ * `merged: false` renders the state the real data is in today, so the two can
+ * be compared side by side.
+ */
+function contactFixtures(merged: boolean): ContactSummary[] {
+  const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+  return [
+    {
+      id: 'c1',
+      displayName: 'Maria Santos',
+      identities: merged
+        ? [
+            { id: 'i1', channelType: 'gmail', externalId: 'maria@iozera.com', displayName: 'Maria Santos' },
+            { id: 'i2', channelType: 'whatsapp', externalId: '+639170000042', displayName: 'Maria' },
+          ]
+        : [{ id: 'i1', channelType: 'gmail', externalId: 'maria@iozera.com', displayName: 'Maria Santos' }],
+      messageCount: merged ? 23 : 14,
+      lastMessageAt: day(0),
+    },
+    {
+      id: 'c2',
+      // No display name from the provider — the list falls back to the handle,
+      // and `initials()` takes a phone number's LAST two digits because every
+      // number in this corpus starts +63 9.
+      displayName: '+63 917 000 0001',
+      identities: [
+        { id: 'i3', channelType: 'whatsapp', externalId: '+639170000001', displayName: null },
+      ],
+      messageCount: 6,
+      lastMessageAt: day(1),
+    },
+    {
+      id: 'c3',
+      displayName: 'A vendor with a very long organisation name that has to truncate somewhere',
+      identities: [
+        { id: 'i4', channelType: 'gmail', externalId: 'accounts-receivable@vendor.example.com', displayName: null },
+      ],
+      messageCount: 2,
+      lastMessageAt: day(9),
+    },
+    {
+      id: 'c4',
+      // Zero messages is a real state: a contact row exists the moment an
+      // identity resolves. Sorted last rather than hidden, because a list that
+      // omitted it would disagree with the count above it.
+      displayName: 'Fatima R.',
+      identities: [
+        { id: 'i5', channelType: 'gmail', externalId: 'fatima@iozera.com', displayName: 'Fatima R.' },
+      ],
+      messageCount: 0,
+      lastMessageAt: null,
+    },
+  ];
+}
+
 export default async function PreviewPage({
   searchParams,
 }: {
@@ -394,6 +460,36 @@ export default async function PreviewPage({
             <ChannelList rows={rows} error={null} />
           )}
         </Suspense>
+      </AppShell>
+    );
+  }
+
+  if (screen === 'contacts') {
+    /*
+     * ⚠ The fixture that matters is the one with TWO identities.
+     *
+     * With only Gmail connected, every real contact has exactly one handle and
+     * the merge — the entire reason this screen exists — is invisible. This is
+     * the only way to see what one person with an email address *and* a phone
+     * number looks like before WhatsApp is provisioned, which is step 5 of the
+     * demo sequence.
+     */
+    return (
+      <AppShell
+        title="Contacts"
+        description="One person, however many handles they have."
+        userEmail="preview@switchboard.local"
+        userId={PREVIEW_USER_ID}
+        activeHref="/contacts"
+        channels={channels}
+      >
+        {state === 'empty' ? (
+          <ContactsEmpty connected />
+        ) : state === 'unconnected' ? (
+          <ContactsEmpty connected={false} />
+        ) : (
+          <ContactList contacts={contactFixtures(state !== 'single')} />
+        )}
       </AppShell>
     );
   }

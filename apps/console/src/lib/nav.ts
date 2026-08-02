@@ -26,7 +26,7 @@ export const NAV_ITEMS: NavItem[] = [
   // Above Contacts and below Search: this is a *doing* surface, and it belongs
   // with the two screens people arrive at the console to use. Phase 5, US-9.
   { label: 'Needs attention', href: '/attention', icon: ListChecks, ready: true },
-  { label: 'Contacts', href: '/contacts', icon: Users, ready: false },
+  { label: 'Contacts', href: '/contacts', icon: Users, ready: true },
   { label: 'Assistant', href: '/assistant', icon: Sparkles, ready: true },
   { label: 'Channels', href: '/channels', icon: Plug, ready: true },
 ];

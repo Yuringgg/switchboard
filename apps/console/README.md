@@ -180,6 +180,31 @@ every extraction.
 > than a limitation: confirming which ids exist in another tenant's mailbox is a
 > leak even without the content.
 
+### Contacts
+
+`/contacts` is one row per person with **every handle they are known by**, and
+`/contacts/[id]` is every conversation with them across every channel (US-5).
+`docs/01-PRODUCT-SPEC.md` §1 names the problem it solves: *"the same client is a
+phone number in one app and an email address in another, with no link between
+them."*
+
+> ⚠ **Identities are listed, never collapsed into the contact row.** The plural
+> is the feature. With only Gmail connected every contact has one handle and the
+> merge is invisible — that is the state of the data, not of the screen, and
+> `/preview?screen=contacts` shows the merged version.
+
+> ⚠ **The detail view is CONVERSATIONS, not "messages they sent".** `messages`
+> records a sender and no recipients, so filtering to their own messages shows
+> one side of every thread and drops your replies — a monologue. Their
+> identities resolve to conversations, and every message in those is rendered
+> through the same `MessageRow` the timeline and search use.
+
+> ⚠ A `display_name` that **is** a phone number is not a name. WhatsApp supplies
+> a profile name only when the sender set one, so the formatted number is
+> common — and it has spaces, so `initials()`'s first-and-last-word rule turned
+> every one of them into "+0". It now falls through to the last-two-digits rule.
+> Found here, where a column of them is visible at once.
+
 ### Needs attention
 
 `/attention` is the Phase 5 queue (US-9) — meetings, commitments, requests and
@@ -289,6 +314,10 @@ over fixture rows.
 | `/preview?screen=attention` | the Phase 5 queue — overdue, upcoming, undated, one already confirmed |
 | `/preview?screen=attention&state=unread` | **"nothing has been read yet"** — the pass has not run |
 | `/preview?screen=attention&state=empty` | **"nothing needs your attention"** — it ran and found nothing. These two must never converge |
+| `/preview?screen=contacts` | **one person with a Gmail address AND a WhatsApp number** — the merge, which cannot be seen in the real data until Phase 2 |
+| `/preview?screen=contacts&state=single` | the same list as the data actually is today: one handle each |
+| `/preview?screen=contacts&state=empty` | "no contacts yet" — a channel is connected, nothing has arrived |
+| `/preview?screen=contacts&state=unconnected` | "no channels connected". Must never converge with the above |
 
 **Development only**, guarded twice — `notFound()` in the route and a
 conditional entry in `PUBLIC_PATHS`, both keyed on `NODE_ENV`, which Next
@@ -314,9 +343,9 @@ password manager offer to *generate* one rather than fill an existing one.
 ⚠ Both routes must stay in `PUBLIC_PATHS` in `src/proxy.ts`. Miss one and the
 gate redirects it to `/login`, which for `/signup` is an infinite bounce.
 
-Since built: `/search`, `/assistant`, `/channels`, `/messages/[id]` and
-`/attention`. **`/contacts` is the only remaining `soon` nav item** — it flips on
-by setting `ready: true` in `src/lib/nav.ts` once the route exists.
+Since built: `/search`, `/assistant`, `/channels`, `/messages/[id]`,
+`/attention`, `/contacts` and `/contacts/[id]`. **Every nav item is `ready`
+now** — nothing in `src/lib/nav.ts` is marked `soon`.
 
 The shadcn/ui foundation is in place — `components.json`, the `cn` helper, and
 the CSS variable theme — so `pnpm dlx shadcn@latest add <component>` works

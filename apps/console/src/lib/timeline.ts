@@ -285,6 +285,13 @@ export function preview(bodyText: string, maxLength = 140): string {
  *
  * A name of two or more words takes the first and *last* word, so "Maria
  * Santos" and "Maria dela Cruz" do not both read "MD".
+ *
+ * ⚠ **A display name containing no letters is treated as a handle, not a
+ * name.** WhatsApp gives a profile name only when the sender set one, so
+ * `display_name` is often the formatted number — and a formatted number has
+ * spaces, so the two-word rule turns "+63 917 000 0001" into "+0". Every
+ * unnamed contact then looks the same, which is what the tail rule exists to
+ * prevent.
  */
 export function initials(
   displayName: string | null,
@@ -292,13 +299,36 @@ export function initials(
 ): string {
   const name = displayName?.trim();
 
-  if (name) {
+  /*
+   * ⚠ A display name that IS a phone number is not a name.
+   *
+   * WhatsApp supplies a profile name only when the sender set one, so
+   * `display_name` is frequently the number itself — and a formatted number
+   * has spaces in it, so the two-word branch below reads "+63 917 000 0001" as
+   * a first and last name and returns **"+0"**. Every such contact then looks
+   * identical, which is the exact failure the tail rule below exists to
+   * prevent, reached by a different route.
+   *
+   * Found on the contacts screen, 2026-08-03, where a column of them is
+   * visible at once. Falling through to the external-id branch applies the
+   * last-two-digits rule that already handles this correctly.
+   */
+  const looksLikeNumber = name !== undefined && !/[a-z]/i.test(name);
+
+  if (name && !looksLikeNumber) {
     const words = name.split(/\s+/).filter(Boolean);
 
     if (words.length >= 2) {
       return (words[0]![0]! + words.at(-1)![0]!).toUpperCase();
     }
     return words[0]!.slice(0, 2).toUpperCase();
+  }
+
+  // A numeric display name with no external id to fall back on: use its own
+  // tail, for the same reason.
+  if (looksLikeNumber && !externalId?.trim()) {
+    const digits = name.replace(/\D/g, '');
+    return digits ? digits.slice(-2) : '?';
   }
 
   const id = externalId?.trim();

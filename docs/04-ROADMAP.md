@@ -315,7 +315,29 @@ to invest, and it's what makes the system feel finished.
       message in full, the assistant's citation target and the record view the
       `BODY_LIMIT` note anticipated. Renders the **whole** body: the 4,000-char
       ceiling bounds the list, not the record.
-- [ ] Contact list; contact detail = merged cross-channel history
+- [x] **Contact list; contact detail = merged cross-channel history** (2026-08-03)
+      — `/contacts` and `/contacts/[id]`, US-5. This closes **step 5 of the
+      §6 demo sequence**, which was the last gap in it, and flips the final
+      `soon` nav item on.
+      **⚠ The detail view is CONVERSATIONS, not "messages they sent".**
+      `messages` records a sender and no recipients (`docs/02-ARCHITECTURE.md`
+      §3), so filtering to their own messages shows one side of every thread and
+      drops the reader's replies — a monologue. US-5 asks for *"every
+      conversation I've had with that person"*, so their identities resolve to
+      conversations and every message in those is returned.
+      **⚠ Identities are listed, never collapsed.** With one channel connected
+      every contact has exactly one handle and the merge is invisible — that is
+      the data, not the feature. `/preview?screen=contacts` renders a contact
+      with a Gmail address *and* a WhatsApp number so the merged state can be
+      looked at before Phase 2's number exists, and the detail page says out
+      loud why a single handle is single rather than leaving it looking broken.
+      ⚠ It found a real defect in `initials()`: a `display_name` that **is** a
+      formatted phone number — the normal case when WhatsApp gives no profile
+      name — has spaces, so the first-and-last-word rule returned **"+0"** for
+      every such contact. Invisible in a timeline where they are spread over
+      fifty rows; obvious in a column of them. A display name with no letters is
+      now treated as a handle and takes the last two digits, which is the rule
+      that already existed one branch down.
 - [ ] **Manual identity merge** — "this email address and this number are the same person"
 - [ ] Channel settings: connect, pause, disconnect, sync status, last error
 - [ ] **Attachments → Azure Blob; rows in `attachments`** — moved here from
