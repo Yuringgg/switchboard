@@ -337,8 +337,29 @@ exists to avoid — do not. Full note: `docs/03-RESOURCES.md` §2.
   enforcing it; WhatsApp's webhook resolves each message to its own channel and
   owner, including several numbers in one POST.
 - **Gmail's limit is Google's, not ours:** every user's address must be added by
-  hand to the test-user allowlist, hard-capped at **100** (verified 2026-08-02),
-  and each of them reconnects weekly per the note above.
+  hand to the test-user allowlist, and each of them reconnects weekly per the
+  note above. **There is no API for that allowlist** — the Cloud Console is the
+  only way, and Google withdrew the IAP OAuth Admin APIs in March 2026, so this
+  genuinely cannot be automated. Asked and answered on 2026-08-02; do not spend
+  time looking for one again.
+- **⚠ The 100 cap is a LIFETIME total, not a concurrent one.** Google's wording
+  on the Audience screen: *"Allowed user cap prior to app verification is 100,
+  and is counted over the entire lifetime of the app."* It never resets. At
+  **1/100** on 2026-08-02. Every throwaway account burns one permanently, so do
+  not churn test accounts casually.
+- **"Make internal" is greyed out** on `switchboard-503613` (checked in the
+  Cloud Console, 2026-08-02) — the project is not in a Workspace organisation.
+  Workspace *Internal* would remove the cap, the allowlist and the 7-day expiry
+  in one move, but it needs iOzera IT to move the project into their org. Worth
+  asking Ms. Maria; do not plan around it.
+- **A blocked user does not look blocked.** Google returns `access_denied` for
+  *both* "you cancelled" and "you are not on the allowlist", and usually blocks
+  on its own page without redirecting back at all — so the callback's message is
+  often never seen. Fixed 2026-08-02: the message names both causes, and
+  `/channels` states the requirement **before** the click, quoting the reader's
+  own address for an admin to paste. ⚠ Do not collapse that message back into a
+  confident "Connection cancelled." — it sends a blocked user to retry the same
+  click forever.
 - **WhatsApp's limit is what WhatsApp is:** there is no personal WhatsApp API, so
   a user cannot connect "their own". An admin assigns a **business number** —
   2 per WABA, up to 20 once business-verified (ADR-009).
@@ -384,9 +405,30 @@ registered with the **`messages` field subscribed**, the four `WHATSAPP_*`
 variables on Vercel, then `packages/db/scripts/provision-whatsapp.ts`. The full
 checklist with the traps is `docs/03-RESOURCES.md` §6.
 
-**While that is pending, the useful build is Phase 3 search** — Postgres
-full-text over `body_text`. It needs no new credentials and there are 16 real
-messages to search.
+**Phase 3 search shipped 2026-08-02** — `/search`, migration 0007. Three things
+a session touching it must know, each of which had a plausible wrong answer:
+
+- **The text-search config is `simple`, never `english`.** The corpus is
+  Taglish and Postgres has no Tagalog configuration. An English stemmer applies
+  Porter rules to Tagalog words and strips the stopword "at", which is Tagalog
+  for "and" — and it fails by returning the *wrong rows*, which reads as a
+  ranking bug rather than a config mistake. The cost of `simple` is no
+  stemming, paid for by a trailing `:*` on the last term so "deadline" still
+  finds "deadlines".
+- **`search_messages` is SECURITY INVOKER and must stay that way.** As
+  DEFINER it would run as its owner, RLS would not apply, and any signed-in
+  user could read every tenant's mail through an RPC. Negative-controlled
+  against the live database — owner sees 65, the second account sees 0.
+- **Two query modes, and raw user text may only ever go to the websearch one.**
+  `to_tsquery` raises on malformed input; `websearch_to_tsquery` cannot express
+  a prefix. `buildQuery` strips to word characters before using the raising
+  parser, so it only sees machine-built strings.
+
+**The AI keys arrived 2026-08-02** and are in `apps/worker/.env`: Groq
+(`llama-3.1-8b-instant` available — note **not** `llama-3.3-70b`, whose 1,000
+req/day would be exhausted by a backfill) and Gemini (`gemini-2.5-flash`, on
+its own Cloud project `231090633304`, billing disabled). Both verified live.
+**Phase 4A is therefore unblocked.**
 
 Credentials: **Supabase and Google Cloud are both fully configured.**
 `apps/worker/.env` holds `DATABASE_URL` (Supavisor session mode, port 5432 — the
@@ -510,7 +552,7 @@ personal conversations, and no library changes that legitimately.
 | **Phase 0** | ✅ complete |
 | **Phase 1 — Gmail** | ✅ complete and **live**. 49 real messages, watch renewing itself in production |
 | **Phase 2 — WhatsApp** | 🟡 **code complete, pushed, deployed.** Dormant until Meta credentials exist |
-| **Phase 3 — console** | ⬜ not started. **Search is the useful thing to build while Meta is blocked** — no new credentials, 49 messages to search |
+| **Phase 3 — console** | 🟡 **search + channel/date filters shipped 2026-08-02** (migration 0007, `/search`). Remaining: contacts, identity merge, attachments, virtualization |
 | **Phase 4A — summaries** | ⬜ **NEW, Ms. Maria's request.** Planned in full, not started |
 | **Phase 4B / 5** | ⬜ not started |
 
@@ -527,11 +569,11 @@ Vercel, redeploy, subscribe the `messages` webhook field, run
    warning above. Last reconnect 2026-08-01; next lapse **2026-08-08**.
 2. **Ask Ms. Maria where she put her recommendations.** They are not on GitHub.
 
-**If you are a session picking this up and Meta is still blocked**, build Phase 3
-search or Phase 4A summaries. Both are unblocked, both are visible, and 4A is
-the one the mentor explicitly asked for.
+**If you are a session picking this up and Meta is still blocked**, build
+Phase 4A summaries — it is unblocked as of 2026-08-02, it is visible, and it is
+the one the mentor explicitly asked for, twice.
 
-295 tests. `pnpm check`, `next build` and the worker bundle are all green.
+321 tests. `pnpm check`, `next build` and the worker bundle are all green.
 
 ---
 

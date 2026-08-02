@@ -4,8 +4,16 @@ import { Suspense } from 'react';
 
 import { AppShell } from '@/components/app-shell';
 import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
+import { SearchForm } from '@/components/search-form';
+import {
+  SearchEmpty,
+  SearchPrompt,
+  SearchResults,
+  SearchSkeleton,
+} from '@/components/search-results';
 import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
 import type { ChannelRow } from '@/lib/channels';
+import type { SearchResult } from '@/lib/search';
 import type { TimelineMessage } from '@/lib/timeline';
 
 /** Not a real user. Realtime is scoped to it and will simply match nothing. */
@@ -178,6 +186,52 @@ const CHANNELS_WITH_ERROR: ChannelRow[] = [
   CHANNELS[1]!,
 ];
 
+/**
+ * Search results over the same fixtures.
+ *
+ * The snippets carry the real STX/ETX delimiters `ts_headline` emits, because
+ * the thing worth looking at here is what a highlighted run looks like at
+ * `text-row` against `bg-live/20` — in both schemes — and a fixture that fakes
+ * the shape would not answer that. Written as `\u` escapes for the same reason
+ * `lib/search.ts` does: as literal control characters they are invisible and a
+ * stray edit silently deletes them.
+ *
+ * Deliberately includes a result whose fragments do NOT start at the beginning
+ * of the body, which is the normal case and the one that shows whether the two
+ * `FragmentDelimiter` ellipses read as intended.
+ */
+/** Wraps a run the way `ts_headline` does. Escapes, not literal control
+ *  characters: those are invisible in an editor and a stray edit deletes them
+ *  silently. Must match `chr(2)`/`chr(3)` in migration 0007. */
+const hit = (text: string) => `\u0002${text}\u0003`;
+function searchFixtures(): SearchResult[] {
+  const rows = fixtures();
+
+  const withSnippet = (
+    message: TimelineMessage,
+    snippet: string,
+    rank: number,
+  ): SearchResult => ({ ...message, snippet, rank });
+
+  return [
+    withSnippet(
+      rows[0]!,
+      'can we cut it to under ten words? … Can we do 3pm ' + hit('Thursday') + ' to go through both? I only need half',
+      0.87,
+    ),
+    withSnippet(
+      rows[6]!,
+      'Budget review moved to the 12th — I said we would confirm the date by ' + hit('Friday') + '',
+      0.41,
+    ),
+    withSnippet(
+      rows[1]!,
+      'Sige, sending the ' + hit('files') + ' na — nasa drive na lahat. Salamat!',
+      0.12,
+    ),
+  ];
+}
+
 export default async function PreviewPage({
   searchParams,
 }: {
@@ -213,6 +267,47 @@ export default async function PreviewPage({
             <ChannelList rows={rows} error={null} />
           )}
         </Suspense>
+      </AppShell>
+    );
+  }
+
+  if (screen === 'search') {
+    const results = searchFixtures();
+
+    return (
+      <AppShell
+        title="Search"
+        description="One query, every channel, ranked by relevance."
+        userEmail="preview@switchboard.local"
+        userId={PREVIEW_USER_ID}
+        activeHref="/search"
+        channels={channels}
+      >
+        <SearchForm
+          query={state === 'prompt' ? '' : 'thursday'}
+          channels={rows}
+          selectedChannels={state === 'filtered' ? [rows[0]?.id ?? ''] : []}
+          from={state === 'filtered' ? '2026-07-01' : ''}
+          to=""
+        />
+
+        {state === 'prompt' ? (
+          <SearchPrompt />
+        ) : state === 'loading' ? (
+          <SearchSkeleton />
+        ) : state === 'empty' ? (
+          <SearchEmpty query="jakarta office" filtered />
+        ) : (
+          <SearchResults
+            results={results}
+            channels={rows}
+            query="thursday"
+            // So the pager can be looked at without 26 matching messages.
+            truncated
+            page={1}
+            pageHref={(page) => `/preview?screen=search&page=${page}`}
+          />
+        )}
       </AppShell>
     );
   }

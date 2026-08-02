@@ -1,4 +1,11 @@
-import { MessagesSquare, Plug, Sparkles, Users, type LucideIcon } from 'lucide-react';
+import {
+  MessagesSquare,
+  Plug,
+  Search,
+  Sparkles,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 
 export interface NavItem {
   label: string;
@@ -12,6 +19,9 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Timeline', href: '/', icon: MessagesSquare, ready: true },
+  // Directly under Timeline: search is the same record, asked a question. It
+  // sits above Contacts because it is the surface people reach for.
+  { label: 'Search', href: '/search', icon: Search, ready: true },
   { label: 'Contacts', href: '/contacts', icon: Users, ready: false },
   { label: 'Assistant', href: '/assistant', icon: Sparkles, ready: false },
   { label: 'Channels', href: '/channels', icon: Plug, ready: true },

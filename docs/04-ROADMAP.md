@@ -263,8 +263,39 @@ to invest, and it's what makes the system feel finished.
       impact to implementation cost, and the timeline was the surface where its
       absence was most visible — new mail did not appear until you navigated
       away and back. Migration `0005`, `apps/console/src/components/live.tsx`.
-- [ ] Keyword search — Postgres full-text over `body_text`
-- [ ] Filters: channel, contact, date range
+- [x] **Keyword search — Postgres full-text over `body_text`** (2026-08-02).
+      Migration `0007_message_search.sql`: a **generated** `tsvector` over
+      `subject || body_text` plus a GIN index, and `search_messages()` —
+      **SECURITY INVOKER**, so RLS scopes it exactly as it scopes a table
+      query. Negative-controlled against the live database: the owner of the
+      65 messages sees 65 through the function, the second account sees **0**.
+      `anon` is revoked and PostgREST answers it `42501`, not `PGRST202`, so
+      the function is registered *and* locked.
+      **⚠ The config is `simple`, not `english`, and that is deliberate** —
+      the corpus is Taglish, Postgres ships no Tagalog configuration, and an
+      English stemmer applies Porter rules to Tagalog words and strips "at",
+      which is Tagalog for "and". It fails by returning the wrong rows, which
+      reads as a ranking bug. The cost is no stemming, paid for by a trailing
+      `:*` prefix match on the last term (`buildQuery`, `lib/search.ts`) so
+      "deadline" still finds "deadlines".
+      **⚠ Two query modes on purpose.** `to_tsquery` RAISES on malformed input
+      and a text box produces plenty; `websearch_to_tsquery` never raises and
+      gives `"phrases"`, `or`, `-exclusions`, but cannot express a prefix.
+      Advanced grammar goes to websearch verbatim; everything else is stripped
+      to word characters and rebuilt, so the raising parser only ever sees
+      machine-built input. **Never pass raw user text with `prefix: true`.**
+      Highlighting comes from `ts_headline` delimited with **STX/ETX**, split
+      in TypeScript and rendered as `<mark>` elements — a message body must
+      never reach `dangerouslySetInnerHTML`, and every body here was written
+      by somebody else.
+- [x] **Filters: channel, date range** (2026-08-02) — the same function, so
+      there is one implementation of the filters rather than two that drift.
+      Whole state lives in the URL, so a search is a link. Date bounds are
+      **Manila** days (`manilaDayStart`/`End`), matching the timeline's own
+      grouping — on UTC bounds "1 August" would drop everything sent after 4pm
+      that day and the screen would contradict its own filter.
+- [ ] Filter by contact — the function already takes `contact_ids`; the UI
+      waits on the contact list below
 - [ ] Contact list; contact detail = merged cross-channel history
 - [ ] **Manual identity merge** — "this email address and this number are the same person"
 - [ ] Channel settings: connect, pause, disconnect, sync status, last error
@@ -278,7 +309,17 @@ to invest, and it's what makes the system feel finished.
       **short-lived** URL — so its download cannot be deferred long after the
       message arrives.
 - [ ] Empty, loading, and error states everywhere
+      *(done for search: the prompt state, the no-matches state and the
+      streaming skeleton are three distinct screens. "You have not asked yet"
+      and "the answer is no" must never converge — the same rule the timeline's
+      two empty states already follow, and for the same reason.)*
 - [ ] Responsive down to mobile width
+      *(verified for search at 375px: no page-level horizontal scroll, all 24
+      sampled elements pass WCAG AA in **both** schemes, lowest 6.32:1.
+      ⚠ Measure with transitions disabled — `transition-colors` means
+      `getComputedStyle` immediately after toggling `.dark` returns a value
+      interpolated from the other theme, which read as a 2.58:1 failure that
+      did not exist.)*
 
 **Done when:** the demo sequence in `docs/01-PRODUCT-SPEC.md` §6, steps 1–5, works
 start to finish.
@@ -462,6 +503,8 @@ a row, without intervention.
 | Calendar write-back duplicates events | Medium | Medium | `calendar_event_id` checked before every insert. |
 | Google forces production verification | Low | High | Stay in OAuth testing mode with allowlisted users. Publishing with Gmail restricted scopes triggers a CASA assessment. |
 | **Gmail refresh token expires every 7 days** | **Certain — it is the documented behaviour of testing mode** | **High: mail stops** | Verified 2026-08-02. External + Testing expires every refresh token **7 days from consent**, per user, not configurable. The watch sweep catches it and shows *Needs attention* on `/channels`, so it is visible — but **reconnect on the morning of any demo.** `docs/03-RESOURCES.md` §2. |
+| **The 100-user cap is a LIFETIME total, and never resets** | Certain | Medium — but irreversible | Google's own wording on the Audience screen: *"Allowed user cap prior to app verification is 100, and is counted over the entire lifetime of the app."* Not 100 concurrent — 100 authorisations, ever. At 1/100 on 2026-08-02. Every throwaway test account burns one permanently. Verified in the Cloud Console, 2026-08-02. |
+| **A new user is blocked by Google before reaching the app** | High, the moment a second person tries | Medium — reads as our bug | Google returns `access_denied` for *both* "you cancelled" and "you are not allowlisted", and usually blocks on its own page without redirecting back at all. Fixed 2026-08-02: the callback message now names both causes, and `/channels` states the requirement **before** the click, quoting the reader's own address for an admin to paste. **There is no API for the allowlist** — Google withdrew the IAP OAuth Admin APIs in March 2026 — so this cannot be automated, only explained. |
 | ~~Multi-user Gmail: two tenants connect the **same** mailbox~~ | — | — | **Fixed 2026-08-02.** `.maybeSingle()` errored on two rows, so ingest 500'd for a shared mailbox and Pub/Sub retried it forever. Now fans out: one `raw_events` row per owner, via `fanOutToChannels` in `apps/console/src/lib/ingest.ts`, with 9 tests. `.limit(1)` was rejected as the fix — it would deliver one tenant's mail to whichever row sorted first. |
 | **Scope grew: multi-tenancy + calendar write** | — | — | Both landed in planning rather than mid-build, which is the cheap time for them. Held in check by the team-features non-goal — *isolated, not collaborative*. |
 

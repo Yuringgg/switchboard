@@ -3,8 +3,14 @@
   "configurations": [
     {
       "name": "console",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@switchboard/console", "dev"],
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "./apps/console/node_modules/next/dist/bin/next",
+        "dev",
+        "apps/console",
+        "--port",
+        "3100"
+      ],
       "port": 3100
     }
   ]

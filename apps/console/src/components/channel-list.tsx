@@ -46,9 +46,16 @@ const STATUS: Record<string, { label: string; tone: 'ok' | 'bad' }> = {
 export function ChannelList({
   rows,
   error,
+  userEmail,
 }: {
   rows: ChannelRow[];
   error: string | null;
+  /**
+   * The signed-in address, so the allowlist note can name the exact string an
+   * admin has to paste into Google. Optional because the preview harness has
+   * no user behind it.
+   */
+  userEmail?: string;
 }) {
   return (
     <>
@@ -103,6 +110,41 @@ export function ChannelList({
                   <span className={cn(LABEL, 'mt-1.5')}>Assigned by an admin</span>
                 )}
               </div>
+
+              {/*
+                ── Why this note exists ──────────────────────────────────────
+                Google's consent screen is External + Testing, so only accounts
+                on a manually maintained allowlist can complete OAuth. When a
+                new person clicks Connect, Google blocks them on its OWN error
+                page — "Access blocked: Switchboard has not completed the Google
+                verification process" — and usually never redirects back here.
+                So the callback's error message, however well written, is never
+                seen. The only place this can be said in time is BEFORE the
+                click.
+
+                Shown only while Gmail is unconnected for this user: that is
+                precisely the moment it is about to matter, and it would be
+                noise on every visit afterwards. The address is printed in the
+                mono machine voice because it is a value to be copied exactly,
+                not prose — a paraphrased address is a failed allowlist entry.
+
+                There is no API for this (Google's IAP OAuth Admin APIs were
+                withdrawn in March 2026), so it genuinely cannot be automated —
+                which is the other half of what a reader needs to know.
+              */}
+              {isGmail && connected.length === 0 && (
+                <p className="border-t border-border px-4 py-3 text-note text-muted-foreground">
+                  Switchboard's Google app is in testing mode, so an admin has
+                  to allow each address before it can connect.
+                  {userEmail && (
+                    <>
+                      {' '}
+                      If Google blocks the connection, ask them to add{' '}
+                      <span className="font-mono text-foreground">{userEmail}</span>.
+                    </>
+                  )}
+                </p>
+              )}
 
               {connected.length > 0 && (
                 <ul className="border-t border-border">

@@ -36,13 +36,37 @@ export async function GET(request: NextRequest) {
 
   const params = request.nextUrl.searchParams;
 
-  // The user can decline on the consent screen. That is not an error.
+  /*
+   * ── `access_denied` means TWO different things ────────────────────────────
+   *
+   * This branch used to say "Connection cancelled." for `access_denied`, which
+   * is right for one of the two causes and actively misleading for the other:
+   *
+   *   1. The person clicked Cancel on the consent screen. Not an error.
+   *   2. Their Google account is not on the app's test-user allowlist. The
+   *      consent screen is External + Testing (docs/03-RESOURCES.md §2), so
+   *      Google refuses any account an admin has not added by hand — and it
+   *      reports that refusal with the same `access_denied` code.
+   *
+   * Google gives us nothing that separates them, so the message must cover
+   * both. Telling someone they cancelled, when in fact they were blocked,
+   * sends them to retry the identical click forever — and it reads as this
+   * app being broken when the app never saw the request.
+   *
+   * ⚠ Do not "improve" this back into a single confident sentence unless
+   * Google starts distinguishing the two, which as of 2026-08 it does not.
+   * The second cause is also the more likely one the moment a second person
+   * tries to connect, which is exactly when a wrong message costs the most.
+   */
   const googleError = params.get('error');
   if (googleError) {
     return back(request, {
       error:
         googleError === 'access_denied'
-          ? 'Connection cancelled.'
+          ? 'Google did not complete the connection. Either it was cancelled, ' +
+            'or this Google account is not on the app allowlist yet — ' +
+            'Switchboard is in Google testing mode, so an admin has to add each ' +
+            'address before it can connect.'
           : 'Google could not complete the connection.',
     });
   }

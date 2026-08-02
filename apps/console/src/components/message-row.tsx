@@ -6,6 +6,11 @@ import { useId, useState } from 'react';
 import { ROW_ATTR } from '@/components/timeline-keys';
 import { useNow } from '@/lib/now';
 import {
+  segmentsText,
+  snippetRepeatsHeadline,
+  type HighlightSegment,
+} from '@/lib/search';
+import {
   bodyForDisplay,
   formatAge,
   initials,
@@ -47,6 +52,8 @@ export function MessageRow({
   dotClass,
   showChannel,
   isLast,
+  snippet,
+  showDate = false,
 }: {
   message: TimelineMessage;
   /** Null when the message's channel row could not be loaded. */
@@ -55,6 +62,18 @@ export function MessageRow({
   /** True when this message came in on a different line than the one above it. */
   showChannel: boolean;
   isLast: boolean;
+  /**
+   * Search only: the matched fragments, already split into plain and matched
+   * runs. Replaces the preview line, because on a result row the useful thing
+   * is *why this matched*, not what the message happens to open with.
+   */
+  snippet?: HighlightSegment[] | null;
+  /**
+   * Search results are ranked, not chronological, so consecutive rows can be
+   * months apart with no day heading between them. Without the date the row
+   * says "14:12" and means nothing.
+   */
+  showDate?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
@@ -66,8 +85,15 @@ export function MessageRow({
   const line = preview(message.body_text);
   const body = bodyForDisplay(message.body_text);
 
-  /** "14m ago" while it is recent, otherwise null and the clock time shows. */
-  const age = formatAge(message.sent_at, now);
+  /**
+   * "14m ago" while it is recent, otherwise null and the clock time shows.
+   *
+   * Suppressed entirely on a search result: "just now" is the language of a
+   * live board, and a ranked result list is not one. There the row needs to
+   * say *when*, absolutely, because the rows above and below it may be from
+   * any date at all.
+   */
+  const age = showDate ? null : formatAge(message.sent_at, now);
 
   /*
    * ── Why the headline is not simply the subject ───────────────────────────
@@ -91,6 +117,25 @@ export function MessageRow({
 
   /** Already promoted into the headline — printing it twice says nothing new. */
   const showPreview = Boolean(message.subject) && Boolean(line);
+
+  /*
+   * ── The same rule, applied to a search snippet ───────────────────────────
+   *
+   * A message with no subject takes its headline from its opening line, and
+   * `ts_headline` fragments that same body — so a short chat message rendered
+   * the identical sentence twice, once as the headline and once as the grey
+   * snippet below it. Caught by measuring the preview harness, not by reading
+   * the code.
+   *
+   * When that happens the fix is not to drop the snippet — that would throw
+   * away the highlight, which on a result row is the whole point. The headline
+   * carries the marks instead, and the duplicate line goes.
+   */
+  const snippetIsHeadline = snippetRepeatsHeadline(headline, snippet ?? null);
+  const headlineSegments =
+    snippetIsHeadline && snippet && normaliseSpace(segmentsText(snippet)) === normaliseSpace(headline ?? '')
+      ? snippet
+      : null;
 
   return (
     <li className="group relative flex gap-3.5">
@@ -171,10 +216,12 @@ export function MessageRow({
             */}
             <time
               dateTime={message.sent_at}
-              title={age ? formatFullTimestamp(message.sent_at) : undefined}
+              // Whenever the visible label is lossy — relative ("just now") or
+              // year-less ("7 Aug") — the exact stamp stays one hover away.
+              title={age || showDate ? formatFullTimestamp(message.sent_at) : undefined}
               className="ml-auto shrink-0 font-mono text-meta text-muted-foreground"
             >
-              {age ?? formatTime(message.sent_at)}
+              {age ?? (showDate ? formatDateTime(message.sent_at) : formatTime(message.sent_at))}
             </time>
           </span>
 
@@ -186,7 +233,11 @@ export function MessageRow({
                 !headline && 'text-muted-foreground italic',
               )}
             >
-              {headline ?? 'Empty message'}
+              {headlineSegments ? (
+                <Highlighted segments={headlineSegments} />
+              ) : (
+                (headline ?? 'Empty message')
+              )}
             </span>
 
             <ChevronRight
@@ -199,10 +250,30 @@ export function MessageRow({
             />
           </span>
 
-          {!open && showPreview && (
-            <span className="mt-0.5 block truncate text-row text-muted-foreground">
-              {line}
+          {/*
+            The snippet wins over the preview when there is one. `ts_headline`
+            already picked the fragments that contain the search terms, and on
+            a result row "why did this match" is the only question — the
+            message's opening line is what the timeline shows and is usually
+            not where the hit is.
+
+            Rendered as elements, never as HTML: `highlightSegments` exists so
+            that a message body — written by somebody else — never reaches
+            `dangerouslySetInnerHTML`. Not truncated with `truncate` either,
+            because a fragment cut at the viewport edge can lose the very word
+            that was highlighted; two lines are clamped instead.
+          */}
+          {!open && snippet && snippet.length > 0 && !snippetIsHeadline ? (
+            <span className="mt-0.5 block line-clamp-2 text-row text-muted-foreground">
+              <Highlighted segments={snippet} />
             </span>
+          ) : (
+            !open &&
+            showPreview && (
+              <span className="mt-0.5 block truncate text-row text-muted-foreground">
+                {line}
+              </span>
+            )
           )}
         </button>
 
@@ -238,6 +309,42 @@ export function MessageRow({
         </div>
       </div>
     </li>
+  );
+}
+
+/** Collapses runs of whitespace, so the two paths a body arrives by compare. */
+function normaliseSpace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * A snippet's matched runs, as elements.
+ *
+ * ⚠ Elements, never `dangerouslySetInnerHTML`. `ts_headline`'s default
+ * delimiters are `<b>` tags, and every body in this table was written by
+ * somebody else — an email is free to contain `<img onerror=…>`. Rendering
+ * segments as React children means React escapes them, so there is no path
+ * from a message body to executable markup. `lib/search.ts` pins that with a
+ * test.
+ *
+ * `bg-live/20` rather than a new colour: amber is already this console's one
+ * reserved "the system is telling you something" hue, and a search hit is
+ * exactly that. Adding a fourth colour would be the thing the design notes
+ * refuse — colour here means channel, or live, and nothing else.
+ */
+function Highlighted({ segments }: { segments: HighlightSegment[] }) {
+  return (
+    <>
+      {segments.map((segment, index) =>
+        segment.match ? (
+          <mark key={index} className="rounded-[2px] bg-live/20 px-0.5 text-foreground">
+            {segment.text}
+          </mark>
+        ) : (
+          <span key={index}>{segment.text}</span>
+        ),
+      )}
+    </>
   );
 }
 
@@ -286,6 +393,24 @@ function Avatar({ initials, outbound }: { initials: string; outbound: boolean })
 function formatTime(iso: string): string {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Manila',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso));
+}
+
+/**
+ * Date and time, for rows that do not sit under a day heading.
+ *
+ * Short month rather than a numeric date: `07/08` is ambiguous between two
+ * conventions and this project's readers use both, while "7 Aug" is not
+ * ambiguous to anyone. No year — a result older than a year is rare enough
+ * that the row's `title` carrying the full stamp is the right place for it.
+ */
+function formatDateTime(iso: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Manila',
+    day: 'numeric',
+    month: 'short',
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(iso));

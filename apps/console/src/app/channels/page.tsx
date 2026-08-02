@@ -51,7 +51,7 @@ export default async function ChannelsPage({
       )}
 
       <Suspense fallback={<ChannelListSkeleton />}>
-        <ChannelSection channels={channels} />
+        <ChannelSection channels={channels} userEmail={user.email ?? undefined} />
       </Suspense>
     </AppShell>
   );
@@ -63,9 +63,11 @@ export default async function ChannelsPage({
  */
 async function ChannelSection({
   channels,
+  userEmail,
 }: {
   channels: Promise<{ channels: ChannelRow[]; error: string | null }>;
+  userEmail?: string;
 }) {
   const { channels: rows, error } = await channels;
-  return <ChannelList rows={rows} error={error} />;
+  return <ChannelList rows={rows} error={error} userEmail={userEmail} />;
 }

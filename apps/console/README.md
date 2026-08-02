@@ -120,6 +120,38 @@ to learn whether more exist, which costs one row instead of a counting scan. A
 console promising *every message, every channel, in order* must not silently
 withhold one.
 
+### Search
+
+`/search` is one query across every channel, ranked by relevance rather than
+recency. The SQL and its reasoning are in
+`packages/db/migrations/0007_message_search.sql`; three things matter on this
+side of the wire.
+
+**The whole state is in the URL, and the form is a real `<form method="get">`.**
+That makes a search a *link* — shareable, bookmarkable, survives a reload —
+renders on the server, and works before hydration. The client enhancement is one
+behaviour on top: changing a filter submits, because a checkbox needing a second
+click on "Search" reads as broken. The text field deliberately does not
+auto-submit per keystroke — that is one navigation to Singapore per character.
+
+**Results are not the timeline.** No day headings: relevance order would put a
+heading over one row, then another over one row. Each row carries its own date
+instead (`showDate`). The channel label still follows `channelChangePoints`, so
+one connected channel yields one label rather than fifty saying "Gmail".
+
+> ⚠ **A snippet must never repeat the headline.** A message with no subject
+> takes its headline from its opening line, and `ts_headline` fragments that
+> same body — so a short chat message rendered the identical sentence twice,
+> once large and once grey. `snippetRepeatsHeadline` catches it and the headline
+> carries the marks instead. Found by measuring the preview harness; it is
+> invisible in any fixture that happens to have a subject.
+
+> ⚠ **Highlighting is elements, never HTML.** `ts_headline` defaults to `<b>`
+> tags, and rendering those means putting a message body — written by somebody
+> else — through `dangerouslySetInnerHTML`. The SQL delimits with STX/ETX
+> instead, `highlightSegments` splits on them, and React escapes the text. A
+> test pins it with an `<img onerror>` body.
+
 ### Theming
 
 Three states — light, dark, and **system**, which is the default and is what
@@ -161,6 +193,10 @@ over fixture rows.
 | `/preview?state=loading` | the streaming skeleton |
 | `/preview?screen=channels` | the channel list |
 | `/preview?screen=channels&state=error` | **a channel with `last_error` set** — the state the renewal sweep produces, which only ever surfaces here and is never around when you want to look at it |
+| `/preview?screen=search` | ranked results, with real `ts_headline` delimiters so the highlight can be judged |
+| `/preview?screen=search&state=prompt` | before anything is asked — carries the query grammar |
+| `/preview?screen=search&state=empty` | **no matches.** Must never converge with the prompt state: one means *you have not asked*, the other means *the answer is no* |
+| `/preview?screen=search&state=filtered` | the form with a channel and a date bound set |
 
 **Development only**, guarded twice — `notFound()` in the route and a
 conditional entry in `PUBLIC_PATHS`, both keyed on `NODE_ENV`, which Next
