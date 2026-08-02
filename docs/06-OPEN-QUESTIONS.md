@@ -49,11 +49,40 @@ theoretical.
 
 ## 🟡 Needs a decision, not blocking
 
-### Q2 — Where does the assistant's conversation history live?
-**Relevant by:** Phase 4
+### Q9 — Should the assistant's prompt be tuned further, and which way?
+**Raised:** 2026-08-02 · **Relevant by:** before any demo
 
-Multi-turn memory is a better experience but adds a table and context-window
-management. *Leaning:* single-turn for v1, multi-turn as polish.
+Phase 4B's eval, best run: **5/5 must-refuse correct, 5/7 answerable correct.**
+Before hardening it was 7/7 answerable and only 3/8 refusals. It now over-refuses
+*"do I have upcoming meetings?"* and *"summarise what needs my attention"* —
+questions the corpus can answer.
+
+Over-refusing is the **safe** failure (ADR-007), so this is not urgent. But the
+first of those two is **Ms. Maria's own example question**, which makes it the
+one most likely to be asked at a demo. *Leaning:* soften the refusal example
+slightly and re-measure — and **only** via `eval-assistant.ts`, never by eye.
+
+### Q10 — Raise the assistant's ~30 questions/day ceiling?
+**Raised:** 2026-08-02 · **Relevant by:** if it becomes annoying in practice
+
+Measured: ~3,200 tokens per question against Groq's ~100K tokens/day. Two levers,
+both trade-offs rather than wins:
+
+- **`MAX_CONTEXT_MESSAGES` 8 → 4** — roughly doubles the daily budget, costs
+  answer quality on broad questions ("summarise what needs my attention").
+- **Assistant on `llama-3.1-8b-instant`** — 14,400 req/day, but it was
+  measurably worse at refusing, which is the property that matters most here.
+
+*Leaning:* leave it. 30/day is ample for a demo, and both levers spend the thing
+the product is judged on.
+
+### Q2 — Where does the assistant's conversation history live?
+**Relevant by:** Phase 4 · **Still open after 4B shipped**
+
+Phase 4B shipped **single-turn**, as this leaned. Each question is answered from
+retrieval alone with no memory of the previous one — so "what about next week?"
+as a follow-up does not work. Multi-turn adds a table and context-window
+management. *Leaning unchanged:* polish, not v1.
 
 ### Q3 — How aggressive should automatic contact merging be?
 **Relevant by:** Phase 3
@@ -197,4 +226,33 @@ would only matter for monitoring genuine client traffic in production.
 
 ---
 
-*Last updated: 2026-07-25 · Planning session 1*
+### R18 — Which AI provider answers assistant questions?
+**Groq `llama-3.3-70b-versatile`, not Gemini.** ADR-003 chose Gemini 2.5 Flash on
+250 requests/day; measured 2026-08-02 that free tier is **20 per day**
+(`"quotaValue": "20"`, read off the quota error). One eval run needs 15. Groq
+gives 1,000/day, and summaries stay on a *different* Groq model so the two cannot
+exhaust each other. `ASSISTANT_PROVIDER=gemini` reverts it in one variable.
+*2026-08-02*
+
+### R19 — How does the assistant refuse?
+**The model refuses from context; a similarity threshold cannot.** ADR-007
+specified an absolute floor. Measured over the real corpus, the lowest
+*answerable* score (0.8487) sits **below** the highest *unanswerable* one
+(0.8563) — e5's embeddings occupy a narrow band where absolute distance barely
+signals relevance, though **ranking** is excellent. A relative floor replaces the
+absolute one, which survives only as an empty-corpus backstop. **ADR-016**.
+*2026-08-02*
+
+### R20 — Can the console run the embedding model itself?
+**No — the worker serves it over one authenticated route.** 129 MB plus native
+ONNX binaries in a serverless function measured a ~35 s cold start, and a demo's
+first question *is* a cold start. The worker holds the model warm (ADR-011), so
+its ingress became external carrying exactly `POST /embed`: it takes text,
+returns numbers, never touches the database, and has no notion of a user.
+Retrieval deliberately stays in the console on the user's own session, so **RLS**
+decides whose messages are searched. *2026-08-02*
+
+---
+
+*Last updated: 2026-08-02 · Q9 and Q10 added after Phase 4B; Q2 answered in
+practice (single-turn shipped); R18–R20 resolved by measurement.*

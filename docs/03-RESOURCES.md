@@ -269,6 +269,36 @@ disabled.**
 
 *Sources:* [Gemini free tier limits 2026](https://harboratory.com/gemini-api-free-tier-limits-in-2026-explained/) · [Gemini billing / free-tier trap](https://usagebox.com/articles/gemini-api-billing-free-tier-confusion)
 
+### 4a-bis. What the assistant ACTUALLY runs on — Groq, measured 2026-08-02
+
+Both AI workloads are Groq now, on **two different models on purpose**: Groq's
+limits are per-model, so heavy assistant use can never stop mail being
+summarised. That is ADR-003's failure-isolation argument, satisfied inside one
+vendor rather than across two.
+
+| Workload | Model | Measured from live headers |
+|---|---|---|
+| **Assistant** (Phase 4B) | `llama-3.3-70b-versatile` | 1,000 req/day · **12,000 tokens/min** |
+| **Summaries** (Phase 4A) | `llama-3.1-8b-instant` | 14,400 req/day · 6,000 tokens/min |
+
+**⚠ The real ceiling is ~30 assistant questions per day, and it is a TOKEN cap.**
+One question sends the system prompt plus 8 retrieved messages — **3,000–3,500
+tokens**. Against a documented ~100,000 tokens/day that is roughly 30 questions;
+the 1,000 requests/day never binds. Observed directly: a request rejected with
+`x-ratelimit-remaining-tokens: 12000` — a *full* per-minute budget, refused, which
+is only possible if the daily token cap is what ran out.
+
+Per minute: 12,000 ÷ ~3,200 ≈ **3–4 questions**.
+
+**Nothing else is capped.** Search is Postgres. Embeddings are local — free,
+unlimited, offline, and the reason semantic search keeps working even if every
+provider is down. Ingest and the timeline have no AI in the path.
+
+If the ceiling ever needs raising, the two levers are: cut `MAX_CONTEXT_MESSAGES`
+from 8 to 4 (roughly doubles the daily questions, costs answer quality on broad
+questions), or move the assistant to `llama-3.1-8b-instant` (14,400/day, but it
+was measurably worse at refusing, which is the property that matters most).
+
 ### 4b. Per-message extraction — Groq, running Llama
 
 | | Free tier |
@@ -433,7 +463,22 @@ Phase 4's AI keys.*
 - [x] ★ Azure resource group + Container Apps environment — `rg-switchboard`,
       **malaysiawest** (see the region policy below)
 - [ ] Azure Blob Storage account + container — **not needed until Phase 3**;
-      attachments were moved there 2026-07-27 (`docs/04-ROADMAP.md`)
+      attachments were moved there 2026-07-27 (`docs/04-ROADMAP.md`).
+      Yuri approved provisioning it on 2026-08-02; not done yet.
+- [x] ★ **Worker resized to 0.5 vCPU / 1.0 GiB** (2026-08-02). It crashlooped at
+      the original 0.25 / 0.5 with **exit code 137 — OOM** — a 129 MB quantised
+      ONNX model needs far more than its own size once the runtime and Node's
+      heap are counted. ⚠ **Running cost roughly doubles to ~$20–30/month**, so
+      §1's "expect meaningful headroom left over" is now spent. ADR-011 amended.
+- [x] ★ **`EMBED_API_SECRET`** — an Azure Container Apps *secret*
+      (`embed-api-secret`), referenced by env var, and the same value on Vercel.
+      Gates `POST /embed`, the only public route on the worker. Verified from the
+      open internet: no token → 401, wrong token → 401, correct → 384 dims.
+      ⚠ **Unset disables the route rather than opening it.**
+- [x] ★ **Worker ingress is now EXTERNAL** (was internal). Required because the
+      console cannot hold a 129 MB model in a serverless function. FQDN:
+      `switchboard-worker.jollyriver-9d68797d.malaysiawest.azurecontainerapps.io`.
+      ADR-011 amended with why the surface is one identity-free route.
 
 **Phase 1 — Gmail (+ Calendar scopes, requested now to avoid a second consent later)**
 - [x] ★ Google Cloud project; **Gmail API and Calendar API** both enabled —

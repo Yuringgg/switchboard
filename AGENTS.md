@@ -88,17 +88,29 @@ feature that works and is understood beats a clever one that half-works.
 
 ## 5. Current status
 
-**Phase 0 ✅ COMPLETE (2026-07-26). Phase 1 ✅ COMPLETE (2026-07-28).
-Phase 2 🟡 CODE COMPLETE (2026-07-28) — every line is written, typechecked and
-tested; it is waiting on a Meta account and a test number, which are Yuri's
-clicks.**
+**Phase 0 ✅ · Phase 1 ✅ · Phase 2 🟡 code complete, awaiting Meta ·
+Phase 3 🟡 search shipped · Phase 4A ✅ shipped · Phase 4B ✅ shipped ·
+Phase 5 ⬜ next.**
 
-> **Joining cold? Read these two after this file, in order:**
+**§7 at the bottom of this file is the fastest way to know where things stand** —
+it carries the verified numbers and the next action. Read that, then come back.
+
+> **Joining cold? Read these in order after this file:**
+> `correspondence/2026-08-02-phase-4b-assistant.md` — **most recent.** The
+> assistant, and the two documented decisions that measurement disproved.
+> `correspondence/2026-08-02-search-and-summaries.md` — search, summaries, and
+> the CI that was red for five days without anyone noticing.
 > `correspondence/2026-07-28-phase-1-complete-handoff.md` — what is deployed
-> where, the seven rules that are not negotiable, the failure modes that are
-> silent, and why each guard exists.
-> `correspondence/2026-07-28-phase-2-whatsapp.md` — what Phase 2 built, the
-> refactor checkpoint's finding, and exactly what is left.
+> where, the seven rules that are not negotiable, and the silent failure modes.
+> `correspondence/2026-07-28-phase-2-whatsapp.md` — Phase 2 and the refactor
+> checkpoint's finding.
+
+⚠ **This project has now had four documented decisions contradicted by
+measurement** (ADR-012, ADR-014, ADR-016, and ADR-003's provider). The pattern is
+always the same: the doc was right when written and quietly stopped being right.
+**Check a claim against the live system before building on it** — the Supabase
+MCP, `az containerapp logs`, and reading a provider's own rate-limit headers have
+each caught something reading could not.
 
 **Phase 2 in one paragraph.** `packages/adapters/whatsapp` parses Meta's webhook
 and normalizes it; `/api/webhooks/whatsapp` verifies the HMAC, resolves the
@@ -595,11 +607,18 @@ are all settled — see the resolved list in `docs/06-OPEN-QUESTIONS.md`.
   Stays warm because it holds ONNX embedding weights in memory.
 - **Database:** Postgres + pgvector + Realtime + Auth + RLS → **Supabase**
 - **Object storage:** attachments → **Azure Blob Storage**
-- **Assistant Q&A:** **Gemini 2.5 Flash** — 250K tokens/min and a 1M context
-  window. RAG prompts are large, so tokens/min is the binding limit. ADR-003.
-- **Extraction:** **Groq / Llama** — many small prompts, 14.4K req/day.
-- **Embeddings:** **local**, Transformers.js. Free, unlimited, cannot fail
-  mid-demo. **Must be multilingual — the corpus is Taglish.**
+- **Assistant Q&A:** **Groq `llama-3.3-70b-versatile`** — ⚠ **not Gemini.**
+  ADR-003 said Gemini 2.5 Flash on the strength of 250 requests/day; measured
+  2026-08-02 that free tier is **20 per day**. Groq gives 1,000/day, though the
+  binding limit is ~100K tokens/day ≈ **30 questions/day**. Amended in
+  `packages/ai/src/assistant-provider.ts`; `ASSISTANT_PROVIDER=gemini` reverts.
+- **Summaries:** **Groq `llama-3.1-8b-instant`** — 14,400 req/day. A *different
+  model* from the assistant on purpose: Groq's limits are per-model, so heavy
+  assistant use can never stop mail being summarised.
+- **Embeddings:** **local**, Transformers.js, `Xenova/multilingual-e5-small`
+  (384d, 129 MB). Free, unlimited, cannot fail mid-demo. **Must be multilingual
+  — the corpus is Taglish**, and it is measurably doing that job (a Tagalog
+  message out-scored an English one on an English query).
 
 Concrete library picks (ORM, validation, testing, dates) are pinned in
 `docs/02-ARCHITECTURE.md` §8. Don't re-litigate them without a reason.
@@ -655,10 +674,27 @@ personal conversations, and no library changes that legitimately.
 | **Phase 0** | ✅ complete |
 | **Phase 1 — Gmail** | ✅ complete and **live**. 49 real messages, watch renewing itself in production |
 | **Phase 2 — WhatsApp** | 🟡 **code complete, pushed, deployed.** Dormant until Meta credentials exist |
-| **Phase 3 — console** | 🟡 **search + channel/date filters shipped 2026-08-02** (migration 0007, `/search`). Remaining: contacts, identity merge, attachments, virtualization |
-| **Phase 4A — summaries** | 🟡 **built and proven 2026-08-02** — migration 0008, `packages/ai`, worker step, backfill, 10/10 eval. ⚠ **Deployed worker still runs the old image** until the Container App digest is repointed |
-| **Phase 4B — assistant** | 🟡 **built and measured 2026-08-02** — 394 chunks embedded, `/assistant` live in the console, 15-case eval. ⚠ **Not reachable in production** until the worker is repointed, its ingress externalised and 4 variables set. Prompt owes one more tuning pass |
-| **Phase 5** | ⬜ not started |
+| **Phase 3 — console** | 🟡 **search + filters shipped and deployed.** Migration 0007, `/search`. Remaining: contacts, identity merge, attachments, virtualization |
+| **Phase 4A — summaries** | ✅ **shipped, deployed, running.** Migration 0008, Groq 8b. **66/66 eligible messages summarised**, and new mail is summarised automatically on ingest |
+| **Phase 4B — assistant** | ✅ **shipped and deployed.** Migrations 0009, local embeddings, `/assistant`. **75/75 messages embedded (397 chunks)**, worker serving `/embed`. ⚠ Prompt owes one tuning pass — see below |
+| **Phase 5** | ⬜ not started. **This is the next thing to build.** |
+
+### Verified live on 2026-08-02, by querying — not by inference
+
+| | |
+|---|---|
+| Messages | **75** · 63 conversations · 21 contacts · 2 users |
+| Summaries | **66 / 66 eligible** (100%) |
+| Embeddings | **75 / 75 messages, 397 chunks** (100%), 0 missing |
+| Queue | 78 `raw_events`, **0 stuck, 0 failed** |
+| Channels | 1 Gmail, **0 in error**. Watch expires **2026-08-08** |
+| Worker | rev `--0000013`, healthy, `{"embedder":true}` |
+| Console | all routes 307 → `/login` (gated correctly) |
+| CI | green |
+
+**The full pipeline runs unattended:** a new email arrives → webhook → queue →
+worker normalises → **summarises** → **chunks and embeds** → timeline. All three
+steps confirmed on the newest message, which nobody backfilled.
 
 **Blocked on exactly one thing, and it is not code:** Yuri cannot get past Meta's
 developer-account phone verification (*"You can only complete this action in
@@ -667,21 +703,40 @@ Vercel, redeploy, subscribe the `messages` webhook field, run
 `provision-whatsapp.ts`, send a test message. Checklist with the traps:
 `docs/03-RESOURCES.md` §6.
 
-**Two standing obligations that are easy to forget:**
+**Standing obligations, easy to forget:**
 
-1. **Reconnect Gmail every 7 days** and on the morning of any demo — see the
-   warning above. Last reconnect 2026-08-01; next lapse **2026-08-08**.
-2. **Ask Ms. Maria where she put her recommendations.** They are not on GitHub.
+1. **Reconnect Gmail every 7 days** and on the morning of any demo. Last
+   reconnect 2026-08-01; next lapse **2026-08-08**.
+2. **Ask Ms. Maria where she put her recommendations / the BRD.** Not on GitHub.
+3. **⚠ Rotate the Groq and Gemini keys before this repo is shown to iOzera** —
+   both were pasted into a chat transcript on 2026-08-02, at Yuri's explicit
+   instruction. Nothing was committed; `.env` is gitignored.
 
-**If you are a session picking this up and Meta is still blocked**, build
-Phase 4A summaries — it is unblocked as of 2026-08-02, it is visible, and it is
-the one the mentor explicitly asked for, twice.
+**⚠ The assistant is capped at roughly 30 questions per day.** Measured: Groq's
+70B allows 12,000 tokens/min and ~100,000 tokens/day, and one question costs
+~3,000–3,500 tokens. Requests/day (1,000) never binds — the token cap does.
+**Do not burn the day's budget the morning of a demo.** Search, embeddings,
+summaries and ingest have no such limit.
 
-321 tests. `pnpm check`, `next build` and the worker bundle are all green.
+**⚠ Phase 4B's prompt owes one tuning pass, and the eval is the instrument.**
+Best measured run: **5/5 refusals correct, 5/7 answerable correct.** Before
+hardening it was 7/7 answerable but only 3/8 refusals. It now over-refuses two
+answerable questions ("do I have upcoming meetings?", "summarise what needs my
+attention") — the *safe* direction to fail, per ADR-007, but not finished. Run
+`apps/worker/scripts/eval-assistant.ts` and adjust; do not tune by eye.
+
+**If you are a session picking this up:** Phase 5 is next — extraction,
+"needs attention", and calendar write-back (ADR-010, **never auto-create**).
+Everything it needs already exists: Groq is wired, `extractions` takes new
+kinds, and the OAuth consent already carries `calendar.events`.
+
+**356 tests.** `pnpm typecheck`, `pnpm test`, `next build`, the worker bundle and
+`assert-rls` (all ten tables) are green.
 
 ---
 
-*Last updated: 2026-08-02 · Phase 2 pushed and deployed (adapter, ingest,
-worker, migration 0006, ADR-014); Gmail ingest fans out to every owner of a
-shared mailbox; the 7-day refresh-token expiry found and written up; Phase 4A
-added on Ms. Maria's instruction (ADR-015)*
+*Last updated: 2026-08-02 (evening) · Phase 3 search + filters, Phase 4A
+summaries and Phase 4B assistant all shipped and deployed. Four docs corrected
+against measurement: Gemini's free tier is 20/day not 250 (ADR-003 amended), the
+similarity floor cannot carry the refusal (ADR-016), the worker needs 1 GiB not
+0.5 (ADR-011 amended), and CI had been red since 2026-07-28 on a stale lockfile.*
