@@ -90,7 +90,8 @@ feature that works and is understood beats a clever one that half-works.
 
 **Phase 0 ✅ · Phase 1 ✅ · Phase 2 🟡 code complete, awaiting Meta ·
 Phase 3 🟡 search + message route shipped · Phase 4A ✅ shipped ·
-Phase 4B ✅ shipped and its loose ends closed · Phase 5 ⬜ next.**
+Phase 4B ✅ shipped and its loose ends closed · Phase 5 ✅ shipped
+(extraction, `/attention`, calendar write-back) — polish remains.**
 
 **§7 at the bottom of this file is the fastest way to know where things stand** —
 it carries the verified numbers and the next action. Read that, then come back.

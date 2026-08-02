@@ -183,6 +183,33 @@ async function main(): Promise<void> {
           completion = await gemini.complete(ASSISTANT_SYSTEM_PROMPT, prompt);
         }
 
+        /*
+         * ⚠ STOP THE RUN when the DAILY allowance is what ran out.
+         *
+         * Waiting and retrying once is right for the per-minute window: it
+         * clears in seconds. It is useless for the daily cap, and on
+         * 2026-08-03 that cost thirteen minutes of wall clock — twelve cases,
+         * each waiting a full minute to fail identically, producing no
+         * information at all. The partial score is the same either way; only
+         * the waiting differs.
+         *
+         * `limitScope` comes from the provider's own 429 body (`groq.ts`), the
+         * only place Groq names minute-versus-day. The remaining cases are
+         * reported as provider errors so the two numbers stay honest about
+         * what was actually measured.
+         */
+        if (!completion.ok && completion.limitScope === 'day') {
+          const remaining = selected.length - selected.indexOf(testCase);
+          console.info(`[SKIP] ${testCase.question}\n   ->  provider: ${completion.reason}\n`);
+          providerErrors += remaining;
+          console.info(
+            `⚠ The DAILY token allowance is gone, so the remaining ${remaining - 1} case(s)\n` +
+              '  cannot be measured either. Stopping rather than waiting a minute each to\n' +
+              '  fail identically. Re-run tomorrow, BEFORE using /assistant.\n',
+          );
+          break;
+        }
+
         if (!completion.ok) {
           /*
            * ⚠ A provider failure is NOT a logic failure, and must not be

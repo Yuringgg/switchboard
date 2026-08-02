@@ -43,8 +43,17 @@ where **every claim cites the message it came from**, and each citation is a lin
 to that message. An answer that cites nothing renders as a refusal — that is a
 success criterion, not a UI detail.
 
-⬜ **Phase 5** — extraction, a "needs attention" view, and Google Calendar
-write-back. **This is the next thing to build.**
+✅ **Phase 5 — extraction, attention, calendar.** The worker pulls meetings,
+commitments, requests and questions out of every message; `/attention` is the
+queue, ordered by what is actually urgent rather than by what arrived last; and
+a detected meeting becomes a **proposal** on the message it came from, editable,
+which becomes a real Google Calendar event **only when you confirm it**. Every
+item quotes the sentence it was read from, and a row whose quote is not in the
+message is thrown away.
+
+Remaining Phase 5 polish: the daily digest, an error-handling audit, this
+README verified from a clean clone, an architecture diagram, and a demo
+rehearsal on the deployed infrastructure.
 
 The full plan lives in [`docs/`](./docs). Start with [`AGENTS.md`](./AGENTS.md).
 
