@@ -89,13 +89,27 @@ export default async function AssistantPage() {
 /**
  * Starter questions.
  *
- * Deliberately questions this corpus can actually answer — the first one is Ms.
- * Maria's own example. A suggestion that returns a refusal would teach a new
- * user that the feature is broken, on their first interaction with it.
+ * Deliberately questions this corpus can actually answer. A suggestion that
+ * returns a refusal teaches a new user that the feature is broken, on their
+ * first interaction with it.
+ *
+ * ⚠ **Reordered on 2026-08-02, after measuring rather than assuming.** The first
+ * two used to be *"Do I have any upcoming meetings?"* and *"What have I been
+ * asked to do this week?"*, and `apps/worker/scripts/probe-context.ts` shows
+ * both currently refuse — the first because every meeting in the corpus is six
+ * days old, the second because retrieval has no notion of *importance* and
+ * returns newsletters. So the two suggestions most likely to be clicked first
+ * were the two guaranteed to disappoint.
+ *
+ * The ones below are measured to answer with citations. Ms. Maria's own example
+ * question stays — it is the demo question and it must be on this screen — but
+ * it sits last until Phase 5 extraction backs it, or until the mailbox contains
+ * a genuinely future-dated meeting. See ADR-017 and `docs/06-OPEN-QUESTIONS.md`
+ * Q9.
  */
 const SUGGESTIONS = [
-  'Do I have any upcoming meetings?',
-  'What have I been asked to do this week?',
   'Did any deployment or build fail?',
-  'Any job applications or interviews?',
+  'What kinds of roles have I been sent job alerts about?',
+  'Did I receive any money or payments?',
+  'Do I have any upcoming meetings?',
 ];

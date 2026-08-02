@@ -38,82 +38,15 @@ import {
 import { createDbClient } from '@switchboard/db';
 import { sql } from 'drizzle-orm';
 
+import { selectCases } from './eval-cases';
+
 /** The tenant whose mail the corpus belongs to. RLS is set to them per query. */
 const OWNER_ID = process.env.EVAL_OWNER_ID ?? 'ec7645a6-11b8-456a-bbcc-03b94e5841db';
 
-interface Case {
-  question: string;
-  /** True when the corpus genuinely cannot answer it. */
-  mustRefuse: boolean;
-  /** At least one must appear in the answer. Only for answerable cases. */
-  expectSomeOf?: string[];
-}
-
-const CASES: Case[] = [
-  // ── Answerable ────────────────────────────────────────────────────────────
-  { question: 'Do I have any upcoming meetings?', mustRefuse: false },
-  {
-    question: 'Did any deployment fail?',
-    mustRefuse: false,
-    expectSomeOf: ['deploy', 'fail', 'vercel'],
-  },
-  {
-    question: 'What failed in CI?',
-    mustRefuse: false,
-    expectSomeOf: ['ci', 'workflow', 'build', 'test', 'typecheck'],
-  },
-  {
-    question: 'Are there any job openings or hiring emails?',
-    mustRefuse: false,
-    expectSomeOf: ['hiring', 'job', 'role', 'position', 'intern'],
-  },
-  {
-    question: 'Did I receive any money or payments?',
-    mustRefuse: false,
-    expectSomeOf: ['paid', 'payment', 'transfer', 'instapay', 'bdo', 'received'],
-  },
-  { question: 'What has Supabase told me about my projects?', mustRefuse: false },
-  { question: 'Summarise what needs my attention.', mustRefuse: false },
-
-  // ── Must be refused — nothing in the corpus answers these ─────────────────
-  //
-  // Chosen to be plausible-sounding rather than absurd. "What is the airspeed
-  // of a swallow" is easy to refuse; a question shaped exactly like the real
-  // ones, about a topic that simply is not there, is the honest test — and it
-  // is what a demo audience will try.
-  {
-    question: 'What did we agree about the Jakarta office?',
-    mustRefuse: true,
-  },
-  {
-    question: 'How much did the helicopter lease cost?',
-    mustRefuse: true,
-  },
-  {
-    question: 'What did the veterinarian say about the horse?',
-    mustRefuse: true,
-  },
-  {
-    question: 'When is the submarine delivery scheduled?',
-    mustRefuse: true,
-  },
-  {
-    question: 'What is my sister’s flight number for the Osaka trip?',
-    mustRefuse: true,
-  },
-  {
-    question: 'How many units did we sell in the Cebu branch last quarter?',
-    mustRefuse: true,
-  },
-  {
-    question: 'What did Ms. Maria say about the budget for the second phase?',
-    mustRefuse: true,
-  },
-  {
-    question: 'Which supplier won the tender for the new warehouse?',
-    mustRefuse: true,
-  },
-];
+/**
+ * The cases, their three expectations, and the reasoning behind each, live in
+ * `eval-cases.ts` — shared with `probe-context.ts` so the two cannot drift.
+ */
 
 async function main(): Promise<void> {
   const databaseUrl = process.env.DATABASE_URL;
@@ -135,10 +68,17 @@ async function main(): Promise<void> {
     if (!warm.ok) throw new Error(warm.reason);
     console.info(`model ready in ${(warm.ms / 1000).toFixed(1)}s\n`);
 
-    let passed = 0;
-    let failed = 0;
+    const selected = selectCases(process.argv);
+    console.info(`${selected.length} case${selected.length === 1 ? '' : 's'} selected\n`);
 
-    for (const testCase of CASES) {
+    const score = {
+      answer: { passed: 0, total: 0 },
+      refuse: { passed: 0, total: 0 },
+    };
+    let gaps = 0;
+    let providerErrors = 0;
+
+    for (const testCase of selected) {
       const vector = await embedQuery(testCase.question);
 
       /*
@@ -223,8 +163,15 @@ async function main(): Promise<void> {
         }
 
         if (!completion.ok) {
-          console.info(`[FAIL] ${testCase.question}\n   ->  provider: ${completion.reason}\n`);
-          failed += 1;
+          /*
+           * ⚠ A provider failure is NOT a logic failure, and must not be
+           * counted as one. `groq rate limit` here means the day's token
+           * allowance is gone — re-run tomorrow rather than "fixing" a prompt
+           * that was never measured. Counted separately so a run that lost
+           * cases to quota cannot be mistaken for a run that regressed.
+           */
+          console.info(`[SKIP] ${testCase.question}\n   ->  provider: ${completion.reason}\n`);
+          providerErrors += 1;
           continue;
         }
         parsed = parseAnswer(completion.text, context);
@@ -233,28 +180,54 @@ async function main(): Promise<void> {
 
       const problems: string[] = [];
 
-      if (testCase.mustRefuse && !parsed.refused) {
-        problems.push(`ANSWERED a question with no answer in the corpus (cited ${parsed.citedMessageIds.length})`);
+      if (testCase.expect === 'refuse' && !parsed.refused) {
+        problems.push(
+          `ANSWERED a question with no answer in the corpus (cited ${parsed.citedMessageIds.length})`,
+        );
       }
-      if (!testCase.mustRefuse && parsed.refused) {
+      if (testCase.expect === 'answer' && parsed.refused) {
         problems.push('refused a question the corpus can answer');
       }
-      if (!testCase.mustRefuse && testCase.expectSomeOf) {
+      if (testCase.expect === 'answer' && testCase.expectSomeOf) {
         const lower = answer.toLowerCase();
         if (!testCase.expectSomeOf.some((term) => lower.includes(term))) {
           problems.push(`none of [${testCase.expectSomeOf.join(', ')}] in the answer`);
         }
       }
 
-      const mark = problems.length === 0 ? 'PASS' : 'FAIL';
-      problems.length === 0 ? (passed += 1) : (failed += 1);
+      let mark: string;
 
+      if (testCase.expect === 'known-gap') {
+        // Reported, never scored. Printing what it actually did is the point:
+        // if a future change makes one of these answer well, it shows up here
+        // rather than staying invisible behind an exclusion.
+        mark = parsed.refused ? 'GAP ' : 'GAP*';
+        gaps += 1;
+      } else {
+        const bucket = score[testCase.expect];
+        bucket.total += 1;
+        if (problems.length === 0) {
+          bucket.passed += 1;
+          mark = 'PASS';
+        } else {
+          mark = 'FAIL';
+        }
+      }
+
+      const label =
+        testCase.expect === 'refuse'
+          ? '(must refuse) '
+          : testCase.expect === 'known-gap'
+            ? '(known gap) '
+            : '';
+
+      console.info(`[${mark}] ${label}${testCase.question}`);
       console.info(
-        `[${mark}] ${testCase.mustRefuse ? '(must refuse) ' : ''}${testCase.question}`,
+        `       retrieved=${retrieved.length} context=${context.length} cited=${parsed.citedMessageIds.length}`,
       );
-      console.info(`       retrieved=${retrieved.length} context=${context.length} cited=${parsed.citedMessageIds.length}`);
       console.info(`       ${answer.replace(/\s+/g, ' ').slice(0, 150)}`);
       for (const problem of problems) console.info(`   ->  ${problem}`);
+      if (testCase.gap) console.info(`   ->  ${testCase.gap}`);
       console.info('');
 
       /*
@@ -270,8 +243,37 @@ async function main(): Promise<void> {
       await new Promise((resolve) => setTimeout(resolve, 3_000));
     }
 
-    console.info(`${passed} passed, ${failed} failed, ${CASES.length} total`);
-    if (failed > 0) process.exitCode = 1;
+    /*
+     * Reported as two separate scores, never as one number.
+     *
+     * A single "11/15" hides the only thing worth knowing: which DIRECTION it
+     * is failing in. ADR-007 is explicit that the two are not equivalent —
+     * refusing wrongly is safe, answering wrongly is the failure that gets a
+     * monitoring tool uninstalled. A combined score would have read identically
+     * for the 7/7-answerable-3/8-refusals prompt and for its opposite.
+     */
+    const line = (name: string, bucket: { passed: number; total: number }) =>
+      `${name}: ${bucket.passed}/${bucket.total}`;
+
+    console.info(
+      `${line('answerable', score.answer)}   ${line('must-refuse', score.refuse)}` +
+        (gaps > 0 ? `   known gaps: ${gaps} (reported, not scored)` : '') +
+        (providerErrors > 0 ? `   provider errors: ${providerErrors}` : ''),
+    );
+
+    if (providerErrors > 0) {
+      console.info(
+        '\n⚠ Cases were lost to the provider, most likely the daily token cap.\n' +
+          '  That is not a logic result — re-run tomorrow before concluding anything.',
+      );
+    }
+
+    const failures =
+      score.answer.total -
+      score.answer.passed +
+      (score.refuse.total - score.refuse.passed);
+
+    if (failures > 0 || providerErrors > 0) process.exitCode = 1;
   } finally {
     await client.end({ timeout: 5 });
   }
