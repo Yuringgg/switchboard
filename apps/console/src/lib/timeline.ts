@@ -21,6 +21,15 @@ export interface TimelineMessage {
   sent_at: string;
   channel_id: string;
   sender: { external_id: string; display_name: string | null } | null;
+  /**
+   * The AI summary, when one exists (Phase 4A, ADR-015).
+   *
+   * Null is the ordinary case, not a failure: short messages are deliberately
+   * not summarised, and a Groq outage degrades to null rather than to no mail.
+   * `model` travels with the text so the console can say which model wrote it —
+   * ADR-006's reason for recording it per row.
+   */
+  summary?: { text: string; model: string } | null;
 }
 
 export interface TimelineDay {
@@ -78,8 +87,28 @@ export async function fetchTimeline(
     const { data, error } = await supabase
       .from('messages')
       .select(
-        'id, direction, subject, body_text, sent_at, channel_id, sender:contact_identities!messages_sender_identity_fkey(external_id, display_name)',
+        'id, direction, subject, body_text, sent_at, channel_id, ' +
+          'sender:contact_identities!messages_sender_identity_fkey(external_id, display_name), ' +
+          // Phase 4A. One row at most — migration 0008's partial unique index
+          // guarantees it — but PostgREST types every embed as an array.
+          'summary:extractions(payload, model, kind)',
       )
+      /*
+       * ⚠ Filters the EMBEDDED rows, not the parent rows.
+       *
+       * That distinction is the whole risk here: PostgREST turns an embedded
+       * filter into an INNER join when written `extractions!inner(...)`, and
+       * under an inner join every message *without* a summary would vanish from
+       * the timeline — which is most of them, since short messages are
+       * deliberately never summarised. The console would look like it had lost
+       * mail. Verified against the live database before this shipped: six rows
+       * requested, six returned, three with a summary and three without.
+       *
+       * The filter is needed at all because Phase 5 writes other `kind`s to the
+       * same table (ADR-006), and a meeting extraction must not render where a
+       * summary belongs.
+       */
+      .eq('summary.kind', 'summary')
       .order('sent_at', { ascending: false })
       /*
        * One more than we intend to show, purely to learn whether more exist.
@@ -100,12 +129,26 @@ export async function fetchTimeline(
 
     // PostgREST returns an embedded one-to-one as an object, but types it loosely.
     const messages = rows.slice(0, limit).map((row) => {
-      const raw = row as unknown as Omit<TimelineMessage, 'sender'> & {
+      const raw = row as unknown as Omit<TimelineMessage, 'sender' | 'summary'> & {
         sender: TimelineMessage['sender'] | TimelineMessage['sender'][] | null;
+        summary:
+          | { payload: { text?: string } | null; model: string | null }[]
+          | { payload: { text?: string } | null; model: string | null }
+          | null;
       };
+
+      // `extractions` is a one-to-MANY relationship in the schema, so this
+      // arrives as an array however many rows are in it. At most one survives
+      // the kind filter; taking [0] is not a guess.
+      const summaryRow = Array.isArray(raw.summary) ? raw.summary[0] : raw.summary;
+      const summaryText = summaryRow?.payload?.text;
+
       return {
         ...raw,
         sender: Array.isArray(raw.sender) ? (raw.sender[0] ?? null) : raw.sender,
+        summary: summaryText
+          ? { text: summaryText, model: summaryRow?.model ?? 'unknown' }
+          : null,
       } satisfies TimelineMessage;
     });
 

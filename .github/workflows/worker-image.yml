@@ -6,7 +6,15 @@ on:
     paths:
       # Only rebuild when something in the image could actually have changed.
       # The console and docs share this repo and have nothing to do with it.
+      #
+      # ⚠ Every workspace package the worker DEPENDS ON has to be listed here.
+      # A missing entry does not fail — it silently ships the previous image
+      # while the commit looks deployed, which is the same shape of failure as
+      # the BOM incident (docs/02-ARCHITECTURE.md §8): green everywhere, old
+      # code running. `packages/ai` was added in Phase 4A and belongs here for
+      # exactly that reason.
       - 'apps/worker/**'
+      - 'packages/ai/**'
       - 'packages/core/**'
       - 'packages/db/**'
       - 'pnpm-lock.yaml'

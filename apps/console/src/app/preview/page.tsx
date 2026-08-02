@@ -91,6 +91,17 @@ function fixtures(): TimelineMessage[] {
       sent_at: at(14),
       channel_id: 'ch-gmail',
       sender: { external_id: 'maria@iozera.com', display_name: 'Maria Santos' },
+      /*
+       * Phase 4A. This exact string is what `llama-3.1-8b-instant` actually
+       * returned for this body when the eval set was run on 2026-08-02 — not
+       * an invented sample. A fixture that flatters the model teaches nothing
+       * about how the real thing reads at `text-note` in mono.
+       */
+      summary: {
+        text:
+          'Maria wants to discuss two changes to the landing page copy: cutting the hero line to under ten words and moving the disclaimer above the fold, and schedules a meeting for 3pm Thursday or Friday morning.',
+        model: 'llama-3.1-8b-instant',
+      },
     },
     {
       id: 'm2',

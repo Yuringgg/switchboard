@@ -40,6 +40,8 @@ import { persistMessage } from './persist';
 export interface WhatsAppIngestOutcome {
   created: number;
   skipped: number;
+  /** Our `messages.id` for each row newly created. Phase 4A summarises these. */
+  createdIds: string[];
 }
 
 export async function ingestWhatsAppEvent(
@@ -65,7 +67,7 @@ export async function ingestWhatsAppEvent(
      * The reason string is adapter-written and carries no content. §6.
      */
     console.warn(`[whatsapp] skipping event=${event.id}: ${normalized.reason}`);
-    return { created: 0, skipped: 1 };
+    return { created: 0, skipped: 1, createdIds: [] };
   }
 
   /*
@@ -78,5 +80,9 @@ export async function ingestWhatsAppEvent(
    */
   const persisted = await persistMessage(db, ctx, normalized.message, envelope);
 
-  return { created: persisted.created ? 1 : 0, skipped: 0 };
+  return {
+    created: persisted.created ? 1 : 0,
+    skipped: 0,
+    createdIds: persisted.created ? [persisted.messageId] : [],
+  };
 }

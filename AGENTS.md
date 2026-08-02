@@ -424,11 +424,41 @@ a session touching it must know, each of which had a plausible wrong answer:
   a prefix. `buildQuery` strips to word characters before using the raising
   parser, so it only sees machine-built strings.
 
-**The AI keys arrived 2026-08-02** and are in `apps/worker/.env`: Groq
-(`llama-3.1-8b-instant` available — note **not** `llama-3.3-70b`, whose 1,000
-req/day would be exhausted by a backfill) and Gemini (`gemini-2.5-flash`, on
-its own Cloud project `231090633304`, billing disabled). Both verified live.
-**Phase 4A is therefore unblocked.**
+**Phase 4A shipped 2026-08-02** — the summarizer Ms. Maria asked for twice.
+Migration 0008, `packages/ai`, a worker step, a backfill script and a 10-case
+eval set that passes 10/10 against the live model. Five things a session
+touching it must know:
+
+- **⚠ It must NEVER fail an event.** A summary is additive. The step sits
+  between ingest and `markDone`, wrapped so nothing it does can reach the
+  handler that calls `markFailed` — that would burn an attempt on a message
+  which ingested perfectly. `GROQ_API_KEY` is deliberately **optional** in
+  `env.ts`: no key means no summaries and mail flows exactly as before.
+- **⚠ `llama-3.1-8b-instant`, never `llama-3.3-70b-versatile`.** Verified from
+  the live rate-limit headers: 14,400 req/day against **1,000**. One backfill
+  would eat the 70B's allowance and live summarisation would then stop silently
+  until midnight UTC.
+- **Most WhatsApp messages will have no summary, and that is correct.** The
+  `already-short` skip rule fires under 280 characters, because paraphrasing a
+  one-line chat message is no shorter and less true. Say this before a demo
+  rather than debugging it during one.
+- **The summary never replaces the sender's words** — opened row only, above the
+  body, in the mono machine voice, labelled with the model. Not the headline,
+  not the preview line. ADR-015 rejects that outright and it is the defence that
+  still holds if a prompt injection ever succeeds.
+- **The prompt fences the body with a per-request random nonce**, so a hostile
+  message cannot close a delimiter it cannot predict. Three injection fixtures
+  in the eval, all resisted. One residual weakness recorded honestly in
+  `docs/04-ROADMAP.md`: the model will adopt an in-band identity claim as
+  attribution. The console showing the *real* sender from `contact_identities`
+  is what makes that survivable.
+
+**⚠ CI does not repoint the Container App.** `worker-image.yml` pushes a new
+image to ghcr; the app runs one pinned by **digest**. Until
+`az containerapp update --image <digest>` is run, the deployed worker keeps
+running old code while the commit looks deployed — the same shape as the BOM
+incident. Both AI keys are in `apps/worker/.env`; Groq is also an Azure
+**secret** (`groq-api-key`).
 
 Credentials: **Supabase and Google Cloud are both fully configured.**
 `apps/worker/.env` holds `DATABASE_URL` (Supavisor session mode, port 5432 — the
@@ -553,7 +583,7 @@ personal conversations, and no library changes that legitimately.
 | **Phase 1 — Gmail** | ✅ complete and **live**. 49 real messages, watch renewing itself in production |
 | **Phase 2 — WhatsApp** | 🟡 **code complete, pushed, deployed.** Dormant until Meta credentials exist |
 | **Phase 3 — console** | 🟡 **search + channel/date filters shipped 2026-08-02** (migration 0007, `/search`). Remaining: contacts, identity merge, attachments, virtualization |
-| **Phase 4A — summaries** | ⬜ **NEW, Ms. Maria's request.** Planned in full, not started |
+| **Phase 4A — summaries** | 🟡 **built and proven 2026-08-02** — migration 0008, `packages/ai`, worker step, backfill, 10/10 eval. ⚠ **Deployed worker still runs the old image** until the Container App digest is repointed |
 | **Phase 4B / 5** | ⬜ not started |
 
 **Blocked on exactly one thing, and it is not code:** Yuri cannot get past Meta's

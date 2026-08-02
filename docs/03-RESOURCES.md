@@ -240,7 +240,19 @@ disabled.**
 | | Free tier |
 |---|---|
 | General cap | 30 req/min · 6,000 tokens/min · **14,400 req/day** |
-| `llama-3.3-70b-versatile` | 30 RPM · 1,000 RPD · 12,000 TPM · 100,000 TPD |
+| **`llama-3.1-8b-instant`** ⭐ **chosen** | **14,400 req/day** · 6,000 TPM |
+| `llama-3.3-70b-versatile` | 30 RPM · **1,000 RPD** · 12,000 TPM · 100,000 TPD |
+
+**⚠ Verified 2026-08-02 from the live API's own rate-limit headers**, not from a
+docs page — send any request and read `x-ratelimit-limit-requests`. The two
+numbers differ by **14×**, and Phase 4A picks `llama-3.1-8b-instant` for exactly
+that reason: one backfill over a real mailbox would eat a large slice of the
+70B's 1,000/day, and then live summarisation — the thing that has to keep
+working — would silently stop until midnight UTC. `packages/ai/src/groq.ts`
+pins the choice with the numbers beside it.
+
+Summarising one short message is not a task that needs a 70B model. If quality
+ever proves otherwise, the answer is a better prompt before a bigger model.
 
 Extraction is the opposite shape from Q&A: **many small self-contained prompts**,
 one per message. That's bounded by requests/day, where Groq's 14,400 is generous
@@ -402,10 +414,25 @@ from tooling.*
       finds no channel, logs `unknownNumber` and returns 200 — deliberately, so
       Meta does not disable the endpoint, but nothing is stored.
 
-**Phase 4 — assistant**
-- [ ] Gemini API key — **billing left disabled** (assistant Q&A)
-- [ ] Groq API key (per-message extraction)
-- [ ] *(no key needed for embeddings — they run locally)*
+**Phase 4 — summaries and assistant**
+- [x] ★ **Groq API key** — in `apps/worker/.env`, and on Azure Container Apps as
+      a **secret** (`groq-api-key`) referenced by `GROQ_API_KEY`, not as a plain
+      env value: `az containerapp show` prints plain values in full, and that
+      output lands in shell history and CI logs. Verified 2026-08-02: the key
+      works and the app reports only a `secretRef`.
+- [x] ★ **Gemini API key** — in `apps/worker/.env`. Verified working against
+      `models.list`; `gemini-2.5-flash` is available.
+      Note it lives in its own Cloud project (`231090633304`, "Default Gemini
+      Project"), **not** `switchboard-503613`. That is a happy accident worth
+      keeping: enabling billing on one can no longer destroy the free tier of
+      the other. ⚠ **KEEP BILLING DISABLED** — it is irreversible.
+      Not yet needed on Vercel; Phase 4B will need it there.
+- [x] *(no key needed for embeddings — they run locally)*
+
+⚠ **Both keys were pasted into a chat transcript on 2026-08-02.** Nothing was
+committed and `.env` is gitignored, but **rotate both before this repo or these
+sessions are shown to iOzera.** Rotating is ~30 seconds each: delete in the
+dashboard, create a new one, update `.env` and the Azure secret.
 
 **Storage rules:** local dev in `.env.local`, gitignored. Deployed secrets in
 Vercel env vars and Azure Container Apps secrets. Never in the repo, never in a

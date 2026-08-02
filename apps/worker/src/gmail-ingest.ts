@@ -42,6 +42,15 @@ export interface IngestOutcome {
   created: number;
   skipped: number;
   fullSync: boolean;
+  /**
+   * Our `messages.id` for each row this event newly created — NOT Gmail's
+   * message ids, which are the `messageIds` local below.
+   *
+   * Phase 4A summarises exactly these. Only the newly created ones: a history
+   * replay re-fetches messages that already exist, and re-summarising them
+   * would spend quota reproducing summaries that are already stored.
+   */
+  createdIds: string[];
 }
 
 interface ChannelRow extends Record<string, unknown> {
@@ -147,6 +156,7 @@ export async function ingestGmailEvent(
   let fetched = 0;
   let created = 0;
   let skipped = 0;
+  const createdIds: string[] = [];
 
   for (const messageId of messageIds) {
     const result = await fetchMessage(token.accessToken, messageId);
@@ -180,7 +190,10 @@ export async function ingestGmailEvent(
     }
 
     const persisted = await persistMessage(db, ctx, normalized.message, result.message);
-    if (persisted.created) created += 1;
+    if (persisted.created) {
+      created += 1;
+      createdIds.push(persisted.messageId);
+    }
   }
 
   /*
@@ -200,5 +213,5 @@ export async function ingestGmailEvent(
     `);
   }
 
-  return { fetched, created, skipped, fullSync };
+  return { fetched, created, skipped, fullSync, createdIds };
 }

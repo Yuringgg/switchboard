@@ -1,11 +1,13 @@
 import { createServer } from 'node:http';
 
+import { createGroqProvider } from '@switchboard/ai';
 import { createDbClient } from '@switchboard/db';
 
 import { claimNextEvent, markDone, markFailed } from './claim';
-import { DATABASE_URL, IDLE_POLL_MS, MAX_ATTEMPTS, PORT } from './env';
+import { DATABASE_URL, GROQ_API_KEY, IDLE_POLL_MS, MAX_ATTEMPTS, PORT } from './env';
 import { ingestGmailEvent } from './gmail-ingest';
 import { readGmailWatchConfig, renewExpiringWatches } from './gmail-watch';
+import { summariseBatch } from './summarize';
 import { ingestWhatsAppEvent } from './whatsapp-ingest';
 
 /**
@@ -22,6 +24,23 @@ import { ingestWhatsAppEvent } from './whatsapp-ingest';
  */
 
 const { db, sql } = createDbClient(DATABASE_URL);
+
+/**
+ * Phase 4A summariser, or null when no key is configured.
+ *
+ * Null is a supported state, not a broken one — a deployment with no Groq key
+ * ingests mail exactly as it did before Phase 4A and simply has no summaries.
+ * That is the whole design constraint of ADR-015: summarisation is additive and
+ * its absence must never be an outage. Said once at startup rather than every
+ * event, because an absent optional feature is not an error worth repeating.
+ */
+const summariser = GROQ_API_KEY ? createGroqProvider({ apiKey: GROQ_API_KEY }) : null;
+
+if (summariser) {
+  console.info(`[summary] enabled, model=${summariser.model}`);
+} else {
+  console.info('[summary] disabled: GROQ_API_KEY is not set. Mail still ingests.');
+}
 
 let running = true;
 let inFlight = false;
@@ -51,6 +70,9 @@ async function processOne(): Promise<boolean> {
       `[worker] claimed event=${event.id} channel=${event.channelType} attempt=${event.attempts}`,
     );
 
+    /** Messages this event newly created, for the summariser below. */
+    let createdIds: string[] = [];
+
     // owner_id for every row written here comes from event.ownerId, which
     // claim.ts read from the channels row. Never from event.payload.
     if (event.channelType === 'gmail') {
@@ -63,6 +85,7 @@ async function processOne(): Promise<boolean> {
       }
 
       const outcome = await ingestGmailEvent(db, config, event);
+      createdIds = outcome.createdIds;
       console.info(
         `[worker] event=${event.id} fetched=${outcome.fetched} created=${outcome.created} ` +
           `skipped=${outcome.skipped}${outcome.fullSync ? ' (full sync)' : ''}`,
@@ -78,6 +101,7 @@ async function processOne(): Promise<boolean> {
        * reason these two channels were paired.
        */
       const outcome = await ingestWhatsAppEvent(db, event);
+      createdIds = outcome.createdIds;
       console.info(
         `[worker] event=${event.id} created=${outcome.created} skipped=${outcome.skipped}`,
       );
@@ -98,7 +122,39 @@ async function processOne(): Promise<boolean> {
       );
     }
 
-    // TODO(Phase 4): chunk + embed → message_chunks; extract → extractions.
+    /*
+     * ── Phase 4A: summaries (ADR-015) ────────────────────────────────────────
+     *
+     * ⚠⚠ AFTER `markDone` would be wrong, and BEFORE it must not be able to
+     * fail. This sits between them and is wrapped so that nothing it does can
+     * reach the `catch` below — because that `catch` calls `markFailed`, which
+     * burns an attempt and eventually parks a message that ingested perfectly.
+     *
+     * `summariseBatch` already returns rather than throws on every path it
+     * knows about. The try here is for the ones it does not: a summary is
+     * additive, and "Groq is down" must degrade to "no summary", never to "no
+     * mail". That is a requirement in docs/04-ROADMAP.md, not a preference.
+     */
+    if (summariser && createdIds.length > 0) {
+      try {
+        const summaries = await summariseBatch(db, summariser, createdIds);
+        if (summaries.written > 0 || summaries.failed > 0) {
+          console.info(
+            `[summary] event=${event.id} written=${summaries.written} ` +
+              `skipped=${summaries.skipped} failed=${summaries.failed}`,
+          );
+        }
+      } catch (error) {
+        // Unreachable by design. Logged rather than swallowed silently so that
+        // if the guarantee above is ever broken, it is visible.
+        console.error(
+          `[summary] event=${event.id} escaped its own error handling:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+
+    // TODO(Phase 4B): chunk + embed → message_chunks.
 
     await markDone(db, event.id);
     return true;
