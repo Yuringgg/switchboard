@@ -89,8 +89,8 @@ feature that works and is understood beats a clever one that half-works.
 ## 5. Current status
 
 **Phase 0 ✅ · Phase 1 ✅ · Phase 2 🟡 code complete, awaiting Meta ·
-Phase 3 🟡 search shipped · Phase 4A ✅ shipped · Phase 4B ✅ shipped ·
-Phase 5 ⬜ next.**
+Phase 3 🟡 search + message route shipped · Phase 4A ✅ shipped ·
+Phase 4B ✅ shipped and its loose ends closed · Phase 5 ⬜ next.**
 
 **§7 at the bottom of this file is the fastest way to know where things stand** —
 it carries the verified numbers and the next action. Read that, then come back.
@@ -718,6 +718,15 @@ Vercel, redeploy, subscribe the `messages` webhook field, run
 3. **⚠ Rotate the Groq and Gemini keys before this repo is shown to iOzera** —
    both were pasted into a chat transcript on 2026-08-02, at Yuri's explicit
    instruction. Nothing was committed; `.env` is gitignored.
+4. **⚠ Run the full unfiltered eval before quoting any assistant score.** The
+   last session's run was cut short by the daily token cap after measuring 1/1
+   answerable and 2/2 must-refuse. A full run costs ~half a day's tokens, so do
+   it first thing, not after burning budget on something else.
+5. **Send yourself one email naming a genuinely future date** if a demo is
+   coming. *"Do I have any upcoming meetings?"* is Ms. Maria's own example
+   question and it currently, correctly, refuses — the newest meeting in the
+   mailbox is from 27 July. Exact steps:
+   `correspondence/2026-08-02-assistant-loose-ends.md` §4.
 
 **⚠ The assistant is capped at roughly 30 questions per day.** Measured: Groq's
 70B allows 12,000 tokens/min and ~100,000 tokens/day, and one question costs
@@ -760,6 +769,14 @@ identically for a prompt that refuses everything and one that answers everything
 "needs attention", and calendar write-back (ADR-010, **never auto-create**).
 Everything it needs already exists: Groq is wired, `extractions` takes new
 kinds, and the OAuth consent already carries `calendar.events`.
+
+⭐ **Phase 5 is also what closes the assistant's two known gaps**, and that is
+not a coincidence — ADR-017 traced both of them here. *"Summarise what needs my
+attention"* is US-9 reading `extractions`, not a retrieval question; *"do I have
+any upcoming meetings?"* is US-7 plus R14, which already settled that meetings
+come from **extraction**, not from semantic search. Building Phase 5 is the fix
+for both. Do **not** try to fix them in the assistant's prompt — that has been
+measured and ruled out.
 
 **389 tests.** `pnpm typecheck`, `pnpm test`, `next build`, the worker bundle and
 `assert-rls` (all ten tables) are green.

@@ -30,7 +30,21 @@ live over Supabase Realtime.
 typechecked and tested. Waiting on a Meta developer account and a free test
 number — see [`docs/03-RESOURCES.md`](./docs/03-RESOURCES.md) §6.
 
-⬜ Phases 3–5 — console, assistant, extraction and calendar write-back.
+🟡 **Phase 3 — the console.** Cross-channel search with filters, highlighting and
+per-result AI summaries, plus a message detail route. Remaining: contacts,
+identity merge, attachments, virtualization.
+
+✅ **Phase 4A — per-message summaries.** Every message over 280 characters
+carries a one-glance AI summary, written on ingest and shown in the opened row
+and in search results. Ms. Maria asked for this in the founding message.
+
+✅ **Phase 4B — the assistant.** Ask a question in plain language, get an answer
+where **every claim cites the message it came from**, and each citation is a link
+to that message. An answer that cites nothing renders as a refusal — that is a
+success criterion, not a UI detail.
+
+⬜ **Phase 5** — extraction, a "needs attention" view, and Google Calendar
+write-back. **This is the next thing to build.**
 
 The full plan lives in [`docs/`](./docs). Start with [`AGENTS.md`](./AGENTS.md).
 
@@ -61,10 +75,17 @@ channels → ingest (verify, queue, ack fast) → worker (normalize, embed, extr
 | Worker | Node · TypeScript, containerized, always warm | Azure Container Apps |
 | Database | Postgres · pgvector · Realtime · Auth · RLS | Supabase |
 | Attachments | Blob storage | Azure |
-| Assistant Q&A | Gemini 2.5 Flash | — |
-| Extraction | Groq · Llama | — |
-| Embeddings | Transformers.js, local in-worker | — |
+| Assistant Q&A | **Groq `llama-3.3-70b-versatile`** — ⚠ not Gemini | — |
+| Summaries · extraction | **Groq `llama-3.1-8b-instant`** — a different model on purpose | — |
+| Embeddings | Transformers.js, local in-worker, multilingual | — |
 | Calendar | Google Calendar (write, confirmed only) | — |
+
+⚠ **The assistant does not run on Gemini**, though several older notes say so.
+Gemini 2.5 Flash's free tier was measured at **20 requests per day** on
+2026-08-02 — one eval run needs 15. The two Groq models are deliberately
+different so heavy assistant use can never stop mail being summarised, since
+Groq's limits are per-model. `ASSISTANT_PROVIDER=gemini` reverts it in one
+variable. See ADR-003's amendment.
 
 Every channel implements one `ChannelAdapter` interface, which is what makes
 adding a new platform a single file rather than a refactor.

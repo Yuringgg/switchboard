@@ -655,7 +655,29 @@ ingest path lands when the Container App is repointed at the new image
 
 **Goal:** ship it.
 
+> ⭐ **This phase is also what closes the assistant's two known gaps**, and
+> ADR-017 traced both of them here rather than to the prompt:
+>
+> - *"Summarise what needs my attention"* is **US-9 reading `extractions`**, not
+>   a retrieval question. Measured: semantic search returns newsletters for it,
+>   because "importance" is not a direction in embedding space.
+> - *"Do I have any upcoming meetings?"* is **US-7 plus R14**, which already
+>   settled that meetings come from extraction rather than similarity search.
+>
+> ⚠ **Do not attempt to fix either in the assistant's prompt.** That has been
+> measured and ruled out, and the earlier attempt at it cost the refusals.
+> `apps/worker/scripts/probe-context.ts` re-measures both for free.
+>
+> **The natural follow-on once extraction exists:** let the assistant read
+> `extractions` alongside `message_chunks`, so a question about meetings hits
+> structured rows rather than prose similarity. That is a design decision worth
+> an ADR, not a quiet addition — it changes what the assistant is grounded in.
+
 - [ ] Extraction pass in worker: commitments, meetings, action items → `extractions`
+      *(the table already accepts these `kind`s — migration 0008 widened the
+      constraint and negative-controlled it. Groq is wired, and it is the 8B
+      model this should use, not the assistant's 70B: limits are per-model and
+      extraction is the many-small-prompts shape.)*
 - [ ] "Needs attention" view over extractions
 - [ ] **Calendar write-back (US-7b, ADR-010):**
   - [ ] Meeting proposals in the UI, **source message shown beside each one**

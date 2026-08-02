@@ -152,6 +152,47 @@ one connected channel yields one label rather than fifty saying "Gmail".
 > instead, `highlightSegments` splits on them, and React escapes the text. A
 > test pins it with an `<img onerror>` body.
 
+Search results carry their **AI summary** since migration `0010`, so the same
+message shows the same thing whichever screen you found it on. ⚠ That migration
+has two traps and **both fail by hiding messages rather than erroring** —
+`create or replace` cannot change a `RETURNS TABLE` so the function is dropped
+and recreated (**and DROP takes the grants with it**), and the `kind` filter must
+sit in the JOIN condition, because a WHERE on the right side of a LEFT join makes
+it an inner join in effect.
+
+### The message route
+
+`/messages/[id]` renders **one message in full** — the assistant's citation
+target (ADR-018) and the record view Phase 5's meeting proposals need beside
+every extraction.
+
+> ⚠ **This is the second place message bodies render**, and the enumerated list
+> lives in `docs/02-ARCHITECTURE.md` §6. A third needs an amendment there, not a
+> judgement call at the call site.
+
+> ⚠ **It renders the WHOLE body, not `BODY_LIMIT`.** The 4,000-character ceiling
+> bounds the *list* — every body in the timeline is serialised into the page
+> whether or not its row is open — not the record. Truncating here would make a
+> citation resolve to a partial quote, which is the opposite of the point.
+
+> ⚠ **A message that is not yours and one that does not exist are the same
+> `notFound()`.** RLS makes them indistinguishable, and that is correct rather
+> than a limitation: confirming which ids exist in another tenant's mailbox is a
+> leak even without the content.
+
+### The assistant
+
+`/assistant` asks one question at a time — single-turn, no history (Q2).
+
+> ⚠ **An answer that cites nothing renders as a refusal.** That is a success
+> criterion (`docs/01-PRODUCT-SPEC.md` §7), not a UI detail. Do not "improve" the
+> assistant by letting it answer without citations.
+
+> ⚠ **The suggestion chips must be questions the corpus can actually answer.** A
+> suggestion that returns a refusal teaches a new user the feature is broken on
+> their first interaction. Two of them were exactly that until 2026-08-02 —
+> verify with `probe-context.ts` before changing the list, not by intuition.
+
 ### Theming
 
 Three states — light, dark, and **system**, which is the default and is what
@@ -222,9 +263,9 @@ password manager offer to *generate* one rather than fill an existing one.
 ⚠ Both routes must stay in `PUBLIC_PATHS` in `src/proxy.ts`. Miss one and the
 gate redirects it to `/login`, which for `/signup` is an infinite bounce.
 
-Not here yet: every surface behind a `soon` nav item (Contacts, Assistant,
-Channels). Those flip on by setting `ready: true` in `src/lib/nav.ts` once a
-route exists.
+Since built: `/search`, `/assistant`, `/channels` and `/messages/[id]`.
+**`/contacts` is the only remaining `soon` nav item** — it flips on by setting
+`ready: true` in `src/lib/nav.ts` once the route exists.
 
 The shadcn/ui foundation is in place — `components.json`, the `cn` helper, and
 the CSS variable theme — so `pnpm dlx shadcn@latest add <component>` works
