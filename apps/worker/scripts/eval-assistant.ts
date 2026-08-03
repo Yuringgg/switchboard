@@ -44,6 +44,19 @@ import { selectCases } from './eval-cases';
 const OWNER_ID = process.env.EVAL_OWNER_ID ?? 'ec7645a6-11b8-456a-bbcc-03b94e5841db';
 
 /**
+ * Seconds between cases. See the long note at the pacing call for why 3s was
+ * wrong and what 20 is derived from: 12,000 tokens/min ÷ ~4,000 per question.
+ */
+const PACE_MS = 20_000;
+
+/**
+ * How many times to wait out the PER-MINUTE window before giving up on a case.
+ *
+ * Never applied to the daily cap — that is checked by scope and stops the run.
+ */
+const MINUTE_RETRIES = 3;
+
+/**
  * The cases, their three expectations, and the reasoning behind each, live in
  * `eval-cases.ts` — shared with `probe-context.ts` so the two cannot drift.
  */
@@ -176,9 +189,38 @@ async function main(): Promise<void> {
          * Waiting and retrying once is right here for the same reason it is in
          * the summary backfill: a busy minute is not an exhausted quota.
          */
-        if (!completion.ok && completion.retryable) {
+        /*
+         * ⚠ Retry the per-minute window until it clears — ONCE was not enough.
+         *
+         * Measured 2026-08-03, on the first run of this eval ever to reach the
+         * end: two cases were lost to the per-minute window and neither was the
+         * daily cap. "What kinds of roles…" waited 11s, retried, 429'd again and
+         * was recorded as a provider error with **4,031 tokens still left in the
+         * window** — it needed one more wait, not a different prompt. An
+         * answerable case and a must-refuse case were both lost that way, which
+         * is precisely the pair the two-number score exists to keep honest.
+         *
+         * The minute window refills continuously, so waiting again always
+         * eventually clears it. The daily cap never does — that is handled
+         * below, and it is why this loop tests the SCOPE rather than just
+         * `retryable`. Retrying a daily rejection is the thirteen wasted minutes
+         * ADR-017's note describes.
+         *
+         * Costs no tokens: a 429 is a rejection, not a completion.
+         */
+        for (
+          let attempt = 1;
+          attempt <= MINUTE_RETRIES &&
+          !completion.ok &&
+          completion.retryable &&
+          completion.limitScope !== 'day';
+          attempt += 1
+        ) {
           const waitMs = Math.min(completion.retryAfterMs ?? 20_000, 60_000);
-          console.info(`       rate limited, waiting ${Math.round(waitMs / 1000)}s…`);
+          console.info(
+            `       rate limited, waiting ${Math.round(waitMs / 1000)}s… ` +
+              `(attempt ${attempt}/${MINUTE_RETRIES})`,
+          );
           await new Promise((resolve) => setTimeout(resolve, waitMs));
           completion = await gemini.complete(ASSISTANT_SYSTEM_PROMPT, prompt);
         }
@@ -281,14 +323,31 @@ async function main(): Promise<void> {
       /*
        * Paced for the token window, which is what binds a RAG prompt.
        *
-       * Groq's 70B allows 12,000 tokens/min and a prompt here runs 2,000–3,000,
-       * so ~4 requests/minute is the ceiling. 3s is comfortably inside it.
+       * ⚠ THIS WAS 3s, AND THE ARITHMETIC IN ITS OWN COMMENT DISPROVED IT.
+       *
+       * The note said: "Groq's 70B allows 12,000 tokens/min and a prompt here
+       * runs 2,000–3,000, so ~4 requests/minute is the ceiling. 3s is
+       * comfortably inside it." The premise is right and the conclusion does not
+       * follow — 3s between requests is **20 per minute**, five times the
+       * ceiling the same sentence had just derived. One request every ~15s is
+       * what "4 per minute" means.
+       *
+       * Measured 2026-08-03: from case 6 onward *every single request* 429'd on
+       * the per-minute window, and two cases were lost outright. The eval was
+       * self-throttling by failing, which is the expensive way to wait.
+       *
+       * 20s, not 15s, because the observed spend is 3,000–4,000 tokens per
+       * question rather than the 2,000–3,000 assumed above (`tokens left this
+       * window` read 4,031 and 5,509 at the two failures). 12,000 ÷ 4,000 = 3
+       * per minute = one every 20s. A full 16-case run therefore takes ~6
+       * minutes of wall clock and **exactly the same number of tokens** — the
+       * budget is spent on completions either way.
        *
        * ⚠ On `ASSISTANT_PROVIDER=gemini` this eval will fail most of its cases
        * regardless of pacing: the free tier is **20 requests per DAY** (measured
        * 2026-08-02), and one full run needs 15.
        */
-      await new Promise((resolve) => setTimeout(resolve, 3_000));
+      await new Promise((resolve) => setTimeout(resolve, PACE_MS));
     }
 
     /*
