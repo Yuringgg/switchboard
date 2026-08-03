@@ -6,6 +6,7 @@ import { AppShell } from '@/components/app-shell';
 import { AttentionEmpty, AttentionList } from '@/components/attention-list';
 import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
 import { ContactList, ContactsEmpty } from '@/components/contact-list';
+import { MeetingProposal } from '@/components/meeting-proposal';
 import { SearchForm } from '@/components/search-form';
 import {
   SearchEmpty,
@@ -17,6 +18,7 @@ import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline
 import type { AttentionItem } from '@/lib/attention';
 import type { ChannelRow } from '@/lib/channels';
 import type { ContactSummary } from '@/lib/contacts';
+import type { ConfirmResult } from '@/lib/proposals';
 import type { SearchResult } from '@/lib/search';
 import type { TimelineMessage } from '@/lib/timeline';
 
@@ -490,6 +492,54 @@ export default async function PreviewPage({
         ) : (
           <ContactList contacts={contactFixtures(state !== 'single')} />
         )}
+      </AppShell>
+    );
+  }
+
+  if (screen === 'proposal') {
+    /*
+     * ⚠ The CONFIRMED state is the reason this is in the preview.
+     *
+     * On 2026-08-03 Yuri clicked "Add to Google Calendar", the event was
+     * created, and the card kept showing an editable form with a live button —
+     * so it read as though nothing had happened. The fix was `revalidatePath`
+     * in the server action, but the state it reveals could not be looked at
+     * anywhere: reaching it in the running console means confirming a real
+     * meeting onto a real calendar, which is not something to do to inspect a
+     * layout.
+     *
+     * `?state=confirmed` renders it directly. The action is a no-op here — this
+     * harness never touches a database and must never touch a calendar.
+     */
+    async function noop(): Promise<ConfirmResult> {
+      'use server';
+      return { ok: false, message: 'The preview never creates anything.' };
+    }
+
+    const [proposal] = attentionFixtures();
+    const confirmed = state === 'confirmed';
+
+    return (
+      <AppShell
+        title="Message"
+        description="One message, in full."
+        userEmail="preview@switchboard.local"
+        userId={PREVIEW_USER_ID}
+        activeHref="/"
+        channels={channels}
+      >
+        <MeetingProposal
+          item={
+            confirmed
+              ? {
+                  ...proposal!,
+                  calendarEventId: 'sb0dc86caf477f4632a0b10f9f50776ba4',
+                  confirmedAt: new Date().toISOString(),
+                }
+              : proposal!
+          }
+          action={noop}
+        />
       </AppShell>
     );
   }

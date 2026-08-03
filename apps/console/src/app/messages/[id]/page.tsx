@@ -1,5 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
+import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
@@ -100,13 +101,33 @@ export default async function MessagePage({
       return { ok: false, message: 'Your session expired. Reload the page and sign in again.' };
     }
 
-    return confirmMeeting(client, {
+    const result = await confirmMeeting(client, {
       extractionId: String(formData.get('extractionId') ?? ''),
       title: String(formData.get('title') ?? ''),
       startsAtLocal: String(formData.get('startsAtLocal') ?? ''),
       endsAtLocal: String(formData.get('endsAtLocal') ?? ''),
       location: String(formData.get('location') ?? ''),
     });
+
+    /*
+     * ⚠ Re-render the page, or the card keeps its stale props.
+     *
+     * `MeetingProposal` collapses to "On your calendar" when the row carries a
+     * `calendar_event_id` — but a server action returns a value without
+     * refetching anything, so without this the form stays editable and the
+     * button stays live after a SUCCESSFUL confirm. Reported by Yuri on
+     * 2026-08-03 as "I clicked Add to Google Calendar, nothing happened": the
+     * event really was created, and the only acknowledgement was one line of
+     * small text below a button that still looked ready to press.
+     *
+     * That is precisely the state the component's own docstring says must not
+     * exist — "a button that looks live and then says 'already done' teaches
+     * people to click it twice". The idempotency guards make a second click
+     * harmless, but harmless is not the same as legible.
+     */
+    if (result.ok) revalidatePath(`/messages/${id}`);
+
+    return result;
   }
 
   const rows = (await channels).channels;

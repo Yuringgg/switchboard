@@ -248,6 +248,16 @@ rows and stops; only a form submission reaches Google.
 > ⚠ **Attendees are deliberately not sent.** Adding one makes Google email an
 > invitation *from the user*. Participants go in the description instead.
 
+> ⚠ **A server action must `revalidatePath` or the card keeps its stale props.**
+> The proposal collapses to "On your calendar" when the row carries a
+> `calendar_event_id` — but an action returns a value without refetching
+> anything, so the first version left the form editable and the button live
+> after a *successful* confirm. It read as "nothing happened" when the event had
+> in fact been created, and the only acknowledgement was a line of small text
+> under a button that still looked ready to press. Reported 2026-08-03.
+> `/preview?screen=proposal&state=confirmed` is how that state can be looked at
+> without confirming a real meeting onto a real calendar.
+
 > ⚠ **Times carry an explicit `+08:00`.** Without it Google uses the calendar's
 > own timezone — a setting on the user's Google account this code cannot see —
 > and every confirmed meeting lands eight hours out, silently. `lib/manila.ts`
@@ -318,6 +328,8 @@ over fixture rows.
 | `/preview?screen=contacts&state=single` | the same list as the data actually is today: one handle each |
 | `/preview?screen=contacts&state=empty` | "no contacts yet" — a channel is connected, nothing has arrived |
 | `/preview?screen=contacts&state=unconnected` | "no channels connected". Must never converge with the above |
+| `/preview?screen=proposal` | a meeting proposal, editable, before confirming |
+| `/preview?screen=proposal&state=confirmed` | **"On your calendar"** — no form, no button. The state that was invisible until 2026-08-03 |
 
 **Development only**, guarded twice — `notFound()` in the route and a
 conditional entry in `PUBLIC_PATHS`, both keyed on `NODE_ENV`, which Next

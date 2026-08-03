@@ -1,5 +1,6 @@
 import { ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
+import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
@@ -95,10 +96,29 @@ export default async function ContactPage({
       return { ok: false, message: 'Your session expired. Reload the page and sign in again.' };
     }
 
-    return mergeContacts(client, {
+    const targetId = String(formData.get('targetId') ?? '');
+    const result = await mergeContacts(client, {
       sourceId: String(formData.get('sourceId') ?? ''),
-      targetId: String(formData.get('targetId') ?? ''),
+      targetId,
     });
+
+    /*
+     * ⚠ On success this contact NO LONGER EXISTS — it was folded into the
+     * other one. Staying on its page would leave a screen describing a row that
+     * has been deleted, and a refresh would 404.
+     *
+     * So go to the surviving contact, where both sets of handles are now listed
+     * under one name. That is also better feedback than a sentence: the thing
+     * the merge was for is visible on arrival. Same class of bug as the
+     * calendar card keeping its stale props — a server action returns a value
+     * without refetching anything unless it is told to.
+     */
+    if (result.ok) {
+      revalidatePath('/contacts');
+      redirect(`/contacts/${targetId}`);
+    }
+
+    return result;
   }
 
   return (
