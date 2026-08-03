@@ -14,6 +14,7 @@ import { createDbClient } from '@switchboard/db';
 import { claimNextEvent, markDone, markFailed } from './claim';
 import { embedBatch } from './embed-messages';
 import { extractBatch } from './extract';
+import { catchUpExtractions } from './extract-catchup';
 import {
   DATABASE_URL,
   EMBED_API_SECRET,
@@ -438,6 +439,65 @@ async function watchRenewalLoop(): Promise<void> {
 }
 
 /**
+ * Extraction catch-up, every 15 minutes.
+ *
+ * ⚠ This loop is the answer to a measured hole, not a precaution. See the long
+ * note in `extract-catchup.ts`: on 2026-08-03 the live database held 84
+ * messages and 78 extraction runs, and four of the six gaps were ordinary mail
+ * from the previous day that had been summarised and embedded but never
+ * extracted. Nothing was ever going to come back for them.
+ *
+ * 15 minutes rather than 6 hours (the watch sweep's interval) because the two
+ * failures are shaped differently: an unrenewed watch has two days of margin
+ * built in, while a dropped extraction is already lost and a person may be
+ * looking at `/attention` now. It is also far cheaper to be wrong about — a
+ * sweep with nothing to do is one indexed count.
+ */
+const EXTRACT_SWEEP_MS = 15 * 60 * 1000;
+
+/** Bounded so one sweep cannot monopolise the shared 6,000 tokens/minute. */
+const CATCH_UP_BATCH = 5;
+
+/** Comfortably under the ~1.7 requests/minute extraction actually sustains. */
+const CATCH_UP_DELAY_MS = 20_000;
+
+async function extractionCatchUpLoop(): Promise<void> {
+  while (running) {
+    // Broken into short sleeps so SIGTERM is not waited out. Sleeping FIRST
+    // also keeps the sweep clear of startup, when the queue is likeliest busy.
+    const wakeAt = Date.now() + EXTRACT_SWEEP_MS;
+    while (running && Date.now() < wakeAt) await sleep(1_000);
+    if (!running || !extractor) return;
+
+    try {
+      const result = await catchUpExtractions(
+        db,
+        extractor,
+        CATCH_UP_BATCH,
+        CATCH_UP_DELAY_MS,
+      );
+
+      // Silent when there is nothing outstanding, which is the healthy steady
+      // state — a line every 15 minutes saying "0" would train people to skim.
+      if (result.considered > 0) {
+        console.info(
+          `[extract-catchup] sweep: considered=${result.considered} ` +
+            `written=${result.written} rows=${result.rows} ` +
+            `skipped=${result.skipped} failed=${result.failed}`,
+        );
+      }
+    } catch (error) {
+      // Must never take the worker down: this is a repair loop for an additive
+      // feature, and mail ingests perfectly well without it.
+      console.error(
+        '[extract-catchup] sweep errored:',
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+}
+
+/**
  * Container Apps sends SIGTERM before replacing a revision. Finishing the
  * current event first is what stops a deploy from stranding a row in
  * 'processing' — where nothing will ever pick it up again.
@@ -496,3 +556,4 @@ void warmEmbedder().then((result) => {
 
 void loop();
 void watchRenewalLoop();
+void extractionCatchUpLoop();
