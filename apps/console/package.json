@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@paper-design/shaders-react": "^0.0.78",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.8",
     "@switchboard/adapter-gmail": "workspace:*",
@@ -18,6 +19,7 @@
     "@switchboard/ai": "workspace:*",
     "@switchboard/core": "workspace:*",
     "clsx": "^2.1.1",
+    "framer-motion": "^12.43.0",
     "google-auth-library": "^10.9.1",
     "lucide-react": "^1.26.0",
     "next": "^16.2.11",

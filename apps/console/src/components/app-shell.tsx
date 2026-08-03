@@ -4,6 +4,7 @@ import { Suspense, type ReactNode } from 'react';
 
 import { Brand } from '@/components/brand';
 import { Live, LiveStatus, SCROLLER_ID } from '@/components/live';
+import { MobileNav } from '@/components/mobile-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { signOut } from '@/lib/auth-actions';
 import { CHANNELS, type ChannelRow } from '@/lib/channels';
@@ -101,7 +102,13 @@ export function AppShell({
             </div>
           </div>
 
-          <nav className="px-3 pb-2.5 md:pb-0" aria-label="Primary">
+          {/*
+            Desktop only now. On a phone this is the dock at the bottom of the
+            frame — see `<MobileNav>` below. `hidden` rather than a second set
+            of styles, so only one of the two is ever in the accessibility tree
+            and "Primary" names exactly one navigation at any width.
+          */}
+          <nav className="hidden px-3 pb-2.5 md:block md:pb-0" aria-label="Primary">
             <ul className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
               {NAV_ITEMS.map(({ label, href, icon: Icon, ready }) => {
                 const isActive = ready && href === activeHref;
@@ -245,6 +252,14 @@ export function AppShell({
             </div>
           </main>
         </div>
+
+        {/*
+          Last child, so on a phone — where the frame is a column — it is the
+          bottom row, and the content above it shrinks to fit rather than
+          scrolling under it. `md:hidden` keeps it from becoming a third column
+          once the frame turns into a row.
+        */}
+        <MobileNav activeHref={activeHref} />
       </div>
     </Live>
   );

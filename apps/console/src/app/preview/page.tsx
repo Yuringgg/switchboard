@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { AppShell } from '@/components/app-shell';
+import { AssistantPanel } from '@/components/assistant-panel';
 import { AttentionEmpty, AttentionList } from '@/components/attention-list';
 import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
 import { ContactList, ContactsEmpty } from '@/components/contact-list';
@@ -15,6 +16,7 @@ import {
   SearchSkeleton,
 } from '@/components/search-results';
 import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
+import type { AssistantAnswer } from '@/lib/assistant';
 import type { AttentionItem } from '@/lib/attention';
 import type { ChannelRow } from '@/lib/channels';
 import type { ContactSummary } from '@/lib/contacts';
@@ -571,6 +573,91 @@ export default async function PreviewPage({
         ) : (
           <AttentionList items={items} channels={rows} now={new Date()} />
         )}
+      </AppShell>
+    );
+  }
+
+  if (screen === 'assistant') {
+    /*
+     * ⚠ Here for the figure above the composer, which has four states and no
+     * other way to be looked at.
+     *
+     * Reaching them in the running console means spending real questions out of
+     * an allowance of roughly thirty a day, shared by every tenant — and two of
+     * the four (a refusal, and the provider being unavailable) cannot be
+     * summoned on demand at all. `?state=refused` and `?state=error` render
+     * them directly.
+     *
+     * The action is a no-op. This harness must never reach Groq, the worker's
+     * `/embed`, or the database.
+     */
+    const rowsForCitation = fixtures();
+
+    const ANSWERS: Record<string, AssistantAnswer> = {
+      answered: {
+        answer:
+          'Maria asked for two changes to the landing page copy before Thursday: the hero line cut to under ten words, and the disclaimer moved above the fold [1]. She proposed 3pm Thursday to go through both.',
+        citations: [
+          {
+            messageId: rowsForCitation[0]!.id,
+            subject: rowsForCitation[0]!.subject,
+            senderName: 'Maria Santos',
+            sentAt: rowsForCitation[0]!.sent_at,
+            excerpt:
+              'The hero line still reads a bit long on mobile — can we cut it to under ten words? Legal wants the disclaimer moved above the fold.',
+          },
+        ],
+        refused: false,
+        error: null,
+      },
+      refused: {
+        answer: 'I could not find anything in your messages about that.',
+        citations: [],
+        refused: true,
+        error: null,
+      },
+      error: {
+        answer: '',
+        citations: [],
+        refused: false,
+        error:
+          "You have used up today's assistant allowance. It refills gradually — try again later.",
+      },
+    };
+
+    /**
+     * Returns the canned answer for whichever `?state=` is on the URL, so
+     * asking anything walks the panel through the real sequence — idle →
+     * thinking → the state under review — rather than jumping to it. No prop
+     * on the production component, and no code path that only exists here.
+     *
+     * The pause is deliberate: the figure's reading animation is the state
+     * hardest to catch, and a real turn takes a few seconds anyway.
+     */
+    async function answerFromFixture(): Promise<AssistantAnswer> {
+      'use server';
+      await new Promise((resolve) => setTimeout(resolve, 2200));
+      return ANSWERS[state] ?? ANSWERS.answered!;
+    }
+
+    return (
+      <AppShell
+        title="Assistant"
+        description="Ask about your messages. Every answer cites the ones it used."
+        userEmail="preview@switchboard.local"
+        userId={PREVIEW_USER_ID}
+        activeHref="/assistant"
+        channels={channels}
+      >
+        <AssistantPanel
+          action={answerFromFixture}
+          suggestions={[
+            'Did any deployment or build fail?',
+            'What kinds of roles have I been sent job alerts about?',
+            'Did I receive any money or payments?',
+            'Do I have any upcoming meetings?',
+          ]}
+        />
       </AppShell>
     );
   }

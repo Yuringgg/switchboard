@@ -313,6 +313,212 @@
   animation: unfold 0.18s ease-out;
 }
 
+/*
+ * The assistant's blink — `components/ui/shader-svg.tsx`.
+ *
+ * ⚠ `ry` is a CSS *length*, so the value needs a unit. The source snippet this
+ * came from wrote `ry: 30`, which is invalid for anything but zero: the browser
+ * discards the whole declaration, the figure never blinks, and nothing is
+ * logged. Inside an SVG a `px` here is one user unit, which is what the ellipse
+ * already uses.
+ *
+ * Long and mostly open, like the lamp above it — this sits on screen for as
+ * long as somebody is reading an answer, and a fast blink would pull the eye
+ * away from the words the assistant is being judged on.
+ */
+@keyframes blink {
+  0%,
+  92%,
+  100% {
+    ry: 30px;
+  }
+  96% {
+    ry: 3px;
+  }
+}
+
+@utility animate-blink {
+  animation: blink 3.4s ease-in-out infinite;
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE MOBILE DOCK — components/ui/modern-mobile-menu.tsx
+ *
+ * ⚠ These rules did not come with the component. The snippet it was copied from
+ * shipped the custom properties below and the `iconBounce` keyframe, and no
+ * `.menu`, `.menu__item`, `.menu__icon` or `.menu__text` rule at all — so the
+ * component as given renders six unstyled buttons in a row. They are written
+ * here against this console's own tokens rather than the snippet's palette,
+ * which assumed a shadcn chart ramp this project does not have.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+:root {
+  --component-inactive-color: var(--muted-foreground);
+  --component-bg: var(--panel);
+  --component-active-bg: var(--accent);
+  --component-line-inactive-color: var(--border);
+  /* The same colour the desktop rail marks the current page with, so the two
+     navigations agree about what "you are here" looks like. */
+  --component-active-color-default: var(--foreground);
+}
+
+/*
+ * ⚠ These MUST stay inside a layer, and `components` specifically.
+ *
+ * Unlayered CSS outranks every cascade layer, and Tailwind v4 emits its
+ * utilities into `@layer utilities`. Written at the top level, `.menu { display:
+ * flex }` therefore beat `md:hidden` at equal specificity — so the dock stayed
+ * visible on desktop next to the sidebar, and the console shipped two
+ * navigations both labelled "Primary". Nothing errors; the class is simply
+ * present on the element and does nothing. `components` sits below `utilities`,
+ * which is what lets a utility override any rule here.
+ */
+@layer components {
+  .menu {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.3125rem 0.375rem calc(0.3125rem + env(safe-area-inset-bottom));
+    background: var(--component-bg);
+    border-top: 1px solid var(--border);
+    /* A safety valve, not the layout — the entries are sized to fit six at
+       375px. It is horizontal only: the vertical scroll of this app belongs to
+       exactly one element, and that is the message column. */
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .menu::-webkit-scrollbar {
+    display: none;
+  }
+
+  .menu__item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    /*
+     * 44px at rest, and allowed to give back 4px of it before anything scrolls.
+     *
+     * Six entries plus the longest label ("Needs attention") land within two
+     * pixels of a 375px phone — so with `flex: 0 0 auto` a slightly wider font
+     * or a longer label scrolls the dock and hides an entry behind an edge with
+     * nothing saying so. That is the exact failure the strip this replaced was
+     * criticised for. Shrinking to a 40px floor absorbs it, and stays well clear
+     * of WCAG 2.5.8's 24px minimum while the 44px height is untouched.
+     */
+    flex: 0 1 auto;
+    min-width: 2.5rem;
+    height: 2.75rem;
+    padding-inline: 0.84375rem;
+    /* The rule's resting width. The component overwrites it inline once it has
+       measured the label; an inline value beats this one, so the two never
+       race. It must not be set as a React `style` prop — see the note there. */
+    --lineWidth: 0px;
+    border-radius: var(--radius-md);
+    color: var(--component-inactive-color);
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease,
+      padding-inline 0.3s ease;
+  }
+
+  .menu__item.active {
+    /* The one entry that must never be clipped: it is the label. */
+    flex: 0 0 auto;
+    color: var(--component-active-color);
+    background: var(--component-active-bg);
+    padding-inline: 0.625rem;
+  }
+
+  .menu__item.inert {
+    opacity: 0.5;
+  }
+
+  .menu__icon {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .menu__item.active .menu__icon {
+    animation: iconBounce 0.6s ease;
+  }
+
+  .menu__icon .icon {
+    width: 1.0625rem;
+    height: 1.0625rem;
+  }
+
+  /*
+   * Clipped by width, never `display: none` — the label is the entry's
+   * accessible name, and an icon-only control that removes its text announces
+   * as an unlabelled button.
+   */
+  .menu__text {
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    /*
+     * The same voice the desktop rail uses for these six words: sans, sentence
+     * case. They were mono uppercase at first, which is this console's voice for
+     * things the *machine* knows — and it put the two navigations in different
+     * registers while naming the identical six destinations. It also cost 24px
+     * of tracking on the longest label, which is most of why the dock did not
+     * fit.
+     */
+    font-family: var(--font-sans);
+    font-size: var(--text-note);
+    font-weight: 500;
+    white-space: nowrap;
+    transition:
+      max-width 0.3s ease,
+      opacity 0.2s ease;
+  }
+
+  .menu__item.active .menu__text {
+    max-width: 9rem;
+    opacity: 1;
+  }
+
+  /* The rule under the label, sized to the word by the component. */
+  .menu__item.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0.3125rem;
+    left: 50%;
+    width: var(--lineWidth, 0);
+    height: 1.5px;
+    border-radius: 1px;
+    background: currentColor;
+    opacity: 0.55;
+    transform: translateX(-50%);
+    transition: width 0.3s ease;
+  }
+}
+
+@keyframes iconBounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  20% {
+    transform: translateY(-0.3em);
+  }
+  40% {
+    transform: translateY(0);
+  }
+  60% {
+    transform: translateY(-0.1em);
+  }
+  80% {
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

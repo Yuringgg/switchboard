@@ -4,6 +4,7 @@ import { ArrowUpRight, CornerDownLeft, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useActionState } from 'react';
 
+import { AssistantGhost, type GhostState } from '@/components/assistant-ghost';
 import { Callout } from '@/components/callout';
 import type { AssistantAnswer } from '@/lib/assistant';
 import { buttonClass, LABEL } from '@/lib/ui';
@@ -32,8 +33,25 @@ export function AssistantPanel({
 }) {
   const [state, formAction, pending] = useActionState(action, null);
 
+  /**
+   * Derived, never stored. `useActionState` already owns every fact this needs,
+   * and a second copy in `useState` is how the figure ends up reading "thinking"
+   * beside an answer that has already arrived.
+   */
+  const ghostState: GhostState = pending
+    ? 'thinking'
+    : !state
+      ? 'idle'
+      : state.error
+        ? 'error'
+        : state.refused
+          ? 'refused'
+          : 'answered';
+
   return (
     <div>
+      <AssistantGhost state={ghostState} />
+
       <form action={formAction}>
         <label htmlFor="question" className="sr-only">
           Ask about your messages
