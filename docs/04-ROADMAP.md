@@ -868,10 +868,37 @@ ingest path lands when the Container App is repointed at the new image
       ⚠ Recorded as a decision rather than left unticked, so it does not read as
       outstanding work.
 - [ ] Error handling audit — every failure path has a UI state
-- [ ] `README.md` with setup instructions, **verified from a clean clone**
-- [ ] Architecture diagram for the presentation
+- [x] **`README.md` verified from a clean clone** (2026-08-03) — cloned to an
+      empty directory and followed, not read. Steps 1–3 held: `pnpm install` and
+      `pnpm check` give **496 passing tests with no credentials at all**.
+      ⚠ **Step 4 did not, and it was the README's headline claim.** *"Nothing
+      here needs a credential yet"* and *"the console comes up on 3100, empty"*
+      are both false: without `apps/console/.env.local` **every route returns
+      Internal Server Error**, because `proxy.ts` (the session middleware, which
+      runs on every request) imports the Supabase config at module scope and
+      that module **throws at load**. The code is right — the throw is
+      deliberate, and its own comment explains the trade — the README was wrong.
+      Also added `npm i -g pnpm@11.17.0`, which it never mentioned despite
+      Node 25 having unbundled corepack; that is the same gap that kept CI red
+      for five days.
+- [x] **Architecture diagram for the presentation** (2026-08-03) —
+      `docs/07-DIAGRAMS.md`, four Mermaid diagrams: the system on one slide, the
+      life of one message, how the assistant answers *and refuses*, and the
+      multi-tenancy boundary. Mermaid rather than an exported PNG so they cannot
+      drift out of sync with the system the way an image does.
 - [ ] **Demo rehearsal on deployed infrastructure, not localhost**
-- [ ] Seed a realistic demo dataset so the console isn't empty on stage
+      ⚠ **Steps 3–5 are blocked on Meta**, and step 7 has a problem found
+      2026-08-03: once a proposal is confirmed, `meeting-proposal.tsx` renders no
+      form and no button (deliberately, so nobody clicks twice). The only live
+      proposal is *"Project sync with Ms. Maria"*, so **the first rehearsal
+      consumes it and the second has nothing to confirm.** "Twice in a row"
+      therefore needs a freshly-dated mail sent before each run — which also
+      keeps the "upcoming meetings" answer alive.
+- [x] ~~Seed a realistic demo dataset so the console isn't empty on stage~~
+      **Satisfied by the real corpus** — 86 real messages, 22 contacts, 84
+      extraction runs as of 2026-08-03. Written when the console had 10 messages
+      and no summariser. Seeding synthetic mail now would make the demo *less*
+      convincing, not more.
 
 **Done when:** the full §6 demo sequence runs on deployed infrastructure, twice in
 a row, without intervention.
