@@ -29,6 +29,8 @@ import {
   buildAssistantPrompt,
   createAssistantProvider,
   embedQuery,
+  isTimeQuestion,
+  mergeDerivedContext,
   parseAnswer,
   selectContext,
   toVectorLiteral,
@@ -55,6 +57,31 @@ const PACE_MS = 20_000;
  * Never applied to the daily cap — that is checked by scope and stops the run.
  */
 const MINUTE_RETRIES = 3;
+
+/**
+ * ADR-020's narrow grounding, measured rather than assumed.
+ *
+ * ⚠ This flag is the whole reason the change is landable. ADR-020 requires the
+ * refusal to be re-measured on BOTH numbers before and after, and the daily
+ * token cap allows roughly one full run a day — so "before" and "after" cannot
+ * both happen in one session. The control is the run of 2026-08-03:
+ *
+ *     answerable 6/6   must-refuse 7/7   provider errors 3
+ *
+ * To produce the treatment, run this eval with `ASSISTANT_GROUND_EXTRACTIONS=1`
+ * on a day the assistant has not been used, and compare against those two
+ * numbers. **The must-refuse score is the one that matters** — none of its eight
+ * cases is a time question, so `isTimeQuestion` returns false for every one of
+ * them and they should be bit-identical. A move there means the predicate is
+ * leaking, not that the model got worse.
+ *
+ * Reads the same variable as the console so the two cannot be configured apart.
+ */
+const GROUND_IN_EXTRACTIONS = process.env.ASSISTANT_GROUND_EXTRACTIONS === '1';
+
+/** Mirrors `apps/console/src/lib/assistant.ts`. Kept in sync by hand. */
+const WINDOW_AHEAD_MS = 30 * 24 * 60 * 60 * 1000;
+const WINDOW_BEHIND_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The cases, their three expectations, and the reasoning behind each, live in
@@ -170,7 +197,90 @@ async function main(): Promise<void> {
         channelLabel: 'Gmail',
       }));
 
-      const context = selectContext(retrieved);
+      let context = selectContext(retrieved);
+
+      /*
+       * ADR-020's narrow path, exercised only when the flag is set AND the
+       * question is explicitly about scheduled time — the same two conditions
+       * the console applies, so this measures the product rather than a
+       * variant of it.
+       *
+       * ⚠ Read inside a transaction that sets the role and the JWT claim, for
+       * the same reason `match_chunks` is: the worker's connection is
+       * `service_role` and would otherwise read every tenant's extractions.
+       */
+      if (GROUND_IN_EXTRACTIONS && isTimeQuestion(testCase.question)) {
+        const now = Date.now();
+        const rows = await db.transaction(async (tx) => {
+          await tx.execute(sql`select set_config('role', 'authenticated', true)`);
+          await tx.execute(
+            sql`select set_config('request.jwt.claims', ${JSON.stringify({
+              sub: OWNER_ID,
+              role: 'authenticated',
+            })}, true)`,
+          );
+          return tx.execute<{
+            kind: string;
+            quote: string | null;
+            starts_at: string | null;
+            due_at: string | null;
+            message_id: string;
+            subject: string | null;
+            sent_at: string;
+            sender_name: string | null;
+            sender_ref: string | null;
+          }>(sql`
+            select e.kind,
+                   e.payload->>'quote'     as quote,
+                   e.payload->>'starts_at' as starts_at,
+                   e.payload->>'due_at'    as due_at,
+                   m.id                    as message_id,
+                   m.subject, m.sent_at,
+                   ci.display_name as sender_name,
+                   ci.external_id  as sender_ref
+              from extractions e
+              join messages m on m.id = e.message_id
+              left join contact_identities ci on ci.id = m.sender_identity
+             where e.kind <> 'summary'
+               and e.payload->>'quote' is not null
+             order by coalesce(e.payload->>'starts_at', e.payload->>'due_at')
+          `);
+        });
+
+        const derived: RetrievedMessage[] = rows
+          .filter((row) => {
+            const when = row.starts_at ?? row.due_at;
+            if (!when) return false;
+            const at = new Date(when).getTime();
+            return (
+              Number.isFinite(at) &&
+              at >= now - WINDOW_BEHIND_MS &&
+              at <= now + WINDOW_AHEAD_MS
+            );
+          })
+          .map((row) => ({
+            messageId: row.message_id,
+            similarity: 1,
+            subject: row.subject,
+            content: row.quote ?? '',
+            bodyText: row.quote ?? '',
+            sentAt: row.sent_at,
+            direction: 'inbound',
+            senderName: row.sender_name,
+            senderRef: row.sender_ref,
+            channelLabel: 'Gmail',
+            derived: {
+              kind: row.kind,
+              startsAt: row.starts_at,
+              dueAt: row.due_at,
+            },
+          }));
+
+        if (derived.length > 0) {
+          context = mergeDerivedContext(derived, context);
+          console.info(`       [ADR-020] ${derived.length} detected item(s) in context`);
+        }
+      }
 
       let answer = "I don't have anything about that in your messages.";
       let parsed = { text: answer, citedMessageIds: [] as string[], refused: true };

@@ -81,6 +81,120 @@ export interface RetrievedMessage {
   senderName: string | null;
   senderRef: string | null;
   channelLabel?: string | null;
+  /**
+   * Set only when this block came from `extractions` rather than from a
+   * retrieved chunk (ADR-020, the narrow version).
+   *
+   * ⚠ Its presence changes what a citation MEANS, which is why it is a distinct
+   * field rather than a differently-populated `content`. A retrieved chunk is
+   * text a person wrote; an extraction is a *model's reading* of that text. The
+   * `content` carried here is the extraction's **verbatim quote** — checked
+   * against the message body by `validateExtractions` before it was ever
+   * stored — so the claim remains traceable to a real sentence. The title is
+   * deliberately NOT sent: it is the part the model composed.
+   */
+  derived?: {
+    /** `meeting` | `commitment` | `action_item` | `question`. */
+    kind: string;
+    startsAt: string | null;
+    dueAt: string | null;
+  };
+}
+
+/**
+ * How many extraction rows may occupy context slots (ADR-020).
+ *
+ * Small on purpose. They are prepended, so every slot one takes is a retrieved
+ * message it displaces — and the whole context stays capped at
+ * `MAX_CONTEXT_MESSAGES` so a question does not silently cost more tokens, on a
+ * daily allowance measured at roughly thirty questions.
+ */
+export const MAX_DERIVED_CONTEXT = 3;
+
+/**
+ * Is this question explicitly about scheduled time? (ADR-020)
+ *
+ * ── ⚠ Deliberately narrow, and the narrowness is the safety property ─────────
+ *
+ * ADR-020 is accepted only in its narrow form: *"a date-window lookup for
+ * questions that are explicitly about time... Not a general merge of the two
+ * sources."* This predicate is what enforces that, so it is the place where
+ * scope creep would do damage.
+ *
+ * When it returns false the assistant runs the code path it ran before,
+ * byte-for-byte — same retrieval, same floors, same prompt. That is what lets
+ * the eval's eight must-refuse cases act as a control: none of them is a time
+ * question, so a change in their score could only come from somewhere else.
+ * A looser predicate would forfeit that.
+ *
+ * Requiring a SCHEDULING word rather than any temporal word is the specific
+ * guard against over-triggering. "When did the deploy fail?" is about time and
+ * must NOT pull in calendar rows — it is answerable from the mail, and feeding
+ * it an unrelated meeting is how a confident wrong answer gets built.
+ */
+/**
+ * ⚠ `schedule`/`scheduled` are NOT here, and that omission was measured.
+ *
+ * The first version of this list included them, and the control test below
+ * caught what that does: the eval's must-refuse case *"When is the submarine
+ * delivery **scheduled**?"* matched, which would have given a refusal case a
+ * different prompt in the treatment run than in the baseline — quietly
+ * destroying the comparison ADR-020 requires. The word describes any thing's
+ * timing, not the reader's own calendar.
+ *
+ * `call` and `booking` were dropped for the same reason at a lower confidence:
+ * both are common nouns in ordinary mail. The cost is under-triggering, which
+ * is the safe direction — the assistant then behaves exactly as it does today,
+ * and today it scores 6/6 answerable.
+ */
+const SCHEDULING_TERMS =
+  /\b(meeting|meetings|appointment|appointments|calendar|deadline|deadlines|due|sync|agenda|rsvp)\b/i;
+
+/**
+ * ⚠ Kept deliberately short of "do i have", which was also in the first draft.
+ *
+ * "Do I have…" opens a question about anything at all — money, mail, a contact
+ * — and every one of those would have gained three calendar rows it has no use
+ * for. The target question *"do I have any upcoming meetings?"* is already
+ * caught twice over, by `meetings` and by `upcoming`.
+ */
+const FORWARD_LOOKING =
+  /\b(upcoming|coming up|this week|next week|this month|next month|today|tonight|tomorrow|later today)\b/i;
+
+export function isTimeQuestion(question: string): boolean {
+  return SCHEDULING_TERMS.test(question) || FORWARD_LOOKING.test(question);
+}
+
+/**
+ * Put extraction rows in front of the retrieved messages.
+ *
+ * ── ⚠ Why this runs AFTER `selectContext`, never inside it ──────────────────
+ *
+ * An extraction row has no similarity score, and inventing one is a trap with a
+ * specific shape: give it 1.0 and it becomes the best hit, at which point
+ * `RELATIVE_FLOOR` measures every real message against it and drops the lot —
+ * the assistant would answer time questions from extractions ALONE, having
+ * silently discarded the corpus. Give it a low score and it never survives.
+ *
+ * There is no correct number, because the two are not on one scale. So the
+ * floors keep operating on retrieval exactly as ADR-016 measured them, and this
+ * merge happens afterwards.
+ */
+export function mergeDerivedContext(
+  derived: RetrievedMessage[],
+  retrieved: RetrievedMessage[],
+  { max = MAX_CONTEXT_MESSAGES, maxDerived = MAX_DERIVED_CONTEXT } = {},
+): RetrievedMessage[] {
+  const head = derived.slice(0, maxDerived);
+  const claimed = new Set(head.map((row) => row.messageId));
+
+  // A message already represented by an extraction is not repeated as a chunk:
+  // for a time question the verbatim quote plus a parsed date is strictly more
+  // use than whichever passage happened to match, and duplicating it would give
+  // one message two numbers in a list the model cites by number.
+  const rest = retrieved.filter((row) => !claimed.has(row.messageId));
+
+  return [...head, ...rest].slice(0, max);
 }
 
 /**
@@ -240,12 +354,39 @@ export function buildAssistantPrompt(
   now: Date = new Date(),
 ): string {
   const blocks = context.map((message, index) => {
+    const source =
+      message.direction === 'outbound'
+        ? 'sent by the user'
+        : `from ${message.senderName ?? message.senderRef ?? 'unknown sender'}`;
+
+    /*
+     * ⚠ An extraction is labelled as one, in the block itself (ADR-020).
+     *
+     * The concern ADR-020 raises about grounding the assistant in `extractions`
+     * is that "the citation chip would look identical to a citation of a real
+     * sentence". The chip is downstream of this; what stops the MODEL conflating
+     * them is that the block says which it is. It is shown the quote and told it
+     * is a detected item, so it can attribute accordingly rather than presenting
+     * an inference as something the sender wrote.
+     */
+    if (message.derived) {
+      const when = message.derived.startsAt ?? message.derived.dueAt;
+      const header = [
+        `[${index + 1}]`,
+        `DETECTED ${message.derived.kind.replace(/_/g, ' ')}`,
+        when ? `for ${formatStamp(when)}` : 'with no stated time',
+        `· from a ${message.channelLabel ?? 'message'} ${source}`,
+        `on ${formatStamp(message.sentAt)}`,
+      ].join(' ');
+
+      const subject = message.subject ? `\nSubject: ${message.subject}` : '';
+      return `${header}${subject}\nSentence it was taken from: "${message.content.trim()}"`;
+    }
+
     const header = [
       `[${index + 1}]`,
       message.channelLabel ?? 'message',
-      message.direction === 'outbound'
-        ? 'sent by the user'
-        : `from ${message.senderName ?? message.senderRef ?? 'unknown sender'}`,
+      source,
       `on ${formatStamp(message.sentAt)}`,
     ].join(' · ');
 
@@ -256,6 +397,28 @@ export function buildAssistantPrompt(
     return `${header}${subject}\n${message.content.trim()}`;
   });
 
+  /*
+   * ⚠ This explanation lives in the USER turn, not the system prompt.
+   *
+   * Adding it to `ASSISTANT_SYSTEM_PROMPT` would change the prompt for every
+   * question, including the eight must-refuse cases — and the refusal is the
+   * property the product is judged on, measured on a budget that allows about
+   * one full eval a day. Here it appears only when an extraction is actually in
+   * context, so a question with none gets a prompt identical to the one
+   * measured at 6/6 and 7/7 on 2026-08-03. That is what makes the before/after
+   * ADR-020 requires an actual comparison rather than two unrelated runs.
+   */
+  const derivedNote = context.some((message) => message.derived)
+    ? [
+        '',
+        'Some entries above are marked DETECTED. Those were pulled out of a message',
+        'automatically, so the date shown is a reading of the sentence quoted beneath',
+        'it, not something the sender stated in that form. Rely on the quoted',
+        'sentence, say what it actually says, and cite it like any other entry. If',
+        'the quote does not support the detected time, trust the quote.',
+      ].join('\n')
+    : '';
+
   return [
     // The model has no clock. Without this, "upcoming" and "this week" are
     // unanswerable — and the demo question is literally "do I have upcoming
@@ -265,6 +428,7 @@ export function buildAssistantPrompt(
     `The user's messages, most relevant first (${context.length}):`,
     '',
     blocks.join('\n\n---\n\n'),
+    derivedNote,
     '',
     '---',
     '',

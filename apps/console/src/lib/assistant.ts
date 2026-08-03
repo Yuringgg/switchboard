@@ -3,11 +3,15 @@ import {
   buildAssistantPrompt,
   createAssistantProvider,
   EMPTY_CORPUS_ANSWER,
+  isTimeQuestion,
+  mergeDerivedContext,
   parseAnswer,
   selectContext,
   type RetrievedMessage,
 } from '@switchboard/ai';
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+import { fetchAttention, itemWhen, type AttentionItem } from './attention';
 
 /**
  * The assistant turn (US-6, ADR-007, ADR-016).
@@ -140,6 +144,114 @@ function humanWait(ms: number): string {
   return `${hours} hour${hours === 1 ? '' : 's'}`;
 }
 
+/**
+ * ── ADR-020, the narrow version: extractions in the assistant's context ──────
+ *
+ * **Off unless `ASSISTANT_GROUND_EXTRACTIONS` is set**, and that default is the
+ * decision, not laziness.
+ *
+ * ADR-020 is explicit that this change "reopens the refusal" ADR-016 placed
+ * entirely on the model, that it "would have to be re-measured" on both the
+ * answerable and the must-refuse score, and that it must not be built "on a day
+ * the eval cannot be run". The eval ran to completion for the first time on
+ * 2026-08-03 — **answerable 6/6, must-refuse 7/7** — and exhausted the day's
+ * token allowance doing it. So the baseline exists and the "after" does not.
+ *
+ * A flag is what lets those be one experiment rather than two unrelated runs:
+ * today's numbers are the control, and the next full run with the flag on is
+ * the treatment. Merging this on by default would have spent the baseline and
+ * left the change unmeasurable, which is precisely what ADR-017 was written
+ * about.
+ *
+ * ⚠ Do not flip this default without a full unfiltered eval showing BOTH
+ * numbers, run on a day the assistant has not otherwise been used.
+ */
+const GROUND_IN_EXTRACTIONS = process.env.ASSISTANT_GROUND_EXTRACTIONS === '1';
+
+/**
+ * How far ahead a detected item counts as "upcoming".
+ *
+ * 30 days rather than 7: the questions this serves are "do I have any upcoming
+ * meetings?" and "what is due?", and a meeting three weeks out is a real answer
+ * to the first. The cap exists so a stale row from months ago cannot present
+ * itself as news.
+ */
+const WINDOW_AHEAD_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * How far back an item stays relevant.
+ *
+ * Non-zero on purpose. A meeting that started an hour ago is still the right
+ * answer to "do I have anything today?", and `/attention` already treats
+ * recently-missed items as the MOST urgent group rather than as history.
+ */
+const WINDOW_BEHIND_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Detected items whose time falls in the window, as context blocks.
+ *
+ * ⚠ Reuses `fetchAttention` rather than issuing its own query. Two reads of one
+ * table drift, and the drift would be invisible: this is the same RLS-scoped,
+ * `service_role`-free table read `/attention` performs, so whatever a person
+ * sees on that screen is exactly what the assistant can cite.
+ *
+ * ⚠ `content` is the **quote**, never the title. The quote is verbatim and was
+ * checked against the message body before the row was stored; the title is the
+ * part the model composed. ADR-020 makes that distinction the condition of the
+ * whole proposal — "the answer must be built from the quote, not the title".
+ */
+async function fetchDatedExtractions(
+  supabase: SupabaseClient,
+  channelLabels: Map<string, string>,
+  now: Date,
+): Promise<RetrievedMessage[]> {
+  const { items, error } = await fetchAttention(supabase, { limit: 100 });
+
+  if (error) {
+    // Never fatal: the assistant answers from retrieval exactly as before.
+    console.error(`[assistant] extraction lookup failed: ${error}`);
+    return [];
+  }
+
+  const from = now.getTime() - WINDOW_BEHIND_MS;
+  const to = now.getTime() + WINDOW_AHEAD_MS;
+
+  const dated = items.filter((item: AttentionItem) => {
+    const when = itemWhen(item);
+    if (!when) return false;
+    const at = new Date(when).getTime();
+    return Number.isFinite(at) && at >= from && at <= to;
+  });
+
+  // Soonest first — the same ordering principle as `/attention`, and the order
+  // the model reads them in.
+  dated.sort((a, b) => {
+    const left = new Date(itemWhen(a)!).getTime();
+    const right = new Date(itemWhen(b)!).getTime();
+    return left - right;
+  });
+
+  return dated.map((item) => ({
+    messageId: item.message.id,
+    // Not on retrieval's scale and never compared against it — the merge
+    // happens after the floors have run. See `mergeDerivedContext`.
+    similarity: 1,
+    subject: item.message.subject,
+    content: item.quote,
+    bodyText: item.quote,
+    sentAt: item.message.sentAt,
+    direction: 'inbound',
+    senderName: item.message.senderName,
+    senderRef: item.message.senderRef,
+    channelLabel: channelLabels.get(item.message.channelId) ?? null,
+    derived: {
+      kind: item.kind,
+      startsAt: item.startsAt,
+      dueAt: item.dueAt,
+    },
+  }));
+}
+
 interface MatchRow {
   message_id: string;
   chunk_index: number;
@@ -227,7 +339,20 @@ export async function askAssistant(
     channelLabel: channelLabels.get(row.channel_id) ?? null,
   }));
 
-  const context = selectContext(retrieved);
+  /*
+   * ⚠ The floors run on RETRIEVAL ONLY, before anything is merged (ADR-016).
+   *
+   * When the flag is off, or the question is not about scheduled time, `context`
+   * below is the exact list the previous version built — same rows, same order.
+   * That is deliberate: it makes the eval's must-refuse cases a control, since
+   * not one of them is a time question.
+   */
+  let context = selectContext(retrieved);
+
+  if (GROUND_IN_EXTRACTIONS && isTimeQuestion(trimmed)) {
+    const derived = await fetchDatedExtractions(supabase, channelLabels, new Date());
+    if (derived.length > 0) context = mergeDerivedContext(derived, context);
+  }
 
   /*
    * Nothing retrieved at all — an empty corpus, or nothing embedded yet.
