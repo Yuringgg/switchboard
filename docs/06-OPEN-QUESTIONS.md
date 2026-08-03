@@ -7,7 +7,16 @@ to the bottom with their answer.*
 
 ## 🟡 Needs a decision, not blocking
 
-### Q12 — Should the assistant read `extractions` as well as `message_chunks`?
+### ~~Q12 — Should the assistant read `extractions` as well as `message_chunks`?~~ → **R24**
+**Decided by Yuri 2026-08-03: the narrow version, after the coverage fix.** Moved
+to Resolved below.
+
+### ~~Q-digest — Is the daily digest (US-9) still worth building?~~ → **R25**
+**Cut by Yuri 2026-08-03.** `/attention` already is it. Moved to Resolved below.
+
+<details>
+<summary>Q12 as originally raised, kept for the reasoning</summary>
+
 **Raised:** 2026-08-03 · **Relevant by:** 8 August, when the meetings mail expires
 
 Phase 5 shipped, so the follow-on `docs/04-ROADMAP.md` anticipated is now live —
@@ -31,6 +40,8 @@ a quiet addition, because it changes what the assistant is grounded in."*
 
 *Leaning:* the narrow version — a date-window lookup for explicitly time-based
 questions only — or nothing. **Yuri's call.**
+
+</details>
 
 ### Q11 — The assistant's ~30 questions/day is shared by all tenants. Fair?
 **Raised:** 2026-08-03 · **Relevant by:** the moment a second person at iOzera uses it
@@ -107,6 +118,43 @@ WhatsApp reality check are the two things she'll actually care about.
 ---
 
 ## ✅ Resolved
+
+### R24 — Should the assistant read `extractions` too? *(was Q12)*
+**Yes, in the narrow form only, and the coverage hole was fixed first.** Decided
+by Yuri 2026-08-03. A date-window lookup for questions explicitly about scheduled
+time, feeding the model each extraction's **verbatim quote** and parsed date,
+cited to the source message. Not a general merge of the two sources.
+
+⚠ **The condition attached to it turned out to matter more than the feature.**
+Measured the same day: `extractions` was missing **four of the last five
+substantive messages** — extraction runs last of the three AI steps, meets an
+exhausted 6,000 tokens/minute window, records nothing by design, and **nothing
+was scheduled to come back for it**. `extractBatch`'s comment said the backfill
+would pick them up; nothing ran the backfill. Grounding the assistant in that
+would have made it less reliable while reading as an improvement. Fixed
+(`extract-catchup.ts`, a 15-minute sweep that runs only when the queue is
+empty), backfilled to 0 outstanding, then built.
+
+⚠ **Ships behind `ASSISTANT_GROUND_EXTRACTIONS`, default OFF.** ADR-020 requires
+both numbers re-measured; the daily cap allows about one full run; 2026-08-03's
+**answerable 6/6 · must-refuse 7/7** is the baseline. To close it, run the full
+eval with the flag on, on a day the assistant is otherwise unused, and compare.
+**ADR-020.** *2026-08-03*
+
+### R25 — Is the daily digest (US-9) still worth building?
+**No — cut.** Decided by Yuri 2026-08-03 on the recommendation below.
+
+`/attention` already reads the same `extractions` rows, already orders them the
+way a person needs (overdue first, then soonest, then undated), and already
+shows the verbatim quote on every row. A digest would be a second, worse view of
+one dataset — and there is **no delivery channel** for it: no mail sender, no
+scheduler in the console. "Daily" would therefore mean *a screen you visit*,
+which is precisely what `/attention` is.
+
+US-9's actual ask — *"I get a daily digest of what needs my attention"* — is
+satisfied by the screen. ⚠ Recorded here rather than left as an unticked box so
+a future session does not read the empty checkbox as work outstanding.
+*2026-08-03*
 
 ### R23 — How aggressive should automatic contact merging be? *(was Q3)*
 **Manual only, with the UI suggesting — built 2026-08-03 exactly as the leaning

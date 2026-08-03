@@ -587,9 +587,24 @@ Phase 4's AI keys.*
       `apps/console`
 - [x] ★ Azure resource group + Container Apps environment — `rg-switchboard`,
       **malaysiawest** (see the region policy below)
-- [ ] Azure Blob Storage account + container — **not needed until Phase 3**;
-      attachments were moved there 2026-07-27 (`docs/04-ROADMAP.md`).
-      Yuri approved provisioning it on 2026-08-02; not done yet.
+- [x] ★ **Azure Blob Storage account + container — provisioned 2026-08-03.**
+      `swbattachments` in `rg-switchboard`/**malaysiawest**, `Standard_LRS`,
+      `StorageV2`, Hot, **`allowBlobPublicAccess: false`**, TLS 1.2 minimum;
+      container **`attachments`**. Approved by Yuri 2026-08-02 and again
+      2026-08-03.
+      **Cost, from Azure's retail price API for this region rather than a docs
+      page:** `$0.018/GB/month` stored, `$0.045` per 10,000 writes, `$0.0036`
+      per 10,000 reads. Creating the account is free — you pay only for what is
+      stored. At this corpus size that is **well under $0.01/month**, inside the
+      student offer's 5 GB LRS allowance, and it does not meaningfully touch the
+      credit. The worker at ~$20–30/month remains the only real spend.
+      ⚠ **`Microsoft.Storage` was `NotRegistered` on the subscription**, and the
+      failure names the wrong cause: `az storage account check-name` returns
+      **`SubscriptionNotFound`**, which reads as a broken login or an expired
+      subscription rather than a missing resource provider. `az provider
+      register -n Microsoft.Storage --wait` fixes it in about a minute. Worth
+      knowing before provisioning anything else new here — the same misleading
+      error will appear for any unregistered provider.
 - [x] ★ **Worker resized to 0.5 vCPU / 1.0 GiB** (2026-08-02). It crashlooped at
       the original 0.25 / 0.5 with **exit code 137 — OOM** — a 129 MB quantised
       ONNX model needs far more than its own size once the runtime and Node's
@@ -648,7 +663,20 @@ from tooling.*
       with the **`messages` field subscribed**. Registering the URL without
       subscribing the field is the quiet failure: the handshake succeeds, the
       dashboard looks configured, and nothing is ever delivered.
-- [ ] ★ All four `WHATSAPP_*` variables on **Vercel (Production and Preview)**.
+- [ ] ★ **TWO** `WHATSAPP_*` variables on **Vercel (Production and Preview)** —
+      `WHATSAPP_WEBHOOK_VERIFY_TOKEN` and `WHATSAPP_APP_SECRET`.
+      ⚠ **Corrected 2026-08-03: this said "all four", and four is wrong.**
+      Grepped across `apps/console`, `apps/worker` and
+      `packages/adapters/whatsapp`: the only reads of a `WHATSAPP_*` variable
+      anywhere are these two, both in `app/api/webhooks/whatsapp/route.ts`.
+      **`WHATSAPP_PHONE_NUMBER_ID` is never read from the environment at all** —
+      it is passed to `provision-whatsapp.ts` as `--phone-number-id` and then
+      lives in `channels.external_account_id`. **`WHATSAPP_ACCESS_TOKEN` is read
+      only by that script, locally**, and is then stored encrypted in
+      `channels.credentials`. Setting the other two on Vercel is harmless but
+      buys nothing, and this project has already lost time to a value pasted
+      into Vercel with its quotes attached — two fewer fields is two fewer
+      chances at that.
       ⚠ **Vercel binds environment variables when a deployment is created** — a
       variable added afterwards does nothing until the next build. Redeploy.
       ⚠ **Paste values unquoted.** Vercel stores the field verbatim, so a value

@@ -1129,7 +1129,75 @@ it exists to answer.
 
 ## ADR-020 — Should the assistant read `extractions` as well as `message_chunks`?
 
-**Status:** 🟡 **PROPOSED — not accepted, not built** · 2026-08-03 · *For Yuri*
+**Status:** ✅ **ACCEPTED in the narrow form, 2026-08-03, by Yuri** · built behind
+`ASSISTANT_GROUND_EXTRACTIONS`, **default off pending a full measured run**
+
+> ### The decision, and the condition attached to it
+>
+> Yuri accepted the **narrow version only** — a date-window lookup for questions
+> that are explicitly about scheduled time — and attached one condition: **fix
+> the extraction coverage hole first.** That was the right call and it was based
+> on a measurement taken the same day. `extractions` was missing **four of the
+> last five substantive messages**, because extraction runs last of the three AI
+> steps, meets an exhausted 6,000 tokens/minute window, records nothing by
+> design, and **nothing was scheduled to come back for it**. Grounding the
+> assistant in a source that silently drops most of a day's mail would have made
+> it *less* reliable while looking like an improvement — a confident *"you have
+> no upcoming meetings"* drawn from a table that never saw the meeting.
+>
+> Fixed first (`apps/worker/src/extract-catchup.ts`, a 15-minute sweep that runs
+> only when the queue is empty), backfilled to **0 outstanding**, and only then
+> was this built.
+>
+> **⚠ It ships OFF, and the default is the decision, not an oversight.** This
+> ADR requires the refusal to be re-measured on both numbers. The daily token
+> cap allows roughly one full eval a day, and 2026-08-03's run is the baseline:
+> **answerable 6/6, must-refuse 7/7** — the first complete score this project has
+> ever had. Turning the flag on by default would have spent that baseline and
+> left the change unmeasurable, which is exactly what ADR-017 was written about.
+> The flag makes before and after one experiment instead of two unrelated runs.
+>
+> **To close this properly:** run the full unfiltered eval with
+> `ASSISTANT_GROUND_EXTRACTIONS=1` on a day the assistant has not been used, and
+> compare **both** numbers against 6/6 and 7/7. The must-refuse score is the one
+> that matters — none of its eight cases is a time question, so they should be
+> bit-identical, and a move there means `isTimeQuestion` is leaking rather than
+> that the model got worse.
+>
+> **Measured so far (2 cases, 2026-08-03):** the meetings question answered
+> correctly with two detected items in context; the Jakarta refusal did not take
+> the path and still refused. That is plumbing verified, **not** a score.
+>
+> ### What was built, and four things not to reverse
+>
+> - **The merge runs AFTER `selectContext`, never inside it.** An extraction has
+>   no similarity, and there is no correct number to invent: at 1.0 it becomes
+>   the best hit, `RELATIVE_FLOOR` then measures every real message against it
+>   and drops them all, and time questions get answered from extractions alone
+>   with the corpus silently discarded. A test asserts that exact failure.
+> - **The explanation lives in the USER turn, not `ASSISTANT_SYSTEM_PROMPT`.** A
+>   system-prompt edit would change all sixteen eval cases and the eight refusals
+>   would stop being a control. A non-time question now gets a byte-identical
+>   prompt to the one measured.
+> - **Context stays capped at `MAX_CONTEXT_MESSAGES`.** Extractions displace
+>   retrieved messages rather than adding to them, so a time question does not
+>   quietly cost more tokens against a ~30-question day.
+> - **Blocks are labelled `DETECTED` and carry the verbatim `quote`, never the
+>   title.** The title is the part the model composed; the quote was checked
+>   against the body before it was stored. This is the answer to objection 1
+>   below.
+>
+> **`isTimeQuestion` is narrow, and a test reads the real eval case list** to
+> prove no must-refuse case takes the path. It earned itself immediately:
+> `schedule|scheduled` matched *"When is the submarine delivery **scheduled**?"*
+> — a refusal case, which would have had a different prompt in the treatment run
+> than in the baseline and quietly broken the comparison. Dropped, along with
+> `call`/`booking` and `do i have`. **Under-triggering is the safe direction**:
+> it falls back to today's behaviour, and today's behaviour scores 6/6.
+
+*Original proposal, kept as written because the reasoning is what was decided on:*
+
+**Status when raised:** 🟡 PROPOSED — not accepted, not built · 2026-08-03 · *For Yuri*
 
 **Context.** `docs/04-ROADMAP.md` names this as *"the natural follow-on once
 extraction exists"*, and adds the condition it is being honoured by: *"That is a

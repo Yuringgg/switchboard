@@ -108,13 +108,27 @@ it carries the verified numbers and the next action. Read that, then come back.
 > `correspondence/2026-07-28-phase-2-whatsapp.md` — Phase 2 and the refactor
 > checkpoint's finding.
 
-⚠ **This project has now had five documented decisions contradicted by
-measurement** (ADR-012, ADR-014, ADR-016, ADR-003's provider, and **ADR-017** —
-the assistant was never over-refusing; the eval was scoring two correct refusals
-as failures). The pattern is always the same: the doc was right when written and
-quietly stopped being right. ⚠ **ADR-017 adds a variant worth knowing: the doc
-was wrong from the moment it was written**, because the failing measurement was
-never traced past its first plausible explanation.
+⚠ **This project keeps having documented decisions contradicted by measurement**
+(ADR-012, ADR-014, ADR-016, ADR-003's provider, **ADR-017**, and four more found
+on 2026-08-03 — see below). The pattern is usually the same: the doc was right
+when written and quietly stopped being right. ⚠ **ADR-017 adds a variant worth
+knowing: the doc was wrong from the moment it was written**, because the failing
+measurement was never traced past its first plausible explanation.
+
+**Found 2026-08-03, all four by running or querying rather than reading:**
+
+1. **The eval paced 5× over the ceiling its own comment derived** — *"~4
+   requests/minute is the ceiling. 3s is comfortably inside it."* 3s is twenty
+   per minute. It cost two cases.
+2. **`extractBatch`'s "they are not lost — the backfill picks them up" was true
+   of the data and false of the process.** Nothing scheduled the backfill.
+3. **The Gmail watch expiry and the OAuth token expiry are different dates**,
+   and the docs had merged them into one.
+4. **"All four `WHATSAPP_*` variables on Vercel" — only two are ever read.**
+
+⚠ The shape they share: **a claim that was checkable in seconds and had never
+been checked.** Three of the four were found by counting rows or grepping for a
+variable name, not by anything clever.
 **Check a claim against the live system before building on it** — the Supabase
 MCP, `az containerapp logs`, and reading a provider's own rate-limit headers have
 each caught something reading could not.
@@ -699,29 +713,63 @@ personal conversations, and no library changes that legitimately.
 | **Phase 4B — assistant** | ✅ **shipped and deployed.** Migrations 0009, local embeddings, `/assistant`. **75/75 messages embedded (397 chunks)**, worker serving `/embed`. ⚠ Prompt owes one tuning pass — see below |
 | **Phase 5** | ✅ **shipped 2026-08-03.** Extraction pass (migration 0011), `/attention` (US-9), and calendar write-back on `/messages/[id]` (US-7b, ADR-010). Remaining Phase 5 items are polish: daily digest, error audit, README from a clean clone, diagram, demo rehearsal |
 
-### Verified live on 2026-08-03, by querying — not by inference
+### Verified live on 2026-08-03 (late), by querying — not by inference
 
 | | |
 |---|---|
-| Messages | **79** · 21 contacts · 2 users |
-| Summaries | **67** |
-| Embeddings | **78 / 79 messages, 412 chunks**. ⚠ The one gap is a body that is nothing but `\r\n` — correctly skipped, not a defect |
-| **Extraction** | **77 / 77 eligible messages processed, 0 failures, 3 items.** 74 of those runs wrote 0 rows, which is the ORDINARY result |
+| Messages | **85** · 22 contacts · 2 users |
+| Summaries | **71** |
+| Embeddings | **83 / 85 messages**. ⚠ The gaps are bodies that are nothing but `\r\n` — correctly skipped, not a defect |
+| **Extraction** | **83 runs, 0 outstanding.** Most wrote 0 rows, which is the ORDINARY result |
 | Queue | **0 not done** |
-| Channels | 1 Gmail, **0 in error**. Watch expires **2026-08-08 19:34:54 UTC** |
-| Worker | rev **`--0000014`**, healthy, `{"embedder":true}`, logging `[extract] enabled` |
-| Console | `/attention`, `/contacts`, `/messages/[id]` all 307 → `/login` (gated correctly) |
-| Tests | **467** (was 389) · typecheck, `next build`, `assert-rls` (11 tables) all green |
+| Channels | 1 Gmail, **0 in error**. ⚠ See the watch/token note below — they are different dates |
+| Console | `/attention`, `/contacts`, `/messages/[id]` all gated correctly |
+| Tests | **496** (was 467) · typecheck, `next build`, `assert-rls` (11 tables) all green |
 | Migrations | **0011** applied and negative-controlled |
-| Extraction eval | **10/10**, including both injection cases |
+| Blob storage | ✅ **provisioned** — `swbattachments` / container `attachments`, malaysiawest |
 
-⚠ **The assistant eval still has no complete score.** The 2026-08-03 run
-measured **answerable 4/4, must-refuse 0/0, 12 provider errors** — the daily
-token cap swallowed twelve of sixteen cases, *including every must-refuse case*.
-Roughly 90% of that day's budget was already spent before the run started
-(three questions succeeded ≈ 10K tokens against ~100K/day). **Run it first thing
-on a day nobody has used `/assistant` yet.** It now stops as soon as the daily
-scope is reported rather than waiting a minute per remaining case.
+### ✅ THE ASSISTANT EVAL HAS A COMPLETE SCORE, FOR THE FIRST TIME
+
+```
+answerable: 6/6   must-refuse: 7/7   provider errors: 3
+```
+
+**Zero logic failures.** 13 of the 15 scoreable cases measured, all passed. Two
+sessions had failed to get here.
+
+⚠ **Only ONE of the three provider errors was the daily cap** — and it was the
+known-gap case, which is not scored. The other two were the **per-minute**
+window, with 4,031 and 5,509 tokens still left in it, and they were the eval's
+own fault:
+
+> The pacing comment derived *"~4 requests/minute is the ceiling"* and then slept
+> **3 seconds**, which is twenty per minute. From case 6 onward every request
+> 429'd — the eval was self-throttling by failing. Now 20s, derived from the
+> 3,000–4,000 tokens a question actually costs, and the per-minute window is
+> retried up to 3 times (tested by **scope**, so a daily rejection still stops
+> the run immediately). **Costs no extra tokens** — a 429 is a rejection, not a
+> completion.
+
+⚠ **The ~30 questions/day figure looks optimistic.** The daily cap tripped after
+roughly **13** completions, not 30. `docs/03-RESOURCES.md` §4a always derived
+~100K/day from observed 429s rather than anything Groq publishes. One
+observation is not a refutation — but do not plan a demo day around 30.
+
+⚠ **Groq's buckets replenish continuously.** A short targeted run succeeded
+about half an hour after the daily rejection. Never write "resets at midnight"
+in UI copy; it is false.
+
+### ⚠ Two dates, and conflating them is why mail stops
+
+`sync_state.expires_at` is the **Gmail watch**. It read **2026-08-10 07:39 UTC**
+on 2026-08-03 — the worker's sweep had already renewed it. Earlier docs said
+2026-08-08 and were describing something else.
+
+**The thing that actually breaks ingestion is the OAuth refresh token**, which
+Google expires **7 days after the user clicked Allow** (External + Testing, not
+configurable). That is still ~**2026-08-08 19:34 UTC**. When it lapses the
+renewal sweep itself starts failing, `channels.status` goes to `error`, and mail
+stops. **Reconnect on `/channels` — the button says `Reconnect`, not `Connect`.**
 
 **The full pipeline runs unattended:** a new email arrives → webhook → queue →
 worker normalises → **summarises** → **chunks and embeds** → timeline. All three
@@ -898,11 +946,31 @@ come back as CIE `lab()`; an `rgb()` regex reads L,a,b as R,G,B and reports
 WCAG luminance is the Y channel and L\*→Y needs no colour-space adaptation.
 Measured properly: 46/46 pass AA in both schemes, lowest 6.88 dark / 5.27 light.
 
-**⚠⚠ `ASSISTANT` GROUNDING IS AN OPEN QUESTION, NOT A TODO — see ADR-020/Q12.**
-Letting the assistant read `extractions` is the natural follow-on and it is
-written up as **PROPOSED, not accepted**. It changes what a citation means and
-it reopens the refusal ADR-016 put on the model. Do not build it without Yuri,
-and not on a day the eval cannot be run.
+**✅ ASSISTANT GROUNDING — DECIDED 2026-08-03. ADR-020 accepted in the NARROW
+form, built, and shipped OFF behind `ASSISTANT_GROUND_EXTRACTIONS`.**
+
+Yuri accepted a date-window lookup for questions explicitly about scheduled
+time, feeding the model each extraction's **verbatim quote** and parsed date,
+cited to the source message — not a general merge. **The flag defaults off and
+that is the decision**: ADR-020 requires both numbers re-measured, the daily cap
+allows about one full run, and today's 6/6 · 7/7 is the baseline. To close it,
+run the full eval with the flag on, on a day the assistant is otherwise unused.
+
+**⚠⚠ EXTRACTION WAS SILENTLY LOSING LIVE MAIL, AND THE FIX IS A NEW LOOP.**
+Found by counting, not reading: 84 messages, 78 extraction runs, and four of the
+six gaps were ordinary mail from the previous day — summarised and embedded,
+never extracted. Extraction runs **last** of the three AI steps, meets an
+exhausted 6,000 tokens/minute window, and records nothing by design so the work
+stays outstanding. `extractBatch`'s comment says the backfill picks those up.
+**Nothing scheduled the backfill.** `raw_events` is marked done, so the message
+never returns through the worker.
+
+`apps/worker/src/extract-catchup.ts` sweeps every 15 minutes, 5 messages at a
+time, **only when the queue is empty** so it cannot starve live ingest of the
+window they share. ⚠ Do not "simplify" it into an inline retry inside
+`extractBatch` — that blocks `markDone` and the ingest loop behind it, trading a
+lost proposal for delayed mail, which is the trade this phase already decided
+the other way.
 
 ### Shipped 2026-08-02 (late) — assistant loose ends closed
 

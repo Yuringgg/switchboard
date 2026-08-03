@@ -836,7 +836,37 @@ ingest path lands when the Container App is repointed at the new image
         client an invitation off the back of a model reading their message is a
         far louder assertion than a calendar entry, and ADR-010's whole
         principle is propose-don't-assert. Participants go in the description.
-- [ ] Daily digest (US-9)
+- [x] **Extraction catch-up sweep** (2026-08-03) — `apps/worker/src/extract-catchup.ts`.
+      ⚠ **This closed a hole that was losing live mail, found by counting rather
+      than by reading.** The live database held **84 messages and 78 extraction
+      runs**; two gaps were `\r\n`-only bodies, correctly skipped, and the other
+      four were ordinary mail from the previous 24 hours — a payment
+      notification and three job alerts, every one **summarised and embedded but
+      never extracted**. Extraction was not disabled: a message that morning was
+      extracted 17 seconds after it arrived. It is the shared **6,000
+      tokens/minute** window — extraction runs last of the three on the same
+      message, so it is the one that meets an exhausted window, and three of the
+      four were over 5,000 characters.
+      `extractBatch` stops on a retryable failure and records nothing, which is
+      right on its own terms; its comment then claims *"they are not lost — the
+      backfill picks up anything without a run."* **That is true of the data and
+      false of the process — nothing scheduled the backfill.** `raw_events` is
+      marked done, so the message never returns through the worker.
+      Now a sweep every 15 minutes, 5 messages at a time, and **only when
+      `raw_events` is empty** so it can never starve live ingest of the window
+      they share. ⚠ An inline retry was rejected deliberately: it would block
+      `markDone` and the ingest loop behind it for tens of seconds per message,
+      trading a lost proposal for delayed mail — and this phase already settled
+      which of those to prefer, which is *why* extraction runs last.
+      6 tests, including a source-level assertion that the candidate query
+      trims `\t\r\n` and not just spaces. Negative-controlled.
+- [x] ~~Daily digest (US-9)~~ **CUT 2026-08-03 by Yuri (R25).** `/attention`
+      already reads the same rows, already orders them overdue-then-soonest, and
+      already shows the quote. There is **no delivery channel** — no mail sender,
+      no scheduler — so "daily" would mean a screen you visit, which is what
+      `/attention` is. Building it would be a second, worse view of one dataset.
+      ⚠ Recorded as a decision rather than left unticked, so it does not read as
+      outstanding work.
 - [ ] Error handling audit — every failure path has a UI state
 - [ ] `README.md` with setup instructions, **verified from a clean clone**
 - [ ] Architecture diagram for the presentation
