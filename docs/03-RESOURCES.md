@@ -114,6 +114,20 @@ nothing anywhere said to *expect* it, which is why it is written down here now.
 **The fix is to reconnect**, which takes one click on `/channels` and mints a
 fresh 7-day token. There is no way to extend it inside testing mode.
 
+⚠ **The button is labelled `Reconnect`, not `Connect`.** `channel-list.tsx`
+picks the label from whether a channel row exists, so `Connect` only ever shows
+for an account that has never been connected. Written down because an
+instruction saying "click Connect" sends the reader looking for a button that
+is not on the screen.
+
+⚠ **Everything after that click is Google's, and it varies.** The account
+chooser appears only when more than one Google account is signed in; the
+"unverified app" interstitial depends on Google's verification state rather than
+on anything here. Sometimes the whole flow completes with no interaction at all.
+The only step that is always required is **leaving both permissions ticked** —
+Gmail *and* Calendar — because `exchangeCode` refuses a partial grant outright
+(`lib/google/oauth.ts`) rather than storing a channel that 403s later.
+
 - **Before any demo to Ms. Maria, reconnect Gmail that morning.** A token that
   expires mid-presentation looks exactly like a broken pipeline.
 - **Do not "solve" this by publishing the consent screen.** `gmail.readonly` is

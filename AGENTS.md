@@ -363,7 +363,14 @@ token **7 days from the moment the user clicked Allow** — not from last use, n
 configurable, per user. When it lapses `refreshAccessToken` returns
 `invalid_grant`, the worker's sweep sets `channels.status='error'` within 6
 hours, `/channels` shows *Needs attention*, and **mail stops arriving.** The fix
-is one click on Connect. **Reconnect on the morning of any demo.** Publishing
+is one click on **Reconnect** on `/channels` — ⚠ the button is labelled
+`Connect` only while a channel is *unconnected*; once a row exists it reads
+`Reconnect` (`channel-list.tsx`), and telling someone to look for "Connect"
+sends them hunting for a button that is not on the screen. Everything after the
+click is Google's own screens and they vary: the account chooser appears only
+with more than one Google account signed in, and the unverified-app warning
+depends on Google's state, not ours. **Reconnect on the morning of any demo.**
+Publishing
 the consent screen would end this and trigger the CASA assessment testing mode
 exists to avoid — do not. Full note: `docs/03-RESOURCES.md` §2.
 
