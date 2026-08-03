@@ -1,14 +1,12 @@
 import { LogOut } from 'lucide-react';
-import Link from 'next/link';
 import { Suspense, type ReactNode } from 'react';
 
 import { Brand } from '@/components/brand';
+import { ConsoleNav } from '@/components/console-nav';
 import { Live, LiveStatus, SCROLLER_ID } from '@/components/live';
-import { MobileNav } from '@/components/mobile-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { signOut } from '@/lib/auth-actions';
 import { CHANNELS, type ChannelRow } from '@/lib/channels';
-import { NAV_ITEMS } from '@/lib/nav';
 import { buttonClass, LABEL } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
@@ -103,76 +101,20 @@ export function AppShell({
           </div>
 
           {/*
-            Desktop only now. On a phone this is the dock at the bottom of the
-            frame — see `<MobileNav>` below. `hidden` rather than a second set
-            of styles, so only one of the two is ever in the accessibility tree
-            and "Primary" names exactly one navigation at any width.
+            The rail. Same component as the dock at the bottom of the frame on a
+            phone, turned on its side — `hidden` rather than a second set of
+            styles, so exactly one of the two is ever in the accessibility tree
+            and "Primary" names one navigation at any width.
+
+            ⚠ `md:flex`, not `md:block`. The entries are flex children; a
+            `display: block` here would strand them and the rail would render as
+            six full-width rows with the icons detached from their labels.
           */}
-          <nav className="hidden px-3 pb-2.5 md:block md:pb-0" aria-label="Primary">
-            <ul className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
-              {NAV_ITEMS.map(({ label, href, icon: Icon, ready }) => {
-                const isActive = ready && href === activeHref;
-
-                const content = (
-                  <>
-                    {/* The active line, borrowed from the timeline's rail so
-                        the two read as the same system. Desktop only — a left
-                        marker means nothing in a horizontal strip. */}
-                    {isActive && (
-                      <span
-                        className="absolute top-1.5 bottom-1.5 -left-1 hidden w-0.5 rounded-full bg-foreground md:block"
-                        aria-hidden
-                      />
-                    )}
-                    <Icon className="size-4 shrink-0" aria-hidden />
-                    {label}
-                    {/*
-                      Shown at every width. It used to be `hidden md:inline`,
-                      so on a phone Contacts and Assistant looked like ordinary
-                      nav items that silently did nothing when tapped — the
-                      desktop tooltip that explained them is not reachable by
-                      touch either.
-                    */}
-                    {!ready && (
-                      <span className={cn(LABEL, 'ml-1.5 md:ml-auto')}>soon</span>
-                    )}
-                  </>
-                );
-
-                const className = cn(
-                  'focus-ring relative flex items-center gap-2.5 rounded-md px-2.5 py-2 text-row whitespace-nowrap transition-colors',
-                  isActive && 'bg-accent font-medium text-foreground md:bg-transparent',
-                  ready && !isActive && 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                  !ready && 'text-muted-foreground',
-                );
-
-                return (
-                  <li key={label} className="shrink-0 md:shrink">
-                    {ready ? (
-                      // Routes that exist are real links. Phase 3 flips `ready`.
-                      <Link
-                        href={href}
-                        className={className}
-                        aria-current={isActive ? 'page' : undefined}
-                      >
-                        {content}
-                      </Link>
-                    ) : (
-                      // Not a link, and not focusable — a nav item that looks
-                      // clickable and 404s is worse than one that reads as pending.
-                      <span
-                        className={className}
-                        aria-disabled
-                        title={`${label} isn't built yet`}
-                      >
-                        {content}
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+          <ConsoleNav
+            activeHref={activeHref}
+            orientation="vertical"
+            className="hidden md:flex"
+          />
 
           <div className="mt-auto hidden px-5 py-5 md:block">
             {/* The same word as the nav entry and the page it links to. A
@@ -259,7 +201,11 @@ export function AppShell({
           scrolling under it. `md:hidden` keeps it from becoming a third column
           once the frame turns into a row.
         */}
-        <MobileNav activeHref={activeHref} />
+        <ConsoleNav
+          activeHref={activeHref}
+          orientation="horizontal"
+          className="flex md:hidden"
+        />
       </div>
     </Live>
   );

@@ -53,6 +53,17 @@ export interface InteractiveMenuProps {
   activeIndex: number;
   /** Optimistic feedback on tap, before the route resolves. */
   onSelect?: (index: number) => void;
+  /**
+   * `horizontal` is the dock along the bottom of a phone: icons only, with the
+   * current entry alone showing its label.
+   *
+   * `vertical` is the desktop rail. Every label stays visible — a 240px column
+   * has the room, and a stack of six unlabelled icons is a worse sidebar than
+   * the one it replaced. The active entry keeps the treatment that makes this
+   * component itself: the filled pill, the icon's bounce, and a rule under its
+   * label.
+   */
+  orientation?: 'horizontal' | 'vertical';
   accentColor?: string;
   className?: string;
   'aria-label'?: string;
@@ -62,6 +73,7 @@ export function InteractiveMenu({
   items,
   activeIndex,
   onSelect,
+  orientation = 'horizontal',
   accentColor,
   className,
   'aria-label': ariaLabel,
@@ -101,7 +113,11 @@ export function InteractiveMenu({
   );
 
   return (
-    <nav className={`menu ${className ?? ''}`} aria-label={ariaLabel} style={navStyle}>
+    <nav
+      className={`menu${orientation === 'vertical' ? ' menu--vertical' : ''} ${className ?? ''}`}
+      aria-label={ariaLabel}
+      style={navStyle}
+    >
       {items.map((item, index) => {
         const isActive = index === activeIndex;
         const Icon = item.icon;

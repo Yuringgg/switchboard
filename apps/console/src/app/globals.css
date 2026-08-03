@@ -498,6 +498,75 @@
     transform: translateX(-50%);
     transition: width 0.3s ease;
   }
+
+  /*
+   * ── The desktop rail ───────────────────────────────────────────────────────
+   *
+   * The same component turned on its side. Three things differ, and each is a
+   * fact about a 240px column rather than a preference:
+   *
+   * - Every label is visible. Collapsing them to icons is right on a phone,
+   *   where the dock is six targets in 375px; in a rail with room for the words
+   *   it would be a stack of unlabelled glyphs and strictly worse than the list
+   *   this replaced.
+   * - The entries fill the width and align left, so the icons form a column the
+   *   eye can run down.
+   * - The rule sits under the label rather than under the whole entry, so it
+   *   does not float out in the empty space to the right of a short word like
+   *   "Search". It needs no measurement here: the text element is already
+   *   exactly as wide as its text.
+   */
+  .menu--vertical {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.125rem;
+    padding: 0 0.75rem;
+    background: none;
+    border-top: 0;
+    overflow-x: visible;
+  }
+
+  .menu--vertical .menu__item {
+    justify-content: flex-start;
+    gap: 0.625rem;
+    width: 100%;
+    height: 2.25rem;
+    padding-inline: 0.625rem;
+  }
+
+  .menu--vertical .menu__item:not(.active):not(.inert):hover {
+    background: var(--accent);
+    color: var(--foreground);
+  }
+
+  /* Always open in the rail — see the note above. */
+  .menu--vertical .menu__text {
+    max-width: none;
+    opacity: 1;
+    font-size: var(--text-row);
+  }
+
+  /* The horizontal rule is centred on the whole entry, which is wrong once the
+     entry is full-width. Moved onto the label itself. */
+  .menu--vertical .menu__item.active::after {
+    display: none;
+  }
+
+  .menu--vertical .menu__item.active .menu__text {
+    position: relative;
+  }
+
+  .menu--vertical .menu__item.active .menu__text::after {
+    content: '';
+    position: absolute;
+    bottom: -0.1875rem;
+    left: 0;
+    width: 100%;
+    height: 1.5px;
+    border-radius: 1px;
+    background: currentColor;
+    opacity: 0.5;
+  }
 }
 
 @keyframes iconBounce {

@@ -28,10 +28,34 @@ it cost to keep honest. A character that beams through a refusal quietly undoes
 that. The status line names the *reason* — "Nothing to cite" — and does not take
 `--destructive`, because a refusal is a correct outcome and not a fault.
 
-**`components/ui/modern-mobile-menu.tsx` → navigation on a phone.** A bottom
-dock: every entry shows its icon, the current one also shows its label with a
-rule underneath sized to the word. It replaces the horizontally scrolling strip
-that sat under the wordmark. **The desktop sidebar is untouched.**
+**`components/ui/modern-mobile-menu.tsx` → the navigation, both shapes of it.**
+On a phone, a dock along the bottom edge: every entry shows its icon, the
+current one also shows its label with a rule underneath sized to the word. It
+replaces the horizontally scrolling strip that sat under the wordmark.
+
+⚠ **Amended the same day.** This shipped mobile-only first, on the reasoning
+that a horizontal icon dock is not a thing a 240px rail wants to be. That was
+true and beside the point: Yuri asked for it in the nav bar, works on a desktop,
+and so saw **no change at all** — the one outcome worse than a debatable design.
+`components/console-nav.tsx` now renders the same component in both
+orientations, and `orientation="vertical"` replaced the hand-rolled `<ul>` in
+`app-shell`.
+
+Three things differ in the rail, each a fact about a 240px column rather than a
+preference: every label stays visible (a stack of six unlabelled glyphs is worse
+than the list it replaced), entries fill the width and align left, and the rule
+sits under the *label* rather than the entry — otherwise it floats in the empty
+space to the right of a short word like "Search". It needs no measurement there;
+the text element is already exactly as wide as its text.
+
+⚠ The rail's `className` must be `md:flex`, **not** `md:block`. The entries are
+flex children, and `display: block` strands them into six full-width rows with
+the icons detached from their labels.
+
+⚠ The old sidebar's left rail marker — the 2px line borrowed from the timeline —
+is **gone**, replaced by the filled pill. Two markers on one entry is noise. If
+it is wanted back, it belongs in `.menu--vertical .menu__item.active::before`,
+not in `app-shell`.
 
 **Two new dependencies**, both in `apps/console` only, and `pnpm-lock.yaml` is in
 the same commit: `framer-motion` and `@paper-design/shaders-react`.
@@ -139,8 +163,25 @@ never reaches Groq, `/embed` or the database.
 
 ## Not addressed, and why
 
-- **The dock is mobile only.** A horizontal icon dock is not a thing a 240px
-  desktop rail wants to be, and the sidebar is route-driven and already works.
 - **The figure is on `/assistant` only.** Putting it in the shell would mount a
   WebGL canvas on every screen including the timeline, and pull ~410KB into
   every page's bundle instead of one.
+- **`/preview` still does not exist in production**, by design — it answers 307.
+  ⚠ Worth stating because it was handed over as a way to *review the deploy* and
+  is not one. On the live console the figure is on `/assistant`, behind the
+  login, and the rail is the sidebar.
+
+## The lesson from this one
+
+**A design decision that is correct and invisible reads as a change that did not
+ship.** The dock was built where it belonged rather than where it would be seen,
+and the next two exchanges were spent establishing that the deploy had in fact
+succeeded. The check that settled it costs one command and needs no login:
+
+```
+fetch the deployed /login, pull the /_next/static/**.css bundle out of it,
+and grep for a class only the new code emits
+```
+
+That answers "is my CSS live?" without `/api/health/config` and without a
+session, and it is the fastest rebuttal to "Vercel is serving the old build".
