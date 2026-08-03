@@ -21,7 +21,35 @@ export const EXPECTED_VARS = [
   'CRON_SECRET',
 ] as const;
 
+/**
+ * Variables a **feature** needs, which a healthy deployment can legitimately be
+ * without.
+ *
+ * ⚠ Reported in `detail`, listed under `features`, and deliberately **not**
+ * counted in the top-level `ok`. WhatsApp being unconfigured is not a broken
+ * deployment — it is Phase 2 waiting on a Meta account, and folding it into `ok`
+ * would make the one field people glance at read `false` for months. A health
+ * check that is always red is a health check nobody reads.
+ *
+ * ── Why these two are here at all ────────────────────────────────────────────
+ *
+ * Until 2026-08-03 this file listed neither, so `/api/health/config` — the
+ * instrument this project reaches for to answer *"did my change actually
+ * deploy?"* — could not answer it for the WhatsApp variables specifically. That
+ * matters more here than for most: Vercel binds variables when a deployment is
+ * **created**, and the symptom of forgetting to redeploy is a `503 Not
+ * configured` from one route while everything else is fine.
+ *
+ * `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_ACCESS_TOKEN` are absent on purpose —
+ * nothing in the deployed app reads them (the id lives in
+ * `channels.external_account_id`, the token in `channels.credentials`), and
+ * listing a variable here that no code reads is how "set all four on Vercel"
+ * survived in the docs for a week.
+ */
+export const FEATURE_VARS = ['WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'WHATSAPP_APP_SECRET'] as const;
+
 export type ExpectedVar = (typeof EXPECTED_VARS)[number];
+export type FeatureVar = (typeof FEATURE_VARS)[number];
 
 export interface VarReport {
   present: boolean;
@@ -35,6 +63,12 @@ export interface ConfigReport {
   origin: string;
   missing: string[];
   malformed: string[];
+  /**
+   * `FEATURE_VARS`, reported separately so an unconfigured feature never turns
+   * `ok` false. `ready` answers one question — will the WhatsApp webhook stop
+   * answering 503 on this deployment?
+   */
+  features: { ready: boolean; missing: string[]; malformed: string[] };
   detail: Record<string, VarReport>;
 }
 
@@ -139,6 +173,45 @@ export function inspectVar(name: string, raw: string | undefined, origin: string
       break;
     }
 
+    /*
+     * ⚠ The App Secret is NOT the access token, and this is the single most
+     * expensive mistake available in the WhatsApp setup.
+     *
+     * Both are copied from the same dashboard minutes apart. Paste the token
+     * here and the HMAC never matches, so **every** webhook 401s — which reads
+     * as "Meta is broken" or "the signature code is wrong", not as one field
+     * holding the other field's value. The only trace is one log line,
+     * `rejected: bad or missing signature`, in Vercel's runtime logs.
+     *
+     * ⚠ The check is on LENGTH, not on format, and that is deliberate. Meta's
+     * App Secret is short and its access tokens are long — a token is hundreds
+     * of characters. Asserting the App Secret's exact character set would mean
+     * writing down a format nobody here has ever seen, which is precisely the
+     * habit `AGENTS.md` §5 keeps catching. Length is a property of the mistake
+     * that can be stated without inventing anything.
+     */
+    case 'WHATSAPP_APP_SECRET': {
+      if (value.length > 100) {
+        issues.push(
+          `is ${value.length} characters — far too long for an App Secret. ` +
+            'This is almost certainly the ACCESS TOKEN. App settings → Basic → App Secret.',
+        );
+      }
+      break;
+    }
+
+    /*
+     * Invented by us, compared byte for byte against what Meta echoes back. Any
+     * value works, so there is nothing to validate except that a real one is
+     * there — a two-character token would verify perfectly and be worthless.
+     */
+    case 'WHATSAPP_WEBHOOK_VERIFY_TOKEN': {
+      if (value.length > 0 && value.length < 16) {
+        issues.push(`is only ${value.length} characters — use a long random string`);
+      }
+      break;
+    }
+
     default:
       break;
   }
@@ -152,14 +225,26 @@ export function buildConfigReport(
 ): ConfigReport {
   const detail: Record<string, VarReport> = {};
 
-  for (const name of EXPECTED_VARS) {
+  for (const name of [...EXPECTED_VARS, ...FEATURE_VARS]) {
     detail[name] = inspectVar(name, env[name], origin);
   }
 
-  const missing = EXPECTED_VARS.filter((n) => !detail[n]?.present);
-  const malformed = EXPECTED_VARS.filter(
-    (n) => detail[n]?.present && (detail[n]?.issues.length ?? 0) > 0,
-  );
+  const faulty = (names: readonly string[]) => ({
+    missing: names.filter((n) => !detail[n]?.present),
+    malformed: names.filter((n) => detail[n]?.present && (detail[n]?.issues.length ?? 0) > 0),
+  });
 
-  return { ok: missing.length === 0 && malformed.length === 0, origin, missing, malformed, detail };
+  const core = faulty(EXPECTED_VARS);
+  const features = faulty(FEATURE_VARS);
+
+  return {
+    ok: core.missing.length === 0 && core.malformed.length === 0,
+    origin,
+    ...core,
+    features: {
+      ready: features.missing.length === 0 && features.malformed.length === 0,
+      ...features,
+    },
+    detail,
+  };
 }

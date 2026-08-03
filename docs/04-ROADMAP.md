@@ -197,9 +197,12 @@ remains is credentials, and the first real message.
 - [ ] ★ Meta developer account, app created, WhatsApp product added — **Yuri**
 - [ ] ★ Free **test business number**; verify up to 5 recipient numbers — **Yuri**
 - [ ] ★ Webhook registered in the Meta dashboard; `messages` field subscribed;
-      the four `WHATSAPP_*` variables set on Vercel — **Yuri**
-- [ ] ★ Provision the number: `packages/db/scripts/provision-whatsapp.ts` —
-      **needs the ids from the steps above**
+      the **two** `WHATSAPP_*` variables set on Vercel — `WHATSAPP_APP_SECRET`
+      and `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, the only two anything reads
+      (corrected 2026-08-03; this said four) — **Yuri**
+- [ ] ★ Provision the number:
+      `pnpm --filter @switchboard/db provision-whatsapp` — **needs the ids from
+      the steps above.** ⚠ Not plain `node`; see `docs/03-RESOURCES.md` §6.
 - [x] WhatsApp channels are **admin-provisioned**, not self-serve — a number is
       registered to the WABA, then assigned an `owner_id`. Unlike Gmail, a user
       cannot connect their own. A WABA holds 2 numbers, up to 20 once verified.

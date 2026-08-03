@@ -170,20 +170,33 @@ Each step's output feeds the next. Full version with the traps:
 5. **App settings → Basic → App Secret.** Copy it. ⚠ Not the access token.
 6. **Invent a verify token** — any long random string.
 7. **Vercel → switchboard-console → Settings → Environment Variables**, for
-   Production **and** Preview, pasted **unquoted**:
-   `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`,
+   Production **and** Preview, pasted **unquoted**: `WHATSAPP_APP_SECRET` and
    `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. **Then redeploy** — Vercel binds variables
    when a deployment is created.
+   ⚠ **Amended 2026-08-03: this said four, and four is wrong.** Grepped across
+   `apps/console`, `apps/worker` and `packages/adapters/whatsapp`, the only
+   `WHATSAPP_*` reads anywhere are those two, both in
+   `app/api/webhooks/whatsapp/route.ts`. `WHATSAPP_PHONE_NUMBER_ID` is never
+   read from the environment at all — it is `--phone-number-id` in step 9 and
+   then lives in `channels.external_account_id`. `WHATSAPP_ACCESS_TOKEN` is
+   read only by that script, locally. Two fewer fields is two fewer chances to
+   paste a value into a platform that stores it verbatim.
 8. **WhatsApp → Configuration → Webhook → Edit.** Callback URL
    `https://switchboard-console-beryl.vercel.app/api/webhooks/whatsapp`, verify
    token from step 6. Save — it should verify immediately. Then **Manage** and
    **subscribe the `messages` field.** This is the step that is silent if missed.
-9. **Provision the number** against Yuri's user id:
+9. **Provision the number** against Yuri's user id, from the repository root:
    ```
-   node --env-file=apps/worker/.env packages/db/scripts/provision-whatsapp.ts \
+   pnpm --filter @switchboard/db provision-whatsapp -- \
      --owner <uuid> --phone-number-id <id> --display "+1 555 078 3881"
    ```
    with `WHATSAPP_ACCESS_TOKEN` set in the environment.
+   ⚠ **Amended 2026-08-03.** This step used to read `node --env-file=…
+   packages/db/scripts/provision-whatsapp.ts`, which cannot run: Node ESM will
+   not resolve the extensionless imports inside `@switchboard/core`, so it fails
+   with `ERR_MODULE_NOT_FOUND` naming *core* rather than the script. `tsx` does.
+   Nothing in the code was wrong — only this line, at the last step of the
+   sequence, after twenty dashboard clicks.
 10. **Send a WhatsApp message to the test number** from a verified recipient. It
     should appear in the timeline within seconds, marked WhatsApp, beside the
     Gmail messages. **That is Phase 2's done-condition, and it is the second

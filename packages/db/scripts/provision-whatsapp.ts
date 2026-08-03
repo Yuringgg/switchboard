@@ -26,12 +26,30 @@
  * will catch it. Migration 0006 makes it unique per channel type so the same
  * number cannot be provisioned twice.
  *
- * Run:
- *   node --experimental-strip-types packages/db/scripts/provision-whatsapp.ts \
+ * Run, from the repository root:
+ *   pnpm --filter @switchboard/db provision-whatsapp -- \
  *     --owner <uuid> --phone-number-id <id> --display "+63 917 000 0001"
  *
- * Needs DATABASE_URL, CHANNEL_CREDENTIALS_KEY and WHATSAPP_ACCESS_TOKEN in the
- * environment — `apps/worker/.env` already holds the first two.
+ * Needs DATABASE_URL, CHANNEL_CREDENTIALS_KEY and WHATSAPP_ACCESS_TOKEN. The
+ * package script loads the first two from `apps/worker/.env`; the token comes
+ * from the environment (see below).
+ *
+ * ⚠ **Plain `node` cannot run this file, and the docs said it could until
+ * 2026-08-03.** Every documented invocation was
+ * `node [--experimental-strip-types] packages/db/scripts/provision-whatsapp.ts`,
+ * and on Node 26 that fails before reaching `main()`:
+ *
+ *     ERR_MODULE_NOT_FOUND: Cannot find module '…/packages/core/src/adapter'
+ *
+ * Node strips types fine — what it will not do is resolve the *extensionless*
+ * relative imports inside `@switchboard/core`. The workspace is bundler-resolved
+ * (`module: preserve`, see `tsconfig.base.json`), where `from './adapter'` is
+ * legal; Node ESM requires `./adapter.ts`. So the failure is not in this script
+ * at all, which is why it reads as the repo being broken.
+ *
+ * `tsx` resolves them, and it was already a devDependency here — the package
+ * script above has always been the working path. Nothing but the documentation
+ * was wrong, and it was wrong at the last step of a twenty-step setup.
  *
  * ⚠ The access token is read from the environment, never from an argument.
  * Command lines end up in shell history, in `ps` output, and in CI logs.
@@ -58,8 +76,9 @@ function readArgs(argv: string[]): Args {
 
   if (!owner || !phoneNumberId || !display) {
     throw new Error(
-      'Usage: provision-whatsapp.ts --owner <uuid> --phone-number-id <id> ' +
-        '--display "+63 917 000 0001" [--waba-id <id>]',
+      'Usage, from the repository root:\n' +
+        '  pnpm --filter @switchboard/db provision-whatsapp -- \\\n' +
+        '    --owner <uuid> --phone-number-id <id> --display "+63 917 000 0001" [--waba-id <id>]',
     );
   }
 

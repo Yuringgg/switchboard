@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "assert-rls": "tsx scripts/assert-rls.ts",
-    "provision-whatsapp": "tsx scripts/provision-whatsapp.ts"
+    "provision-whatsapp": "tsx --env-file=../../apps/worker/.env scripts/provision-whatsapp.ts"
   },
   "dependencies": {
     "@switchboard/core": "workspace:*",

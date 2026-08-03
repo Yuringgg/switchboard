@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { EXPECTED_VARS, buildConfigReport, inspectVar } from '../src/lib/config-report';
+import {
+  EXPECTED_VARS,
+  FEATURE_VARS,
+  buildConfigReport,
+  inspectVar,
+} from '../src/lib/config-report';
 
 const ORIGIN = 'https://switchboard-console-beryl.vercel.app';
 
@@ -57,7 +62,60 @@ describe('buildConfigReport', () => {
 
   it('covers exactly the variables the app reads', () => {
     const report = buildConfigReport({}, ORIGIN);
-    expect(Object.keys(report.detail).sort()).toEqual([...EXPECTED_VARS].sort());
+    expect(Object.keys(report.detail).sort()).toEqual(
+      [...EXPECTED_VARS, ...FEATURE_VARS].sort(),
+    );
+  });
+
+  /*
+   * ── The feature group must never drag `ok` down ────────────────────────────
+   *
+   * WhatsApp has been unconfigured since Phase 2 shipped and the deployment is
+   * healthy. If adding these variables turned `ok` false, the next session
+   * would read a red health check as a regression, or stop reading it.
+   */
+  it('stays ok while a feature is unconfigured, and says so separately', () => {
+    const report = buildConfigReport(good(), ORIGIN);
+
+    expect(report.ok).toBe(true);
+    expect(report.missing).toEqual([]);
+    expect(report.features.ready).toBe(false);
+    expect(report.features.missing).toEqual([...FEATURE_VARS]);
+  });
+
+  it('reports the feature ready once both variables are set', () => {
+    const report = buildConfigReport(
+      {
+        ...good(),
+        // Spaces, on purpose. A realistic-looking token here trips the
+        // pre-commit secret scan, and a fixture shaped exactly like a real
+        // credential trains people to wave the scanner through.
+        WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'fake verify token value',
+        WHATSAPP_APP_SECRET: 'fake app secret',
+      },
+      ORIGIN,
+    );
+
+    expect(report.features).toEqual({ ready: true, missing: [], malformed: [] });
+  });
+
+  it('does not let a malformed feature variable pass as ready', () => {
+    const report = buildConfigReport(
+      {
+        ...good(),
+        // Spaces, on purpose. A realistic-looking token here trips the
+        // pre-commit secret scan, and a fixture shaped exactly like a real
+        // credential trains people to wave the scanner through.
+        WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'fake verify token value',
+        // The access token in the App Secret's field — trap 2.
+        WHATSAPP_APP_SECRET: 'x'.repeat(220),
+      },
+      ORIGIN,
+    );
+
+    expect(report.ok).toBe(true);
+    expect(report.features.ready).toBe(false);
+    expect(report.features.malformed).toEqual(['WHATSAPP_APP_SECRET']);
   });
 });
 
@@ -158,6 +216,32 @@ describe('inspectVar', () => {
     expect(inspectVar('GOOGLE_PUBSUB_TOPIC', 'gmail-push', ORIGIN).issues.join(' ')).toMatch(
       /projects\/<project>\/topics\/<topic>/,
     );
+  });
+
+  /*
+   * The most expensive paste available in the WhatsApp setup: both values are
+   * copied from the same dashboard minutes apart, and the wrong one here makes
+   * every webhook 401 in a way that reads as Meta being broken.
+   */
+  it('catches the access token pasted into the App Secret field', () => {
+    const issues = inspectVar('WHATSAPP_APP_SECRET', 'x'.repeat(220), ORIGIN).issues;
+    expect(issues.join(' ')).toMatch(/almost certainly the ACCESS TOKEN/);
+    expect(issues.join(' ')).toContain('220 characters');
+  });
+
+  it('accepts a short App Secret without asserting its format', () => {
+    // Length is the only property of the mistake that can be stated without
+    // writing down a format nobody on this project has seen.
+    expect(inspectVar('WHATSAPP_APP_SECRET', 'fake app secret', ORIGIN).issues).toEqual([]);
+  });
+
+  it('flags a verify token too short to be worth comparing', () => {
+    expect(inspectVar('WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'hello', ORIGIN).issues.join(' ')).toMatch(
+      /only 5 characters/,
+    );
+    expect(
+      inspectVar('WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'fake verify token value', ORIGIN).issues,
+    ).toEqual([]);
   });
 
   it('passes an unknown variable through without inventing rules', () => {

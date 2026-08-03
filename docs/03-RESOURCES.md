@@ -683,10 +683,24 @@ from tooling.*
       pasted with its surrounding quotes fails auth in a way that reads as a bad
       secret. `apps/worker/.env` quotes some values and dotenv strips them;
       Vercel does not.
-- [ ] ★ Provision the number against an owner:
-      `node --env-file=apps/worker/.env packages/db/scripts/provision-whatsapp.ts
+- [ ] ★ Provision the number against an owner, **from the repository root**:
+      `pnpm --filter @switchboard/db provision-whatsapp --
       --owner <uuid> --phone-number-id <id> --display "+1 555 078 3881"`
-      with `WHATSAPP_ACCESS_TOKEN` in the environment. Until a `channels` row
+      with `WHATSAPP_ACCESS_TOKEN` in the environment.
+      ⚠ **Corrected 2026-08-03: the command this file gave could never have
+      run.** It was `node --env-file=apps/worker/.env packages/db/scripts/
+      provision-whatsapp.ts …`, and plain `node` dies before `main()` with
+      `ERR_MODULE_NOT_FOUND: Cannot find module '…/packages/core/src/adapter'`.
+      Node 26 strips the types happily; what it will not do is resolve the
+      *extensionless* relative imports inside `@switchboard/core`, because this
+      workspace is bundler-resolved (`module: preserve`) where `from './adapter'`
+      is legal and Node ESM wants `./adapter.ts`. The error names `core`, not the
+      script, so it reads as a broken repository. `tsx` resolves them and was
+      already a devDependency of `packages/db`; the package script now also
+      loads `apps/worker/.env`, so the line above is one command with nothing to
+      assemble. **Verified by running it** against a deliberately absent owner
+      uuid: it reached the database and answered *"No user with id …"*.
+      Until a `channels` row
       exists with that `external_account_id`, the webhook verifies the signature,
       finds no channel, logs `unknownNumber` and returns 200 — deliberately, so
       Meta does not disable the endpoint, but nothing is stored.

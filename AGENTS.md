@@ -463,9 +463,13 @@ Yuri's own accounts that is all this system has ever seen.
 
 **→ Next action: Yuri's Meta clicks.** Developer account, an app with the
 WhatsApp product, the free test number, up to 5 verified recipients, the webhook
-registered with the **`messages` field subscribed**, the four `WHATSAPP_*`
-variables on Vercel, then `packages/db/scripts/provision-whatsapp.ts`. The full
-checklist with the traps is `docs/03-RESOURCES.md` §6.
+registered with the **`messages` field subscribed**, **two** `WHATSAPP_*`
+variables on Vercel (`WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN` —
+**not four**, corrected 2026-08-03), then
+`pnpm --filter @switchboard/db provision-whatsapp` — ⚠ **not** plain `node`,
+which cannot resolve this workspace's extensionless imports and dies naming
+`core` rather than the script. The full checklist with the traps is
+`docs/03-RESOURCES.md` §6.
 
 **Phase 3 search shipped 2026-08-02** — `/search`, migration 0007. Three things
 a session touching it must know, each of which had a plausible wrong answer:
@@ -777,10 +781,17 @@ steps confirmed on the newest message, which nobody backfilled.
 
 **Blocked on exactly one thing, and it is not code:** Yuri cannot get past Meta's
 developer-account phone verification (*"You can only complete this action in
-Accounts Center"*). Everything after that is ~15 minutes — copy four values into
-Vercel, redeploy, subscribe the `messages` webhook field, run
-`provision-whatsapp.ts`, send a test message. Checklist with the traps:
-`docs/03-RESOURCES.md` §6.
+Accounts Center"*). Everything after that is ~15 minutes — copy **two** values
+into Vercel, redeploy, subscribe the `messages` webhook field, run
+`pnpm --filter @switchboard/db provision-whatsapp`, send a test message.
+Checklist with the traps: `docs/03-RESOURCES.md` §6.
+
+⚠ **Two things in that sentence were wrong until 2026-08-03, and both were at
+the end of the sequence where a mistake costs the most.** It said *four* values
+(only two are ever read) and it gave a `node …provision-whatsapp.ts` command
+that **has never been able to run** — `ERR_MODULE_NOT_FOUND` on
+`packages/core/src/adapter`, because Node ESM will not resolve this workspace's
+extensionless imports. Neither had been executed. Both are fixed above.
 
 **Standing obligations, easy to forget:**
 
