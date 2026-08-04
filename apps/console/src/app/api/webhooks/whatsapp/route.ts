@@ -142,6 +142,7 @@ export async function POST(request: NextRequest) {
   let queued = 0;
   let duplicates = 0;
   let unknown = 0;
+  const unknownRefs = new Set<string>();
 
   for (const event of events) {
     const channel = channels.get(event.phoneNumberId);
@@ -155,6 +156,7 @@ export async function POST(request: NextRequest) {
        * mistake in this system that no policy will catch.
        */
       unknown += 1;
+      unknownRefs.add(event.phoneNumberId);
       continue;
     }
 
@@ -195,6 +197,30 @@ export async function POST(request: NextRequest) {
     `[webhooks/whatsapp] queued=${queued} duplicates=${duplicates} ` +
       `unknownNumber=${unknown} statuses=${skipped.statuses} unusable=${skipped.unusable}`,
   );
+
+  /*
+   * ⚠ Name the unresolved business ids, not just how many there were.
+   *
+   * `phone_number_id` is the ONLY thing that can be provisioned against, and
+   * during setup it is the thing you do not yet have: an unprovisioned number
+   * returns 200 and stores nothing, deliberately, so the first real message
+   * leaves no trace anywhere. Meta's dashboard at least prints the id on its API
+   * Setup page; a BSP may not, and then `unknownNumber=1` is the whole story —
+   * a count that says work is needed and withholds the one value needed to do
+   * it. This line is what makes provisioning possible from a live delivery.
+   *
+   * §6 permits it: the rule is "never log message bodies or credentials; log
+   * message IDs." A `phone_number_id` is an opaque business identifier, not a
+   * credential and not a person's number. ⚠ `display_phone_number` IS a phone
+   * number and is deliberately not logged here — that distinction is the same
+   * one the tenant lookup is built on.
+   */
+  if (unknownRefs.size > 0) {
+    console.warn(
+      `[webhooks/whatsapp] no channel provisioned for phone_number_id=${[...unknownRefs].join(',')} ` +
+        `— run: pnpm --filter @switchboard/db provision-whatsapp`,
+    );
+  }
 
   return NextResponse.json({ received: true, queued });
 }
