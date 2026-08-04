@@ -13,5 +13,12 @@ export {
 
 export { digitsOnly, samePhoneNumber } from './phone';
 
-export { safeEqual, verifyHubSignature } from './webhook';
+export {
+  resolveSigningScheme,
+  safeEqual,
+  verifyHubSignature,
+  verifySignature,
+  type SigningEnv,
+  type SigningScheme,
+} from './webhook';
 export { decryptSecret, encryptSecret, secretsEqual } from './crypto';

@@ -46,7 +46,22 @@ export const EXPECTED_VARS = [
  * listing a variable here that no code reads is how "set all four on Vercel"
  * survived in the docs for a week.
  */
-export const FEATURE_VARS = ['WHATSAPP_WEBHOOK_VERIFY_TOKEN', 'WHATSAPP_APP_SECRET'] as const;
+export const FEATURE_VARS = [
+  'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+  'WHATSAPP_APP_SECRET',
+  'WHATSAPP_BSP_WEBHOOK_SECRET',
+] as const;
+
+/**
+ * The two signing secrets are ALTERNATIVES, not a pair.
+ *
+ * `resolveSigningScheme` takes Meta's App Secret when it is present and the
+ * BSP's webhook secret otherwise, so a deployment needs exactly one. Reporting
+ * the missing one as a fault would mark every correctly configured deployment
+ * broken — and a health check that is wrong in the normal case is worse than no
+ * health check, because it teaches people to ignore it.
+ */
+const SIGNING_SECRETS = ['WHATSAPP_APP_SECRET', 'WHATSAPP_BSP_WEBHOOK_SECRET'] as const;
 
 export type ExpectedVar = (typeof EXPECTED_VARS)[number];
 export type FeatureVar = (typeof FEATURE_VARS)[number];
@@ -67,8 +82,17 @@ export interface ConfigReport {
    * `FEATURE_VARS`, reported separately so an unconfigured feature never turns
    * `ok` false. `ready` answers one question — will the WhatsApp webhook stop
    * answering 503 on this deployment?
+   *
+   * `signingScheme` names which upstream this deployment is set up to verify,
+   * so "Meta is sending but we are checking the BSP header" is readable rather
+   * than deducible from a 401.
    */
-  features: { ready: boolean; missing: string[]; malformed: string[] };
+  features: {
+    ready: boolean;
+    signingScheme: 'meta' | '360dialog' | null;
+    missing: string[];
+    malformed: string[];
+  };
   detail: Record<string, VarReport>;
 }
 
@@ -235,15 +259,43 @@ export function buildConfigReport(
   });
 
   const core = faulty(EXPECTED_VARS);
-  const features = faulty(FEATURE_VARS);
+
+  /*
+   * Exactly one signing secret is required, so the missing one is not a fault.
+   * `missing` therefore lists the verify token when absent, and the signing
+   * pair only when NEITHER is set — which is the state that actually 503s.
+   */
+  const signing = SIGNING_SECRETS.filter((n) => detail[n]?.present);
+  const scheme = signing.includes('WHATSAPP_APP_SECRET')
+    ? ('meta' as const)
+    : signing.length > 0
+      ? ('360dialog' as const)
+      : null;
+
+  const featureMissing = [
+    ...(detail.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.present ? [] : ['WHATSAPP_WEBHOOK_VERIFY_TOKEN']),
+    ...(scheme === null ? [`one of ${SIGNING_SECRETS.join(' or ')}`] : []),
+  ];
+
+  // Only the secret actually in use can be malformed in a way that matters —
+  // a stale value in the unused slot is noise, not a fault.
+  const featureMalformed = FEATURE_VARS.filter((n) => {
+    if (!detail[n]?.present || (detail[n]?.issues.length ?? 0) === 0) return false;
+    if (SIGNING_SECRETS.includes(n as (typeof SIGNING_SECRETS)[number])) {
+      return (n === 'WHATSAPP_APP_SECRET') === (scheme === 'meta');
+    }
+    return true;
+  });
 
   return {
     ok: core.missing.length === 0 && core.malformed.length === 0,
     origin,
     ...core,
     features: {
-      ready: features.missing.length === 0 && features.malformed.length === 0,
-      ...features,
+      ready: featureMissing.length === 0 && featureMalformed.length === 0,
+      signingScheme: scheme,
+      missing: featureMissing,
+      malformed: featureMalformed,
     },
     detail,
   };

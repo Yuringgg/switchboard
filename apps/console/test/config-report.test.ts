@@ -80,10 +80,15 @@ describe('buildConfigReport', () => {
     expect(report.ok).toBe(true);
     expect(report.missing).toEqual([]);
     expect(report.features.ready).toBe(false);
-    expect(report.features.missing).toEqual([...FEATURE_VARS]);
+    expect(report.features.signingScheme).toBeNull();
+    // Both signing secrets absent is ONE fault, not two — they are alternatives.
+    expect(report.features.missing).toEqual([
+      'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+      'one of WHATSAPP_APP_SECRET or WHATSAPP_BSP_WEBHOOK_SECRET',
+    ]);
   });
 
-  it('reports the feature ready once both variables are set', () => {
+  it('reports ready under the Meta scheme', () => {
     const report = buildConfigReport(
       {
         ...good(),
@@ -96,16 +101,56 @@ describe('buildConfigReport', () => {
       ORIGIN,
     );
 
-    expect(report.features).toEqual({ ready: true, missing: [], malformed: [] });
+    expect(report.features).toEqual({
+      ready: true,
+      signingScheme: 'meta',
+      missing: [],
+      malformed: [],
+    });
+  });
+
+  /*
+   * The case that matters for the BSP route: no Meta App Secret at all, and the
+   * deployment is still correctly configured. Requiring both would have marked
+   * this broken.
+   */
+  it('reports ready under the BSP scheme with no Meta secret present', () => {
+    const report = buildConfigReport(
+      {
+        ...good(),
+        WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'fake verify token value',
+        WHATSAPP_BSP_WEBHOOK_SECRET: 'fake bsp secret',
+      },
+      ORIGIN,
+    );
+
+    expect(report.features).toEqual({
+      ready: true,
+      signingScheme: '360dialog',
+      missing: [],
+      malformed: [],
+    });
+  });
+
+  it('names Meta as the scheme when both secrets are set, matching resolveSigningScheme', () => {
+    const report = buildConfigReport(
+      {
+        ...good(),
+        WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'fake verify token value',
+        WHATSAPP_APP_SECRET: 'fake app secret',
+        WHATSAPP_BSP_WEBHOOK_SECRET: 'fake bsp secret',
+      },
+      ORIGIN,
+    );
+
+    expect(report.features.signingScheme).toBe('meta');
+    expect(report.features.ready).toBe(true);
   });
 
   it('does not let a malformed feature variable pass as ready', () => {
     const report = buildConfigReport(
       {
         ...good(),
-        // Spaces, on purpose. A realistic-looking token here trips the
-        // pre-commit secret scan, and a fixture shaped exactly like a real
-        // credential trains people to wave the scanner through.
         WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'fake verify token value',
         // The access token in the App Secret's field — trap 2.
         WHATSAPP_APP_SECRET: 'x'.repeat(220),
@@ -116,6 +161,22 @@ describe('buildConfigReport', () => {
     expect(report.ok).toBe(true);
     expect(report.features.ready).toBe(false);
     expect(report.features.malformed).toEqual(['WHATSAPP_APP_SECRET']);
+  });
+
+  it('ignores a malformed value in the signing slot that is not in use', () => {
+    // A leftover Meta secret on a deployment now running through the BSP is
+    // noise. Flagging it would make a healthy deployment read as broken.
+    const report = buildConfigReport(
+      {
+        ...good(),
+        WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'fake verify token value',
+        WHATSAPP_BSP_WEBHOOK_SECRET: 'fake bsp secret',
+      },
+      ORIGIN,
+    );
+
+    expect(report.features.ready).toBe(true);
+    expect(report.features.malformed).toEqual([]);
   });
 });
 

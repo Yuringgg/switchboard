@@ -1,5 +1,5 @@
 import { parseWebhookPayload } from '@switchboard/adapter-whatsapp/parse';
-import { safeEqual, verifyHubSignature } from '@switchboard/core';
+import { resolveSigningScheme, safeEqual, verifySignature } from '@switchboard/core';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { createServiceClient } from '@/lib/supabase/service';
@@ -51,8 +51,14 @@ export function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const appSecret = process.env.WHATSAPP_APP_SECRET;
-  if (!appSecret) {
+  /*
+   * Which upstream is delivering this — Meta directly, or a Business Solution
+   * Provider forwarding Meta's envelope? The payload is identical either way
+   * (verified against 360dialog's webhook reference, 2026-08-04); only the
+   * signature header and secret differ. See `resolveSigningScheme` in core.
+   */
+  const scheme = resolveSigningScheme(process.env);
+  if (!scheme) {
     // Fail closed. Unset config must never mean "skip verification".
     return new NextResponse('Not configured', { status: 503 });
   }
@@ -62,10 +68,15 @@ export async function POST(request: NextRequest) {
   //   signature will not match.
   const rawBody = await request.text();
 
-  const signature = request.headers.get('x-hub-signature-256');
-  if (!verifyHubSignature(rawBody, signature, appSecret)) {
+  const signature = request.headers.get(scheme.header);
+  if (!verifySignature(rawBody, signature, scheme)) {
     // Unverified means attacker-controlled. Do not parse it, do not log it.
-    console.warn('[webhooks/whatsapp] rejected: bad or missing signature');
+    // The scheme LABEL is safe to log and is the fastest way to see that a
+    // deployment is checking the wrong header for the provider actually
+    // sending — which otherwise reads as a bad secret.
+    console.warn(
+      `[webhooks/whatsapp] rejected: bad or missing signature (scheme=${scheme.label})`,
+    );
     return new NextResponse('Unauthorized', { status: 401 });
   }
 

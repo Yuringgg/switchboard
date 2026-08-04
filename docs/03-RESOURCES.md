@@ -642,6 +642,78 @@ Phase 4's AI keys.*
 real message. Every item needs the Meta dashboard, so none of it can be done
 from tooling.*
 
+> ### ⚠ 2026-08-04 — Meta's developer registration is blocked, and there is a
+> ### sanctioned second route. Read this before working the list below.
+>
+> **The blocker.** Yuri cannot complete *Create a Meta for Developers account*.
+> `Register` passes; `Verify account` never delivers its SMS. Tried across
+> **two carriers** (Dito, then a Smart eSIM), two Facebook accounts, and 12+
+> hours — so it is not a cooldown and not the SIM. It is a **documented bug on
+> Meta's side**, with four threads on Meta's own forums, one matching the
+> sequence exactly including the *"device you don't usually use"* lock that
+> follows it:
+> <https://communityforums.atmeta.com/discussions/Questions_Discussions/cannot-create-meta-for-developers-account-%E2%80%94-verification-sms-never-arrives/1375822>
+>
+> **What actually unblocks it, cheapest first.** ⚠ Switchboard never talks to
+> Meta's dashboard — it needs four values (`phone_number_id`, access token, App
+> Secret, and a verify token we invent). **The dashboard does not have to be
+> ours.** Anyone with a working developer account can register a webhook
+> pointing at our Vercel URL and hand those over. So:
+>
+> 1. **Someone else's developer account** — zero code change, free.
+> 2. **iOzera's Business Portfolio** — asked of Ms. Maria and Fatima
+>    2026-08-04, no reply yet. Zero code change.
+> 3. **360dialog, a Meta Business Solution Provider** — see below.
+> 4. **Twilio** — ⚠ rejected, and not on effort. See below.
+>
+> **Why 360dialog and not Twilio, verified against their own docs 2026-08-04.**
+> 360dialog forwards **Meta's envelope verbatim** — `object`, `entry[]`,
+> `changes[]`, `value.metadata.phone_number_id`, `wamid`, string-seconds
+> `timestamp` (<https://docs.360dialog.com/docs/messaging/webhook/webhook-reference.md>).
+> `parseWebhookPayload`, all 13 fixtures and migration 0006 hold unchanged.
+> **Twilio posts `application/x-www-form-urlencoded`** with `MessageSid`,
+> `From`, `To`, `Body` — no envelope, no arrays, and **no `phone_number_id` at
+> all**. The tenant key would have to become the display number, which is the
+> one thing ADR-009 and Phase 2's checkpoint forbid in three separate places.
+> That is not extra work, it is a required architectural violation.
+>
+> **Both are official Meta BSPs.** Using one is the sanctioned route to the
+> Business API and predates Cloud API existing. It is not remotely the same
+> category as `whatsapp-web.js` or Baileys, which stay banned.
+>
+> ⚠ **Three things to know before choosing 360dialog.**
+> - **Message bodies would pass through a third party.** Today only Groq and
+>   Google see content. This is Q2 / RA 10173 territory and is fine for
+>   dogfooding on Yuri's own number, **not** for real client mail. Their
+>   sandbox inbound number is Brazilian (`+551146733492`), so content also
+>   crosses a border.
+> - **The sandbox is a demo instrument, not a deployment.** Free, no card,
+>   **200 messages total**, one linked phone number, no media
+>   (<https://docs.360dialog.com/docs/get-started/sandbox>).
+> - ⚠ **It is not documented whether the sandbox issues a dedicated
+>   `phone_number_id`.** `external_account_id` is the tenant key and migration
+>   0006 makes it unique per channel type. Nothing leaks either way — a webhook
+>   URL is per-account, so only our own traffic arrives — but a shared id would
+>   be wrong as a permanent tenant key. **Read it off the first real payload
+>   before treating it as one.**
+>
+> **What is already built for this (2026-08-04).** The route no longer hardcodes
+> Meta's header. `resolveSigningScheme` in `packages/core/src/webhook.ts` picks
+> the scheme from the environment — `WHATSAPP_APP_SECRET` → Meta
+> (`x-hub-signature-256`, `sha256=<hex>`), `WHATSAPP_BSP_WEBHOOK_SECRET` →
+> 360dialog (`x-360dialog-signature`, bare digest). **Meta wins when both are
+> set**, so a real developer account arriving needs no code change at all.
+> `/api/health/config` reports which scheme is live, and treats the two secrets
+> as alternatives rather than a pair.
+> ⚠ **The provider cannot be configured to "do not verify".** There is no
+> `none` scheme and no nullable secret; nothing configured returns `null` and
+> the route answers 503.
+> ⚠ **360dialog does not publish whether their digest is hex or base64**, so
+> both encodings of the *same* HMAC are compared. That adds no forgeries — the
+> attacker still needs the secret — but it is a documentation gap standing on a
+> security path. **Narrow it to the observed encoding once a real delivery has
+> been seen, and delete the other branch.**
+
 - [ ] ★ Meta developer account (<https://developers.facebook.com>) + an app of
       type **Business**, with the **WhatsApp** product added
 - [ ] ★ Test business number (created automatically with the product) + up to
