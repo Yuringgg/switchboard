@@ -81,10 +81,10 @@ describe('buildConfigReport', () => {
     expect(report.missing).toEqual([]);
     expect(report.features.ready).toBe(false);
     expect(report.features.signingScheme).toBeNull();
-    // Both signing secrets absent is ONE fault, not two — they are alternatives.
+    // Every signing secret absent is ONE fault, not three — they are alternatives.
     expect(report.features.missing).toEqual([
       'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
-      'one of WHATSAPP_APP_SECRET or WHATSAPP_BSP_WEBHOOK_SECRET',
+      'one of WHATSAPP_APP_SECRET or WHATSAPP_BSP_WEBHOOK_SECRET or WHATSAPP_BSP_SHARED_TOKEN',
     ]);
   });
 
@@ -126,10 +126,52 @@ describe('buildConfigReport', () => {
 
     expect(report.features).toEqual({
       ready: true,
-      signingScheme: '360dialog',
+      signingScheme: '360dialog-hmac',
       missing: [],
       malformed: [],
     });
+  });
+
+  /*
+   * The scheme this deployment actually runs on today: 360dialog's sandbox
+   * issues an API key and no signing secret, so authenticity rests on a token
+   * we generated and registered in their webhook config.
+   */
+  it('reports ready under the BSP shared-token scheme', () => {
+    const report = buildConfigReport(
+      {
+        ...good(),
+        WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'fake verify token value',
+        WHATSAPP_BSP_SHARED_TOKEN: 'fake shared token value',
+      },
+      ORIGIN,
+    );
+
+    expect(report.features).toEqual({
+      ready: true,
+      signingScheme: '360dialog-token',
+      missing: [],
+      malformed: [],
+    });
+  });
+
+  /*
+   * ⚠ Mirrors the strongest-first rule in resolveSigningScheme. If these two
+   * ever disagree, /api/health/config confidently names a scheme the route is
+   * not running — the worst possible answer from a diagnostic.
+   */
+  it('names the strongest configured scheme, matching resolveSigningScheme', () => {
+    const report = buildConfigReport(
+      {
+        ...good(),
+        WHATSAPP_WEBHOOK_VERIFY_TOKEN: 'fake verify token value',
+        WHATSAPP_BSP_WEBHOOK_SECRET: 'fake bsp secret',
+        WHATSAPP_BSP_SHARED_TOKEN: 'fake shared token value',
+      },
+      ORIGIN,
+    );
+
+    expect(report.features.signingScheme).toBe('360dialog-hmac');
   });
 
   it('names Meta as the scheme when both secrets are set, matching resolveSigningScheme', () => {

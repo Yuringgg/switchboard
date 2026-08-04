@@ -699,20 +699,51 @@ from tooling.*
 >
 > **What is already built for this (2026-08-04).** The route no longer hardcodes
 > Meta's header. `resolveSigningScheme` in `packages/core/src/webhook.ts` picks
-> the scheme from the environment — `WHATSAPP_APP_SECRET` → Meta
-> (`x-hub-signature-256`, `sha256=<hex>`), `WHATSAPP_BSP_WEBHOOK_SECRET` →
-> 360dialog (`x-360dialog-signature`, bare digest). **Meta wins when both are
-> set**, so a real developer account arriving needs no code change at all.
-> `/api/health/config` reports which scheme is live, and treats the two secrets
-> as alternatives rather than a pair.
-> ⚠ **The provider cannot be configured to "do not verify".** There is no
-> `none` scheme and no nullable secret; nothing configured returns `null` and
-> the route answers 503.
-> ⚠ **360dialog does not publish whether their digest is hex or base64**, so
-> both encodings of the *same* HMAC are compared. That adds no forgeries — the
+> from the environment, **strongest first**:
+>
+> | Variable | Scheme | Header | Strength |
+> |---|---|---|---|
+> | `WHATSAPP_APP_SECRET` | `meta` | `x-hub-signature-256`, `sha256=<hex>` | HMAC — strongest |
+> | `WHATSAPP_BSP_WEBHOOK_SECRET` | `360dialog-hmac` | `x-360dialog-signature`, bare digest | HMAC |
+> | `WHATSAPP_BSP_SHARED_TOKEN` | `360dialog-token` | `x-switchboard-webhook-token` | shared token — **weakest** |
+>
+> ⚠⚠ **Strongest-first is the rule, not an accident: adding a weaker credential
+> can never downgrade a deployment.** A shared token left set when a real Meta
+> App Secret arrives is inert. The failure this prevents is the quiet one — a
+> forgotten fallback becoming the live scheme because it was checked first.
+> ⚠ **No scheme can mean "do not verify".** Nothing configured returns `null`
+> and the route answers 503. Verified against production 2026-08-04: `GET` and
+> `POST` both 503 with nothing set.
+> `/api/health/config` names the live scheme and treats the three secrets as
+> alternatives, not a set.
+>
+> **⚠ The sandbox issues NO signing secret — measured, not assumed.** Messaging
+> `START` returns an API key and nothing else. But the webhook config endpoint
+> accepts an arbitrary **`headers`** object and replays it on every delivery
+> (confirmed live: it echoed the registered header back). So authenticity rests
+> on a 256-bit random token we generate, register there, and compare
+> timing-safely.
+> ⚠ **That is strictly weaker than HMAC and the code says so.** A shared token
+> proves the caller holds the secret and **nothing about the body** — there is a
+> test asserting exactly that, so nobody later mistakes the two as equivalent.
+> Acceptable here because the alternative was no authentication at all, the
+> token never travels outside TLS, and this is a 200-message sandbox. **Not
+> acceptable as a production posture** — if 360dialog turns out to sign as well,
+> move to `WHATSAPP_BSP_WEBHOOK_SECRET` and the token goes inert on its own.
+> ⚠ **360dialog does not publish whether their HMAC digest is hex or base64**, so
+> both encodings of the *same* digest are compared. That adds no forgeries — the
 > attacker still needs the secret — but it is a documentation gap standing on a
-> security path. **Narrow it to the observed encoding once a real delivery has
-> been seen, and delete the other branch.**
+> security path. **Narrow it once a real delivery has been observed and delete
+> the other branch.**
+>
+> **Two diagnostics were added because both gaps cost hours here.** A 401 now
+> logs the scheme, whether the expected header was present, and the **names**
+> (never values) of any auth-shaped headers that did arrive — which separates
+> "wrong secret" from "we are reading a header nobody sends", opposite fixes
+> that used to share one message. And an unresolved delivery now logs the
+> **`phone_number_id`** rather than only counting it: an unprovisioned number
+> returns 200 storing nothing, so that log line is the only place the value
+> needed to provision ever appears.
 
 - [ ] ★ Meta developer account (<https://developers.facebook.com>) + an app of
       type **Business**, with the **WhatsApp** product added

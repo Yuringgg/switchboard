@@ -70,12 +70,29 @@ export async function POST(request: NextRequest) {
 
   const signature = request.headers.get(scheme.header);
   if (!verifySignature(rawBody, signature, scheme)) {
-    // Unverified means attacker-controlled. Do not parse it, do not log it.
-    // The scheme LABEL is safe to log and is the fastest way to see that a
-    // deployment is checking the wrong header for the provider actually
-    // sending — which otherwise reads as a bad secret.
+    /*
+     * Unverified means attacker-controlled. Do not parse it, do not store it.
+     *
+     * ⚠ But say enough to tell the two causes apart. "Bad or missing signature"
+     * collapses **wrong secret** and **we are reading a header nobody sent**
+     * into one sentence, and they have opposite fixes — rotate a value versus
+     * change a provider setting. Setting this up cost hours to exactly that
+     * ambiguity.
+     *
+     * So: the scheme label, whether our header was present at all, and the
+     * NAMES of any auth-shaped headers that did arrive. Names are not secrets;
+     * values are, and no value is logged. That list is also how you discover
+     * a provider signs with something undocumented — which is the position this
+     * integration was in an hour ago.
+     */
+    const offered = [...request.headers.keys()]
+      .filter((name) => /signature|hmac|hub|token|auth/i.test(name))
+      .sort();
+
     console.warn(
-      `[webhooks/whatsapp] rejected: bad or missing signature (scheme=${scheme.label})`,
+      `[webhooks/whatsapp] rejected: bad or missing credential ` +
+        `(scheme=${scheme.label} expected=${scheme.header} ` +
+        `present=${signature !== null} offered=[${offered.join(' ')}])`,
     );
     return new NextResponse('Unauthorized', { status: 401 });
   }

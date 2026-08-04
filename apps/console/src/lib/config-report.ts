@@ -50,6 +50,7 @@ export const FEATURE_VARS = [
   'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
   'WHATSAPP_APP_SECRET',
   'WHATSAPP_BSP_WEBHOOK_SECRET',
+  'WHATSAPP_BSP_SHARED_TOKEN',
 ] as const;
 
 /**
@@ -61,7 +62,25 @@ export const FEATURE_VARS = [
  * broken — and a health check that is wrong in the normal case is worse than no
  * health check, because it teaches people to ignore it.
  */
-const SIGNING_SECRETS = ['WHATSAPP_APP_SECRET', 'WHATSAPP_BSP_WEBHOOK_SECRET'] as const;
+const SIGNING_SECRETS = [
+  'WHATSAPP_APP_SECRET',
+  'WHATSAPP_BSP_WEBHOOK_SECRET',
+  'WHATSAPP_BSP_SHARED_TOKEN',
+] as const;
+
+/**
+ * ⚠ Must stay in the same strongest-first order as `resolveSigningScheme`, and
+ * report the same winner. A health check that names a different scheme than the
+ * route actually runs is worse than none — it is a confident wrong answer to
+ * the exact question someone opens it to ask.
+ */
+const SCHEME_BY_SECRET: Record<(typeof SIGNING_SECRETS)[number], SigningSchemeName> = {
+  WHATSAPP_APP_SECRET: 'meta',
+  WHATSAPP_BSP_WEBHOOK_SECRET: '360dialog-hmac',
+  WHATSAPP_BSP_SHARED_TOKEN: '360dialog-token',
+};
+
+export type SigningSchemeName = 'meta' | '360dialog-hmac' | '360dialog-token';
 
 export type ExpectedVar = (typeof EXPECTED_VARS)[number];
 export type FeatureVar = (typeof FEATURE_VARS)[number];
@@ -89,7 +108,7 @@ export interface ConfigReport {
    */
   features: {
     ready: boolean;
-    signingScheme: 'meta' | '360dialog' | null;
+    signingScheme: SigningSchemeName | null;
     missing: string[];
     malformed: string[];
   };
@@ -265,12 +284,9 @@ export function buildConfigReport(
    * `missing` therefore lists the verify token when absent, and the signing
    * pair only when NEITHER is set — which is the state that actually 503s.
    */
-  const signing = SIGNING_SECRETS.filter((n) => detail[n]?.present);
-  const scheme = signing.includes('WHATSAPP_APP_SECRET')
-    ? ('meta' as const)
-    : signing.length > 0
-      ? ('360dialog' as const)
-      : null;
+  // Strongest-first, mirroring resolveSigningScheme — `find`, not `filter`.
+  const winner = SIGNING_SECRETS.find((n) => detail[n]?.present);
+  const scheme = winner ? SCHEME_BY_SECRET[winner] : null;
 
   const featureMissing = [
     ...(detail.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.present ? [] : ['WHATSAPP_WEBHOOK_VERIFY_TOKEN']),
@@ -278,12 +294,10 @@ export function buildConfigReport(
   ];
 
   // Only the secret actually in use can be malformed in a way that matters —
-  // a stale value in the unused slot is noise, not a fault.
+  // a stale value in a losing slot is noise, not a fault.
   const featureMalformed = FEATURE_VARS.filter((n) => {
     if (!detail[n]?.present || (detail[n]?.issues.length ?? 0) === 0) return false;
-    if (SIGNING_SECRETS.includes(n as (typeof SIGNING_SECRETS)[number])) {
-      return (n === 'WHATSAPP_APP_SECRET') === (scheme === 'meta');
-    }
+    if ((SIGNING_SECRETS as readonly string[]).includes(n)) return n === winner;
     return true;
   });
 

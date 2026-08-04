@@ -66,11 +66,27 @@ export function verifyHubSignature(
  * mean skip.
  */
 export interface SigningScheme {
-  /** Lowercase header carrying the digest. */
+  /**
+   * How the header proves the caller is genuine.
+   *
+   * `hmac` — the header carries HMAC-SHA256 of the raw body. Proves the sender
+   * holds the secret **and** that the body was not altered.
+   *
+   * `shared-token` — the header carries the secret itself, compared
+   * timing-safely. Proves the sender holds the secret and **nothing about the
+   * body**. ⚠ Strictly weaker, and it exists only because a provider may offer
+   * nothing better: 360dialog's sandbox issues an API key and no signing
+   * secret, but its webhook config accepts **custom headers**, so a 256-bit
+   * random token registered there is the strongest control actually available.
+   * Over HTTPS the token is not observable in transit. It is still not HMAC,
+   * and this comment is here so nobody later mistakes it for equivalent.
+   */
+  kind: 'hmac' | 'shared-token';
+  /** Lowercase header carrying the digest or token. */
   header: string;
-  /** HMAC key. Meta's App Secret, or the BSP's webhook secret. */
+  /** HMAC key, or the expected token value. */
   secret: string;
-  /** Literal prefix on the header value — `sha256=` for Meta, empty for a BSP. */
+  /** Literal prefix on the header value — `sha256=` for Meta, empty otherwise. */
   prefix: string;
   /** Name for logs. Never the secret, never a digest. */
   label: string;
@@ -110,6 +126,17 @@ export function verifySignature(
 ): boolean {
   if (!signatureHeader || !scheme.secret) return false;
 
+  /*
+   * The token is the secret itself, so there is nothing to derive — but the
+   * comparison must still be timing-safe, and for exactly the reason
+   * `safeEqual` exists: `===` would leak the token one byte at a time, and
+   * unlike an HMAC digest this value does not change per request, so an
+   * attacker gets unlimited attempts at the same target.
+   */
+  if (scheme.kind === 'shared-token') {
+    return safeEqual(signatureHeader, `${scheme.prefix}${scheme.secret}`);
+  }
+
   const mac = createHmac('sha256', scheme.secret).update(rawBody, 'utf8');
   const digest = mac.digest();
 
@@ -125,13 +152,21 @@ export function verifySignature(
 /**
  * Decide which scheme this deployment is running under, from the environment.
  *
- * Meta is the default and stays the default: if a real developer account
- * arrives, setting `WHATSAPP_APP_SECRET` alone restores exactly the behaviour
- * this route has had since Phase 2, with the BSP path unreachable.
+ * ⚠⚠ **The order is strongest-first, and that is the rule, not an accident.**
  *
- * ⚠ Meta wins when both are set. A deployment holding both secrets is
- * mid-migration, and the ambiguity has to resolve somewhere it can be reasoned
- * about rather than by whichever check happened to be written first.
+ *   1. `WHATSAPP_APP_SECRET`        Meta      HMAC          strongest
+ *   2. `WHATSAPP_BSP_WEBHOOK_SECRET` 360dialog HMAC
+ *   3. `WHATSAPP_BSP_SHARED_TOKEN`   360dialog shared token  weakest
+ *
+ * So **adding a weaker credential can never downgrade a deployment.** Leaving a
+ * shared token set while a real Meta App Secret arrives is harmless — Meta
+ * wins, and the BSP path becomes unreachable without anyone remembering to
+ * clean up. The failure this prevents is the quiet one: a forgotten fallback
+ * silently becoming the live scheme because it happened to be checked first.
+ *
+ * Meta therefore stays the default. If a developer account ever comes through,
+ * setting one variable restores exactly the behaviour this route has had since
+ * Phase 2.
  *
  * Returns `null` when nothing is configured — the caller must then refuse the
  * request. It cannot return a scheme that skips verification, by construction.
@@ -139,6 +174,7 @@ export function verifySignature(
 export interface SigningEnv {
   readonly WHATSAPP_APP_SECRET?: string | undefined;
   readonly WHATSAPP_BSP_WEBHOOK_SECRET?: string | undefined;
+  readonly WHATSAPP_BSP_SHARED_TOKEN?: string | undefined;
   /**
    * ⚠ The index signature is load-bearing, not laziness. Without it TypeScript
    * applies weak-type detection — every declared property is optional, so a
@@ -152,6 +188,7 @@ export interface SigningEnv {
 export function resolveSigningScheme(env: SigningEnv): SigningScheme | null {
   if (env.WHATSAPP_APP_SECRET) {
     return {
+      kind: 'hmac',
       header: 'x-hub-signature-256',
       secret: env.WHATSAPP_APP_SECRET,
       prefix: 'sha256=',
@@ -161,10 +198,27 @@ export function resolveSigningScheme(env: SigningEnv): SigningScheme | null {
 
   if (env.WHATSAPP_BSP_WEBHOOK_SECRET) {
     return {
+      kind: 'hmac',
       header: 'x-360dialog-signature',
       secret: env.WHATSAPP_BSP_WEBHOOK_SECRET,
       prefix: '',
-      label: '360dialog',
+      label: '360dialog-hmac',
+    };
+  }
+
+  if (env.WHATSAPP_BSP_SHARED_TOKEN) {
+    /*
+     * The header name is ours, not theirs: 360dialog's webhook config takes an
+     * arbitrary `headers` object and replays it on every delivery, so this is a
+     * token we chose, registered with them, and expect back. Verified against
+     * the live sandbox 2026-08-04 — the config endpoint echoed it.
+     */
+    return {
+      kind: 'shared-token',
+      header: 'x-switchboard-webhook-token',
+      secret: env.WHATSAPP_BSP_SHARED_TOKEN,
+      prefix: '',
+      label: '360dialog-token',
     };
   }
 

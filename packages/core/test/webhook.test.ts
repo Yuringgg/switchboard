@@ -7,6 +7,7 @@ import {
   safeEqual,
   verifyHubSignature,
   verifySignature,
+  type SigningEnv,
   type SigningScheme,
 } from '../src/webhook';
 
@@ -72,6 +73,7 @@ describe('verifyHubSignature', () => {
 });
 
 const META: SigningScheme = {
+  kind: 'hmac',
   header: 'x-hub-signature-256',
   secret: SECRET,
   prefix: 'sha256=',
@@ -79,10 +81,19 @@ const META: SigningScheme = {
 };
 
 const BSP: SigningScheme = {
+  kind: 'hmac',
   header: 'x-360dialog-signature',
   secret: 'bsp-webhook-secret',
   prefix: '',
-  label: '360dialog',
+  label: '360dialog-hmac',
+};
+
+const TOKEN: SigningScheme = {
+  kind: 'shared-token',
+  header: 'x-switchboard-webhook-token',
+  secret: 'a-256-bit-random-token-in-real-life',
+  prefix: '',
+  label: '360dialog-token',
 };
 
 function hmac(body: string, secret: string, enc: 'hex' | 'base64'): string {
@@ -153,15 +164,50 @@ describe('verifySignature', () => {
   });
 });
 
+describe('verifySignature — shared-token scheme', () => {
+  it('accepts the exact token', () => {
+    expect(verifySignature(BODY, TOKEN.secret, TOKEN)).toBe(true);
+  });
+
+  it('rejects a wrong or truncated token', () => {
+    expect(verifySignature(BODY, 'wrong', TOKEN)).toBe(false);
+    expect(verifySignature(BODY, TOKEN.secret.slice(0, -1), TOKEN)).toBe(false);
+    expect(verifySignature(BODY, `${TOKEN.secret}x`, TOKEN)).toBe(false);
+  });
+
+  it('does not care about the body, which is exactly its weakness', () => {
+    // Stated as a test so the property is impossible to forget: a shared token
+    // proves the caller holds the secret and NOTHING about what they sent.
+    // Under HMAC these two calls disagree; under a token they cannot.
+    expect(verifySignature(BODY, TOKEN.secret, TOKEN)).toBe(true);
+    expect(verifySignature('{"totally":"different"}', TOKEN.secret, TOKEN)).toBe(true);
+  });
+
+  it('refuses an empty secret rather than matching an empty header', () => {
+    const empty: SigningScheme = { ...TOKEN, secret: '' };
+    expect(verifySignature(BODY, '', empty)).toBe(false);
+    expect(verifySignature(BODY, 'anything', empty)).toBe(false);
+  });
+
+  it('does not accept an HMAC of the body in place of the token', () => {
+    expect(verifySignature(BODY, hmac(BODY, TOKEN.secret, 'hex'), TOKEN)).toBe(false);
+  });
+});
+
 describe('resolveSigningScheme', () => {
   it('returns null when nothing is configured, so the caller must refuse', () => {
     // ⚠ The property that keeps the route fail-closed: there is no scheme that
     // means "skip". Absence is unrepresentable as a passing verification.
     expect(resolveSigningScheme({})).toBeNull();
     expect(
-      resolveSigningScheme({ WHATSAPP_APP_SECRET: undefined, WHATSAPP_BSP_WEBHOOK_SECRET: undefined }),
+      resolveSigningScheme({
+        WHATSAPP_APP_SECRET: undefined,
+        WHATSAPP_BSP_WEBHOOK_SECRET: undefined,
+        WHATSAPP_BSP_SHARED_TOKEN: undefined,
+      }),
     ).toBeNull();
     expect(resolveSigningScheme({ WHATSAPP_APP_SECRET: '' })).toBeNull();
+    expect(resolveSigningScheme({ WHATSAPP_BSP_SHARED_TOKEN: '' })).toBeNull();
   });
 
   it('picks Meta when the app secret is set', () => {
@@ -172,19 +218,50 @@ describe('resolveSigningScheme', () => {
     });
   });
 
-  it('picks the BSP when only its secret is set', () => {
+  it('picks the BSP HMAC scheme when only its secret is set', () => {
     expect(resolveSigningScheme({ WHATSAPP_BSP_WEBHOOK_SECRET: 'b' })).toMatchObject({
+      kind: 'hmac',
       header: 'x-360dialog-signature',
-      prefix: '',
-      label: '360dialog',
+      label: '360dialog-hmac',
     });
   });
 
-  it('prefers Meta when both are set', () => {
-    // A deployment holding both is mid-migration. The tie has to break
-    // somewhere reasoned about rather than wherever the checks were written.
-    expect(resolveSigningScheme({ WHATSAPP_APP_SECRET: 'a', WHATSAPP_BSP_WEBHOOK_SECRET: 'b' }))
-      .toMatchObject({ label: 'meta' });
+  it('falls back to the shared token when it is all that is configured', () => {
+    expect(resolveSigningScheme({ WHATSAPP_BSP_SHARED_TOKEN: 'c' })).toMatchObject({
+      kind: 'shared-token',
+      header: 'x-switchboard-webhook-token',
+      label: '360dialog-token',
+    });
+  });
+
+  /*
+   * ⚠⚠ The property that matters most in this file.
+   *
+   * Adding a weaker credential must NEVER downgrade a deployment. A shared
+   * token left behind after a real Meta App Secret arrives has to be inert, or
+   * the strongest check silently stops being the one that runs — and nothing
+   * about the system's behaviour would reveal it.
+   */
+  it('always picks the strongest scheme configured, never a weaker one', () => {
+    const strongestFor: [SigningEnv, string][] = [
+      [{ WHATSAPP_APP_SECRET: 'a', WHATSAPP_BSP_WEBHOOK_SECRET: 'b' }, 'meta'],
+      [{ WHATSAPP_APP_SECRET: 'a', WHATSAPP_BSP_SHARED_TOKEN: 'c' }, 'meta'],
+      [{ WHATSAPP_BSP_WEBHOOK_SECRET: 'b', WHATSAPP_BSP_SHARED_TOKEN: 'c' }, '360dialog-hmac'],
+      [
+        { WHATSAPP_APP_SECRET: 'a', WHATSAPP_BSP_WEBHOOK_SECRET: 'b', WHATSAPP_BSP_SHARED_TOKEN: 'c' },
+        'meta',
+      ],
+    ];
+
+    for (const [env, label] of strongestFor) {
+      expect(resolveSigningScheme(env)?.label).toBe(label);
+    }
+  });
+
+  it('only ever calls the shared token weak — every other scheme is hmac', () => {
+    expect(resolveSigningScheme({ WHATSAPP_APP_SECRET: 'a' })?.kind).toBe('hmac');
+    expect(resolveSigningScheme({ WHATSAPP_BSP_WEBHOOK_SECRET: 'b' })?.kind).toBe('hmac');
+    expect(resolveSigningScheme({ WHATSAPP_BSP_SHARED_TOKEN: 'c' })?.kind).toBe('shared-token');
   });
 
   it('never returns a scheme without a secret', () => {
@@ -192,7 +269,8 @@ describe('resolveSigningScheme', () => {
       {},
       { WHATSAPP_APP_SECRET: 'a' },
       { WHATSAPP_BSP_WEBHOOK_SECRET: 'b' },
-      { WHATSAPP_APP_SECRET: 'a', WHATSAPP_BSP_WEBHOOK_SECRET: 'b' },
+      { WHATSAPP_BSP_SHARED_TOKEN: 'c' },
+      { WHATSAPP_APP_SECRET: 'a', WHATSAPP_BSP_WEBHOOK_SECRET: 'b', WHATSAPP_BSP_SHARED_TOKEN: 'c' },
     ]) {
       const scheme = resolveSigningScheme(env);
       if (scheme) expect(scheme.secret.length).toBeGreaterThan(0);
