@@ -138,7 +138,7 @@ export function MessageRow({
       : null;
 
   return (
-    <li className="group relative flex gap-3.5">
+    <li className="group relative flex gap-4">
       {/* The line, and this message's lamp on it. */}
       <span className="relative flex w-2 shrink-0 justify-center" aria-hidden>
         <span
@@ -147,15 +147,19 @@ export function MessageRow({
             isLast ? 'h-5' : 'bottom-0',
           )}
         />
+        {/* `top-[10px]`, up from 9: `--text-row`'s line-height went 1.5 → 1.6
+            with the 2026-08-06 scale, which moves the first line's optical
+            centre down about a pixel. The lamp sits on that centre, not on the
+            top of the row. */}
         <span
           className={cn(
-            'absolute top-[9px] size-[7px] rounded-full ring-[3px] ring-background',
+            'absolute top-[10px] size-[7px] rounded-full ring-[3px] ring-background',
             dotClass,
           )}
         />
       </span>
 
-      <div className="min-w-0 flex-1 pb-4">
+      <div className="min-w-0 flex-1 pb-5">
         {/*
           The line changed. Named in words, because the lamp's colour cannot be
           the only carrier — see channelChangePoints() in lib/timeline.ts.

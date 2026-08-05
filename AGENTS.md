@@ -89,15 +89,77 @@ feature that works and is understood beats a clever one that half-works.
 ## 5. Current status
 
 **Phase 0 ✅ · Phase 1 ✅ · Phase 2 🟡 code complete, awaiting Meta ·
-Phase 3 🟡 search + message route shipped · Phase 4A ✅ shipped ·
-Phase 4B ✅ shipped and its loose ends closed · Phase 5 ✅ shipped
-(extraction, `/attention`, calendar write-back) — polish remains.**
+Phase 3 🟡 search + message route + timeline channel filter shipped ·
+Phase 4A ✅ shipped · Phase 4B ✅ shipped and its loose ends closed ·
+Phase 5 ✅ shipped (extraction, the `/attention` **board**, calendar
+write-back) · **Ms. Maria's 2026-08-05 review ✅ built** — polish remains.**
+
+### ⚠ Ms. Maria's review landed 2026-08-06 — six things a console session must know
+
+Full note: `correspondence/2026-08-06-maria-changes.md`. The headline was
+*"halatang ginawa mo siya sa AI"* — and two thirds of it was measurable, not
+taste.
+
+1. **⚠ BOTH TYPEFACES CHANGED.** Instrument Sans + IBM Plex Mono → **Archivo +
+   Martian Mono**. The old pair sits on the reflex-reject list of training-data
+   defaults in `.agents/skills/impeccable/reference/brand.md`, which is exactly
+   why a person who sees a lot of generated work recognised them. The *two-voice
+   split* (sans for what a person wrote, mono for what the machine knows) is
+   kept and is not negotiable.
+2. **⚠ EVERY STEP OF THE TYPE SCALE MOVED, and `--text-hero` is new.** Anything
+   added to the `--text-*` tokens must be added to `lib/utils.ts` in the same
+   commit — tailwind-merge reads an unknown `text-*` as a *colour*, so `cn()`
+   drops it and the element renders at 16px with no error. The stencilled
+   label's tracking came DOWN (0.16em → 0.1em): Martian Mono is a wider face.
+   ⚠ The mobile dock's label is pinned at a literal 12px and deliberately does
+   **not** follow the scale — six entries fit 375px within two pixels.
+3. **⚠ THE LIGHT RAMP WAS REBUILT.** *"Squint ka muna"* was a defect: background
+   `oklch(0.994)` against panel `oklch(0.972)` is **2.2% of lightness apart**,
+   so the frame-versus-record idea was carried by a step nobody can see. Now
+   0.981 / 0.947 / border 0.872. **Do not push `--background` back toward 1.0 to
+   make it look cleaner** — that is the change that produced the complaint.
+4. **⚠ `live.tsx` NO LONGER HAS AN `offline` STATE.** A dropped socket now
+   reconnects on capped backoff, polls every 20s meanwhile, and refreshes on
+   tab focus. The third state is `Syncing`, not a red `Offline` telling the
+   reader to reload — which was the manual refresh Ms. Maria asked to be rid
+   of, dressed as a status light. It must stay visibly distinct from `Live`
+   (different word, non-blinking lamp), because "no new mail" and "the socket
+   died" looking alike is the defect that indicator exists to prevent.
+5. **⚠ `/attention` IS A BOARD, and migration 0012 added `extractions.status`.**
+   `confirmed_at` is **not** read as "done" — a meeting on the calendar is
+   *real*, not *finished*. The Done column sorts by `status_changed_at`, never
+   by deadline: everything completed is eventually overdue, so the obvious sort
+   fills the column you just cleared with red flags. `status` is written by a
+   person and by nothing else, the same rule ADR-010 sets for calendar events.
+6. **⚠ `/` IS PUBLIC-FACING NOW.** An unauthenticated request for the bare root
+   redirects to **`/welcome`**, the landing page, not to `/login`. Every other
+   gated path still goes to `/login?next=…`. `/welcome` is in `PUBLIC_PATHS` and
+   reads no tenant data — if anything on it ever queries a message, a channel or
+   an extraction, that entry has to be reconsidered.
+
+⚠ **Still owed to Ms. Maria: the Figma prototype of the landing page.** She
+asked for it explicitly and gave the reason — *"para ma-document yun for your
+defense"*. The page was designed and built in code because this session cannot
+drive Figma. It is documentation for the defence, not decoration.
+
+⚠ **Nobody has LOOKED at any of it.** This environment has no screenshot
+capability and the browser pane does not composite, so every claim above is a
+DOM measurement. `localhost:3100/welcome` and `/preview?screen=attention` are
+where to look before showing Ms. Maria.
 
 **§7 at the bottom of this file is the fastest way to know where things stand** —
 it carries the verified numbers and the next action. Read that, then come back.
 
 > **Joining cold? Read these in order after this file:**
-> `correspondence/2026-08-02-assistant-loose-ends.md` — **most recent.** Why the
+> `correspondence/2026-08-06-maria-changes.md` — **most recent.** Ms. Maria's
+> five changes from the 2026-08-05 meeting: the landing page, the Kanban board
+> (migration 0012), the timeline's channel filter, the light-mode rebuild, the
+> font replacement, and auto-sync. ⚠ Read it before touching `apps/console` —
+> both typefaces changed, every step of the type scale moved, and `live.tsx`'s
+> `offline` state no longer exists.
+> `correspondence/2026-08-04-assistant-figure-and-mobile-dock.md` — the two
+> generator-supplied components and the seven silent defects in them.
+> `correspondence/2026-08-02-assistant-loose-ends.md` — Why the
 > assistant's "over-refusal" was a misdiagnosis, and the three loose ends closed.
 > `correspondence/2026-08-02-phase-4b-assistant.md` — the assistant, and the two
 > documented decisions that measurement disproved.
@@ -728,8 +790,8 @@ personal conversations, and no library changes that legitimately.
 | Queue | **0 not done** |
 | Channels | 1 Gmail, **0 in error**. ⚠ See the watch/token note below — they are different dates |
 | Console | `/attention`, `/contacts`, `/messages/[id]` all gated correctly |
-| Tests | **496** (was 467) · typecheck, `next build`, `assert-rls` (11 tables) all green |
-| Migrations | **0011** applied and negative-controlled |
+| Tests | **541** on 2026-08-06 (was 496) · typecheck and `next build` green; all 11 tables verified `rowsecurity` + `forcerowsecurity` + a policy with USING **and** WITH CHECK after 0012 |
+| Migrations | **0012** applied 2026-08-06 (`extractions.status`, `status_changed_at`) — additive, no new table, so `assert-rls.ts` needed no change |
 | Blob storage | ✅ **provisioned** — `swbattachments` / container `attachments`, malaysiawest |
 
 ### ✅ THE ASSISTANT EVAL HAS A COMPLETE SCORE, FOR THE FIRST TIME

@@ -76,8 +76,14 @@ export function AppShell({
       </a>
 
       <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
-        <aside className="flex shrink-0 flex-col border-b border-border bg-panel md:w-60 md:overflow-y-auto md:border-r md:border-b-0">
-          <div className="flex items-center gap-2.5 px-4 py-3 md:px-5 md:py-5">
+        {/*
+          Wider by a rem and better padded than it was. The rail's labels are
+          set in Archivo now and the scale went up a step on 2026-08-06; 240px
+          was tuned for the old pair and "Needs attention" was already the entry
+          deciding the width.
+        */}
+        <aside className="flex shrink-0 flex-col border-b border-border bg-panel md:w-64 md:overflow-y-auto md:border-r md:border-b-0">
+          <div className="flex items-center gap-2.5 px-4 py-3.5 md:px-6 md:py-6">
             <Brand />
 
             {/* The account controls live in the sidebar's footer on desktop,
@@ -116,7 +122,7 @@ export function AppShell({
             className="hidden md:flex"
           />
 
-          <div className="mt-auto hidden px-5 py-5 md:block">
+          <div className="mt-auto hidden px-6 py-6 md:block">
             {/* The same word as the nav entry and the page it links to. A
                 surface that calls one thing three names is one the reader has
                 to keep translating. */}
@@ -158,7 +164,7 @@ export function AppShell({
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="shrink-0 border-b border-border bg-panel">
-            <div className="mx-auto flex w-full max-w-4xl items-center gap-4 px-5 py-3.5 md:px-8 md:py-4">
+            <div className="mx-auto flex w-full max-w-4xl items-center gap-4 px-5 py-4 md:px-10 md:py-5">
               <div className="min-w-0">
                 <h1 className="truncate text-heading font-semibold">{title}</h1>
                 {description && (
@@ -189,7 +195,7 @@ export function AppShell({
             aria-label={title}
             className="min-h-0 flex-1 overflow-y-auto outline-none"
           >
-            <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-5 py-6 md:px-8 md:py-8">
+            <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-5 py-7 md:px-10 md:py-10">
               {children}
             </div>
           </main>

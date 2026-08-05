@@ -26,6 +26,56 @@ export const ATTENTION_KINDS = ['commitment', 'meeting', 'action_item', 'questio
 
 export type AttentionKind = (typeof ATTENTION_KINDS)[number];
 
+/**
+ * The board's three columns (Ms. Maria, 2026-08-05 — *"not started, in
+ * progress, done… similar to Trello"*).
+ *
+ * ⚠ Ordered, and the order is the contract. `moveTo` derives the neighbouring
+ * columns from this array's indices, so reordering it silently changes which
+ * way the arrows on every card point. Migration 0012's CHECK constraint holds
+ * the same three values; the two must be changed together or an update fails at
+ * the database with an error nobody expected.
+ */
+export const ATTENTION_STATUSES = ['not_started', 'in_progress', 'done'] as const;
+
+export type AttentionStatus = (typeof ATTENTION_STATUSES)[number];
+
+/** How a column is named on screen. */
+export const STATUS_LABEL: Record<AttentionStatus, string> = {
+  not_started: 'Not started',
+  in_progress: 'In progress',
+  done: 'Done',
+};
+
+export function isAttentionStatus(value: unknown): value is AttentionStatus {
+  return (
+    typeof value === 'string' &&
+    (ATTENTION_STATUSES as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * What moving a card reports back.
+ *
+ * ⚠ Lives here rather than beside the action that returns it, because
+ * `lib/attention-actions.ts` is a `'use server'` module and those may export
+ * only async functions — a plain `const` in one is a build error.
+ * `lib/auth-constants.ts` exists for the same reason and carries the same note.
+ */
+export interface MoveResult {
+  ok: boolean;
+  /**
+   * Null on success. The board re-renders and the card is visibly somewhere
+   * else, which is the feedback — only a failure needs words, and it needs them
+   * badly: a card that silently fails to move is indistinguishable from one
+   * that had nowhere to go.
+   */
+  error: string | null;
+}
+
+/** A card's controls before anything has been tried. */
+export const NO_MOVE_YET: MoveResult = { ok: true, error: null };
+
 /** The `extractions.payload` shape the worker writes. See packages/ai/src/extract.ts. */
 export interface AttentionPayload {
   title?: string;
@@ -41,6 +91,16 @@ export interface AttentionPayload {
 export interface AttentionItem {
   id: string;
   kind: AttentionKind;
+  /**
+   * Which column this card sits in. Migration 0012.
+   *
+   * ⚠ Set only by a person. The worker writes proposals and stops — the same
+   * rule ADR-010 fixes for calendar events, applied to the board: nothing in
+   * the pipeline may decide on somebody's behalf that a commitment is handled.
+   */
+  status: AttentionStatus;
+  /** When a person last moved it. Null means never — see migration 0012. */
+  statusChangedAt: string | null;
   title: string;
   /** The verbatim sentence it came from. Shown, never hidden — see below. */
   quote: string;
@@ -129,6 +189,8 @@ export function sortForAttention(items: AttentionItem[], now: Date): AttentionIt
 interface ExtractionRow {
   id: string;
   kind: string;
+  status: string;
+  status_changed_at: string | null;
   payload: AttentionPayload | null;
   confidence: number | null;
   model: string;
@@ -178,7 +240,8 @@ export async function fetchAttention(
     let query = supabase
       .from('extractions')
       .select(
-        'id, kind, payload, confidence, model, calendar_event_id, confirmed_at, ' +
+        'id, kind, status, status_changed_at, payload, confidence, model, ' +
+          'calendar_event_id, confirmed_at, ' +
           'message:messages!extractions_message_id_fkey(' +
           'id, subject, sent_at, channel_id, ' +
           'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id))',
@@ -235,6 +298,16 @@ export async function fetchAttention(
       items.push({
         id: row.id,
         kind: row.kind as AttentionKind,
+        /*
+         * ⚠ Defaulted rather than cast. The column is `not null` with a CHECK,
+         * so an unrecognised value should be impossible — but this is the field
+         * that decides which column a card renders in, and a value outside the
+         * three would put the card in NO column, i.e. drop a real commitment
+         * off the board with nothing logged. Falling back to "not started" is
+         * the failure that keeps the work visible.
+         */
+        status: isAttentionStatus(row.status) ? row.status : 'not_started',
+        statusChangedAt: row.status_changed_at,
         title: payload.title,
         quote: payload.quote,
         startsAt: payload.starts_at ?? null,
@@ -291,3 +364,69 @@ export const KIND_LABEL: Record<AttentionKind, string> = {
   action_item: 'Action',
   question: 'Question',
 };
+
+/**
+ * The board, as three ordered columns.
+ *
+ * ── ⚠ Two different sorts, on purpose ────────────────────────────────────────
+ *
+ * `sortForAttention` answers *"what should I do next?"* — overdue first,
+ * soonest-missed at the top, then upcoming, then undated by recency. That is
+ * exactly right for **Not started** and **In progress**, which are both queues
+ * of outstanding work, and it is the ordering this screen was built on.
+ *
+ * It is wrong for **Done**. A finished card has no useful deadline any more:
+ * everything in that column is "overdue" the moment its date passes, so
+ * `sortForAttention` fills it with a stack of red-flagged items sorted by how
+ * badly they were missed — for work that was, in fact, completed. What a person
+ * wants from a Done column is *what did I just clear*, so it sorts by when the
+ * card was moved, newest first. `status_changed_at` exists for this and nothing
+ * else (migration 0012).
+ *
+ * ⚠ A null `statusChangedAt` in Done should not be possible — nothing reaches
+ * that column without being moved — but it sorts LAST rather than first if it
+ * ever happens, because an unknown completion time is not evidence of a recent
+ * one.
+ */
+export function groupForBoard(
+  items: AttentionItem[],
+  now: Date,
+): { status: AttentionStatus; label: string; items: AttentionItem[] }[] {
+  return ATTENTION_STATUSES.map((status) => {
+    const inColumn = items.filter((item) => item.status === status);
+
+    return {
+      status,
+      label: STATUS_LABEL[status],
+      items:
+        status === 'done'
+          ? [...inColumn].sort(
+              (a, b) =>
+                (b.statusChangedAt ? new Date(b.statusChangedAt).getTime() : 0) -
+                (a.statusChangedAt ? new Date(a.statusChangedAt).getTime() : 0),
+            )
+          : sortForAttention(inColumn, now),
+    };
+  });
+}
+
+/**
+ * Where a card can move to from where it is.
+ *
+ * Derived from `ATTENTION_STATUSES`' order rather than hard-coded, so the two
+ * cannot drift. Returns null at each end, which is what disables the arrow —
+ * a control that is present and does nothing is worse than one that is
+ * visibly unavailable.
+ *
+ * Deliberately one step at a time, in both directions. A jump straight from
+ * Not started to Done is one click away from marking something finished that
+ * was never looked at, and "back" has to exist because the commonest reason to
+ * move a card is realising you moved the wrong one.
+ */
+export function neighbourStatus(
+  status: AttentionStatus,
+  direction: -1 | 1,
+): AttentionStatus | null {
+  const index = ATTENTION_STATUSES.indexOf(status) + direction;
+  return ATTENTION_STATUSES[index] ?? null;
+}

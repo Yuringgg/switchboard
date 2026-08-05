@@ -27,7 +27,22 @@ const twMerge = extendTailwindMerge({
   extend: {
     classGroups: {
       'font-size': [
-        { text: ['label', 'meta', 'note', 'row', 'subject', 'heading', 'display'] },
+        {
+          text: [
+            'label',
+            'meta',
+            'note',
+            'row',
+            'subject',
+            'heading',
+            'display',
+            // The landing page's headline. Added 2026-08-06 in the same commit
+            // as `--text-hero` in globals.css, per the warning above — without
+            // this line `cn('text-hero', …)` drops it and the hero renders at
+            // 16px with nothing logged.
+            'hero',
+          ],
+        },
       ],
     },
   },

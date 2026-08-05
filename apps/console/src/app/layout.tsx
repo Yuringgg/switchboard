@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { IBM_Plex_Mono, Instrument_Sans } from 'next/font/google';
+import { Archivo, Martian_Mono } from 'next/font/google';
 
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
 
@@ -8,33 +8,52 @@ import './globals.css';
 /**
  * Two families, each with a job.
  *
- * Instrument Sans carries anything a person wrote — subjects, names, message
- * previews. It is a grotesque with slightly tighter apertures than the system
- * stack, which is what keeps a dense list readable at 13–14px.
+ * ── ⚠ Why these two and not the previous pair ────────────────────────────────
  *
- * IBM Plex Mono carries anything the machine knows: timestamps, addresses,
- * channel state, counts, the wordmark. That split is not decoration. On a
- * monitoring console the eye needs to separate "what arrived" from "what the
- * system is doing", and a change of voice does that faster than a change of
- * colour. Tabular figures also mean a column of times does not shift width as
- * the digits change.
+ * This was **Instrument Sans + IBM Plex Mono** until 2026-08-06. Ms. Maria's
+ * note on the console was *"halatang ginawa mo siya sa AI — try to change the
+ * font, the spacing, the way you present it"*, and she was reading something
+ * real: both of those faces sit on the reflex-reject list of training-data
+ * defaults that `.agents/skills/impeccable/reference/brand.md` keeps, which is
+ * to say they are the two fonts a generator reaches for first. The tell was
+ * never the layout. It was the letterforms.
+ *
+ * The split itself is NOT a default and is kept: one family for anything a
+ * person wrote, one mono for anything the machine knows. On a monitoring
+ * console the eye has to separate "what arrived" from "what the system is
+ * doing", and a change of voice does that faster than a change of colour.
+ *
+ * **Archivo** (Omnibus-Type) carries the human half — subjects, names, message
+ * bodies. A grotesque drawn for high-performance small text: tall x-height,
+ * slightly narrow, sturdy at 14px in a dense list, and closer to signage than
+ * to a UI font, which is the register this thing wants.
+ *
+ * **Martian Mono** carries the machine half — timestamps, addresses, counts,
+ * state, the wordmark, the keycaps. Squared terminals and flat joins; it reads
+ * as *engraved onto a panel* rather than typed into an editor, which is the one
+ * metaphor this product is built on. It is wider than Plex was, so the label
+ * tracking in `globals.css` came down from 0.16em to 0.1em in the same change —
+ * see the note on `--text-label`.
+ *
+ * Tabular figures in both, so a column of times does not shift width as the
+ * digits change.
  */
-const sans = Instrument_Sans({
+const sans = Archivo({
   subsets: ['latin'],
-  variable: '--font-sans-instrument',
+  variable: '--font-sans-archivo',
   display: 'swap',
 });
 
-const mono = IBM_Plex_Mono({
+const mono = Martian_Mono({
   subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-mono-plex',
+  variable: '--font-mono-martian',
   display: 'swap',
 });
 
 export const metadata: Metadata = {
   title: 'Switchboard',
-  description: 'One console for every conversation.',
+  description:
+    'Gmail and WhatsApp in one ordered timeline, read by a model that shows its work.',
 };
 
 export const viewport: Viewport = {

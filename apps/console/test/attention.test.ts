@@ -22,6 +22,10 @@ const base = {
   model: 'llama-3.1-8b-instant',
   calendarEventId: null,
   confirmedAt: null,
+  // Migration 0012. Every card starts in the first column, which is also what
+  // the database default gives every row that predates the board.
+  status: 'not_started' as const,
+  statusChangedAt: null,
 };
 
 const NOW = new Date('2026-08-03T12:00:00+08:00');

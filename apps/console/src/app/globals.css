@@ -28,22 +28,41 @@
  * project ships with, and this is a piece of equipment: light mode is the cool
  * grey of a printed instrument face, dark mode the warm charcoal of a panel
  * under its own lamp. The difference is subliminal and that is the point.
+ *
+ * ⚠⚠ THE LIGHT RAMP WAS REBUILT ON 2026-08-06 AND THE REASON IS WORTH KEEPING.
+ *
+ * Ms. Maria looked at light mode and said *"squint ka muna"* — squint first.
+ * She was describing a measurable defect, not a preference. The background was
+ * `oklch(0.994)` and the panel `oklch(0.972)`: **2.2% of lightness apart.** The
+ * whole frame-versus-record idea this console is built on was carried by a step
+ * nobody can see on a laptop screen in daylight, and the hairlines at 0.905
+ * were doing the same job with the same handicap. Dark mode had never had the
+ * problem, because a light-on-dark step of the same size reads far larger.
+ *
+ * Every light surface below is now a step you can actually see:
+ *   background 0.981 → panel 0.947 → border 0.872.
+ * Roughly 3× the separation, still nowhere near "striped into panels", and it
+ * keeps the tint. ⚠ Do not push `--background` back toward 1.0 to make it look
+ * "cleaner". That is exactly the change that produced the complaint.
  * ─────────────────────────────────────────────────────────────────────────────
  */
 :root {
   --radius: 0.5rem;
 
-  --background: oklch(0.994 0.0015 250);
-  --foreground: oklch(0.185 0.014 262);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.185 0.014 262);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.185 0.014 262);
-  --primary: oklch(0.225 0.016 262);
+  /* Off-white with the ramp's own tint, NOT a warm near-white. The cream /
+     sand / parchment band is the saturated generator default of 2026 and this
+     surface is a printed instrument face, not paper. */
+  --background: oklch(0.981 0.0025 250);
+  --foreground: oklch(0.17 0.015 262);
+  --card: oklch(0.995 0.001 250);
+  --card-foreground: oklch(0.17 0.015 262);
+  --popover: oklch(0.995 0.001 250);
+  --popover-foreground: oklch(0.17 0.015 262);
+  --primary: oklch(0.215 0.017 262);
   --primary-foreground: oklch(0.985 0.001 250);
-  --secondary: oklch(0.966 0.004 250);
-  --secondary-foreground: oklch(0.225 0.016 262);
-  --muted: oklch(0.966 0.004 250);
+  --secondary: oklch(0.941 0.005 250);
+  --secondary-foreground: oklch(0.215 0.017 262);
+  --muted: oklch(0.941 0.005 250);
 
   /*
    * The ONLY secondary text colour, and it clears 4.5:1 on --background.
@@ -53,16 +72,21 @@
    * 2.3:1 — and it was carrying real content: day counts, channel status,
    * sender addresses. Quietness is now expressed through size, letterspacing
    * and case, all of which are free. Opacity on text is not.
+   *
+   * ⚠ Darkened with the rest of the ramp on 2026-08-06. It has to clear 4.5:1
+   * on `--panel` as well as on `--background`, and `--panel` moved further than
+   * anything else — the old value would have been a regression on the sidebar
+   * even though it was never wrong on the page.
    */
-  --muted-foreground: oklch(0.468 0.012 258);
+  --muted-foreground: oklch(0.442 0.013 258);
 
-  --accent: oklch(0.958 0.005 252);
-  --accent-foreground: oklch(0.225 0.016 262);
-  --destructive: oklch(0.545 0.213 27.2);
+  --accent: oklch(0.928 0.006 252);
+  --accent-foreground: oklch(0.215 0.017 262);
+  --destructive: oklch(0.52 0.216 27.2);
   --destructive-foreground: oklch(0.985 0.001 250);
-  --border: oklch(0.905 0.005 250);
-  --input: oklch(0.892 0.006 250);
-  --ring: oklch(0.62 0.035 258);
+  --border: oklch(0.872 0.006 250);
+  --input: oklch(0.845 0.007 250);
+  --ring: oklch(0.58 0.04 258);
 
   /*
    * Channel accents. One per ChannelType in @switchboard/core.
@@ -80,10 +104,13 @@
   /*
    * The frame. One step off the background, so the sidebar and header read as
    * the instrument and the message column reads as the record it is showing.
-   * Deliberately almost imperceptible — a console that stripes itself into
-   * panels is harder to read, not easier.
+   *
+   * ⚠ It used to say "deliberately almost imperceptible", and it was: 0.972
+   * against a 0.994 background. *Almost imperceptible* turned out to mean
+   * imperceptible, which is not restraint — it is the frame not being drawn.
+   * 0.947 is still calm and it is a step a person can see without leaning in.
    */
-  --panel: oklch(0.972 0.004 250);
+  --panel: oklch(0.947 0.005 250);
 
   /*
    * Signal amber: something arrived and you have not seen it yet.
@@ -102,7 +129,7 @@
    * opacity so that constraint is stated once, here, instead of re-decided at
    * every call site.
    */
-  --faint: oklch(0.83 0.006 250);
+  --faint: oklch(0.795 0.007 250);
 }
 
 /*
@@ -127,8 +154,12 @@
   --accent-foreground: oklch(0.965 0.002 250);
   --destructive: oklch(0.7 0.185 22.2);
   --destructive-foreground: oklch(0.985 0.001 250);
-  --border: oklch(1 0 0 / 11%);
-  --input: oklch(1 0 0 / 15%);
+  /* Nudged up with the light ramp on 2026-08-06 so the frame is drawn with the
+     same confidence in both schemes. Dark never had light's problem — a
+     light-on-dark step of the same size reads far larger — so this is a small
+     correction rather than the rebuild the `:root` block above describes. */
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 18%);
   --ring: oklch(0.58 0.02 258);
 
   --channel-gmail: oklch(0.7 0.175 27);
@@ -171,17 +202,17 @@
   /* next/font sets the two variables in app/layout.tsx; the fallbacks are what
      renders during the swap, so they are ordered to match the metrics of the
      face they stand in for rather than being a generic list. */
-  --font-sans: var(--font-sans-instrument), ui-sans-serif, system-ui, -apple-system,
+  --font-sans: var(--font-sans-archivo), ui-sans-serif, system-ui, -apple-system,
     'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji',
     'Segoe UI Emoji';
-  --font-mono: var(--font-mono-plex), ui-monospace, SFMono-Regular, 'SF Mono',
+  --font-mono: var(--font-mono-martian), ui-monospace, SFMono-Regular, 'SF Mono',
     Menlo, Consolas, 'Liberation Mono', monospace;
 
   /*
    * ───────────────────────────────────────────────────────────────────────────
    * TYPE SCALE
    *
-   * Seven steps, each named for its JOB rather than its size, because the job
+   * Eight steps, each named for its JOB rather than its size, because the job
    * is the thing that has to stay consistent across screens. This replaces
    * eight ad-hoc values — 9.5, 10, 11, 12, 13, 13.5, 14, 15px — that had
    * accumulated one screen at a time, which is how a UI ends up looking
@@ -197,32 +228,63 @@
    *   text-subject   the line you scan. the reason a row is worth reading.
    *   text-heading   a page's title.
    *   text-display   the one headline on an unauthenticated page.
+   *   text-hero      the landing page's headline, and only that. FLUID.
+   *
+   * ⚠ ANYTHING ADDED HERE MUST BE ADDED TO `lib/utils.ts` IN THE SAME COMMIT.
+   * tailwind-merge reads an unknown `text-*` as a COLOUR, so `cn()` silently
+   * drops it and the element renders at the browser default of 16px with no
+   * error. It hit four elements the last time. `text-hero` is in that list.
+   *
+   * ── ⚠ Every value below moved on 2026-08-06 ─────────────────────────────────
+   *
+   * Ms. Maria's note was *"squint ka muna"* and *"medyo [ayusin] mo yung
+   * spacing"*. The scale was drawn for density and had gone past it: the
+   * stencilled labels were **10px at 0.16em**, which is the smallest text in
+   * the product carrying real content — channel status, day counts, connection
+   * state — set at a size and a tracking that fight each other. Every step is
+   * up roughly one notch, and the label's tracking came DOWN, for two reasons
+   * at once: 0.16em is too much for eleven pixels, and Martian Mono is a wider
+   * face than the Plex it replaced, so the same tracking now costs visibly more
+   * width in a 240px rail.
+   *
+   * Ratio is ~1.15 between adjacent steps, which is the product register's
+   * range (1.125–1.2). Fluid headings are deliberately NOT used in the console
+   * — a clamp()'d h1 that shrinks inside a sidebar looks worse, not better.
+   * `--text-hero` is the single exception and it lives on the landing page,
+   * which is the one `brand` surface in the app.
    * ───────────────────────────────────────────────────────────────────────────
    */
-  --text-label: 0.625rem;
-  --text-label--line-height: 1.1;
-  --text-label--letter-spacing: 0.16em;
+  --text-label: 0.6875rem;
+  --text-label--line-height: 1.15;
+  --text-label--letter-spacing: 0.1em;
 
-  --text-meta: 0.6875rem;
-  --text-meta--line-height: 1.35;
+  --text-meta: 0.75rem;
+  --text-meta--line-height: 1.4;
 
-  --text-note: 0.75rem;
-  --text-note--line-height: 1.5;
+  --text-note: 0.8125rem;
+  --text-note--line-height: 1.55;
 
-  --text-row: 0.84375rem;
-  --text-row--line-height: 1.5;
+  --text-row: 0.875rem;
+  --text-row--line-height: 1.6;
 
-  --text-subject: 0.9375rem;
-  --text-subject--line-height: 1.4;
-  --text-subject--letter-spacing: -0.006em;
+  --text-subject: 1rem;
+  --text-subject--line-height: 1.45;
+  --text-subject--letter-spacing: -0.008em;
 
-  --text-heading: 1.0625rem;
+  --text-heading: 1.1875rem;
   --text-heading--line-height: 1.3;
-  --text-heading--letter-spacing: -0.014em;
+  --text-heading--letter-spacing: -0.016em;
 
-  --text-display: 1.375rem;
-  --text-display--line-height: 1.2;
+  --text-display: 1.5rem;
+  --text-display--line-height: 1.22;
   --text-display--letter-spacing: -0.02em;
+
+  /* Landing page only. Max 4.5rem — well under the 6rem ceiling above which a
+     page is shouting rather than designing — and the tracking floor is -0.04em,
+     which this is comfortably inside. */
+  --text-hero: clamp(2.25rem, 1.1rem + 4.6vw, 4.5rem);
+  --text-hero--line-height: 1.04;
+  --text-hero--letter-spacing: -0.032em;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -311,6 +373,183 @@
 
 @utility animate-unfold {
   animation: unfold 0.18s ease-out;
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE PATCH FIELD — components/marketing/patch-field.tsx
+ *
+ * The landing page's one moving thing, and it is the product diagram rather
+ * than decoration: two lines come in on the left, both are patched through one
+ * jack field in the middle, and one ordered record comes out on the right.
+ * That is the whole sentence the page has to say, said once, in motion.
+ *
+ * ── ⚠ Why all of this is CSS and none of it is JavaScript ────────────────────
+ *
+ * Everything below animates a property the style engine owns outright —
+ * `stroke-dashoffset`, `opacity`, `transform`. No `requestAnimationFrame`, no
+ * `IntersectionObserver`, no motion library, and nothing is hidden until a
+ * class arrives. Three reasons, in order of how much each has already cost this
+ * project:
+ *
+ *   1. **A reveal that never fires ships a blank page.** Transitions are paused
+ *      in hidden tabs and in headless renderers, so gating visibility on a
+ *      scroll-triggered class is how a section arrives at a defence panel
+ *      empty. Every element here is fully visible at rest; the motion only
+ *      moves things that are already on screen.
+ *   2. **This project's browser pane does not composite** — rAF, ResizeObserver
+ *      and IntersectionObserver all deliver zero callbacks in it, which is why
+ *      the WebGL figure on /assistant is still visually unverified. A CSS
+ *      animation at least degrades to its resting frame rather than to nothing.
+ *   3. It costs no JavaScript on the one page a stranger loads first.
+ *
+ * ── The `pathLength` trick ───────────────────────────────────────────────────
+ *
+ * Every cord carries `pathLength="100"`, which renormalises its dash units so
+ * one set of keyframes drives paths of completely different real lengths at the
+ * same apparent speed. Without it each cord needs its own dasharray measured in
+ * user units, and they drift out of step the moment the viewBox changes.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/*
+ * A message travelling down its line.
+ *
+ * ── ⚠ The dash arithmetic, because getting it wrong is silent ────────────────
+ *
+ * Every cord carries `pathLength="100"`, so one unit is 1% of that cord. The
+ * pattern is `14 200`: a 14-unit dash and a 200-unit gap, which makes the
+ * pattern PERIOD 214 — deliberately more than twice the path. The obvious
+ * `14 100` does not work and fails by showing too much rather than by erroring:
+ * its period is 114, so when the first dash is parked off the start of the path
+ * the SECOND repeat of the pattern is sitting in plain view at position 14.
+ *
+ * With `14 200`, offset `14` puts the dash at [-14, 0] — just off the start,
+ * with the next repeat at [186, 200], past the end. Offset `-100` puts it at
+ * [100, 114], entirely past the end, with the previous repeat at [-114, -100].
+ * So the travel is 14 → -100 and the cord is empty at both ends of the cycle.
+ *
+ * The dash's leading edge is at position `14 - offset`, which reaches the end
+ * of the path (100) at offset -86 — **87.7% of the way through the cycle**.
+ * That number is what the two keyframes below are timed against, and it is why
+ * this is `linear`: an eased cord makes the lamp and the row land at fractions
+ * nobody can compute, and a signal moving down a wire at constant speed is the
+ * more truthful reading anyway.
+ */
+@keyframes cord-signal {
+  0% {
+    stroke-dashoffset: 14;
+    opacity: 0;
+  }
+  6%,
+  90% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -100;
+    opacity: 0;
+  }
+}
+
+@utility animate-cord-signal {
+  stroke-dasharray: 14 200;
+  animation: cord-signal 3.6s linear infinite;
+}
+
+/*
+ * The lamp beside a jack, lit by the signal arriving on that line.
+ *
+ * The jack sits where each cord's curve ends and its straight tail begins,
+ * which is 62–72% along the path depending on how far that cord drops. The
+ * dash front passes it between 66% and 75% of the cycle, so the lamp peaks at
+ * 68% — inside that window for every cord, and while the dash itself is hidden
+ * behind the board panel, which is exactly when the lamp is the only thing
+ * telling you a message is being patched through.
+ *
+ * Timed to the cord rather than pulsing on a schedule of its own: a lamp
+ * blinking independently of the thing it reports is decoration, and this
+ * product's one rule about amber is that it means the board is receiving.
+ *
+ * ⚠ `r` is a CSS *length* and unitless is legal only for `0`. `r: 2.4` is
+ * discarded by the browser with nothing logged, and the lamp then never
+ * changes size — the identical mistake `ry: 30` made in `@keyframes blink`
+ * above, which cost a debugging session because the animation *looked* wired up.
+ */
+@keyframes jack-lamp {
+  0%,
+  60% {
+    opacity: 0.18;
+    r: 2.4px;
+  }
+  68% {
+    opacity: 1;
+    r: 3.6px;
+  }
+  84%,
+  100% {
+    opacity: 0.18;
+    r: 2.4px;
+  }
+}
+
+@utility animate-jack-lamp {
+  animation: jack-lamp 3.6s ease-out infinite;
+}
+
+/*
+ * A row landing in the record — settles at ~88%, when the dash front reaches
+ * the end of its cord.
+ *
+ * ⚠ Opacity never reaches 0, and the row is at FULL opacity for most of the
+ * cycle. The rows are the payoff of the whole diagram: they have to be legible
+ * in the resting frame, in a hidden tab, and in a renderer that never runs an
+ * animation at all. What moves is the emphasis on a row that just arrived,
+ * which is the same "marked for one beat, then left alone" idea `animate-arrive`
+ * gives a real message in the timeline. The two should stay recognisably the
+ * same gesture.
+ */
+@keyframes record-land {
+  0%,
+  80% {
+    opacity: 0.82;
+    transform: translateX(-5px);
+  }
+  88%,
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility animate-record-land {
+  animation: record-land 3.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+/*
+ * The amber mark on a row that has just landed, and the only amber on the
+ * landing page that moves.
+ *
+ * ⚠ It reads DOWN to 0.28 rather than to 0, and never up from nothing. Five
+ * rows are on a 0.72s stagger inside a 3.6s cycle, so a lamp that switched off
+ * entirely would leave four dead marks on screen at any instant and the diagram
+ * would look broken rather than idle. Same reason `--live` is a colour this
+ * product spends carefully: an unlit lamp still has to look like a lamp.
+ */
+@keyframes row-lamp {
+  0%,
+  80% {
+    opacity: 0.28;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.28;
+  }
+}
+
+@utility animate-row-lamp {
+  animation: row-lamp 3.6s ease-out infinite;
 }
 
 /*
@@ -471,7 +710,19 @@
      * fit.
      */
     font-family: var(--font-sans);
-    font-size: var(--text-note);
+    /*
+     * ⚠ A literal 12px, NOT `var(--text-note)`, and this is the one place in
+     * the console that opts out of the scale.
+     *
+     * The dock is a width budget, not a type decision: six entries plus the
+     * longest label ("Needs attention") land within two pixels of a 375px
+     * phone, and the comment on `.menu__item` above records that a slightly
+     * wider font is enough to push an entry off the edge with nothing saying
+     * so. When the scale went up a step on 2026-08-06 this label would have
+     * gone 12px → 13px and taken the dock over budget. The rest of the console
+     * has room for the bigger step; this strip does not.
+     */
+    font-size: 0.75rem;
     font-weight: 500;
     white-space: nowrap;
     transition:

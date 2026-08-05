@@ -69,22 +69,86 @@ export function groupByDay(messages: TimelineMessage[]): TimelineDay[] {
 }
 
 /**
+ * Which lines the timeline is showing.
+ *
+ * ── ⚠ Why the URL carries channel TYPES and the query takes channel IDS ──────
+ *
+ * Ms. Maria asked for this on 2026-08-05 — *"lagyan mo ng filter, kunwari Gmail
+ * lang or WhatsApp lang… para may option to see both"* — and the two halves of
+ * it want different keys.
+ *
+ * A person filters by *"Gmail"*. `messages` has no idea what Gmail is; it has a
+ * `channel_id` pointing at a row that happens to be of that type. Putting ids
+ * in the URL, which is what `/search` does, would make a shared timeline link
+ * meaningless to anybody else and break the moment a channel is reconnected —
+ * migration 0003 permits a second row for the same mailbox, and a reconnect can
+ * produce one. So the URL says `?channel=gmail`, and the page resolves that to
+ * the ids the reader actually owns.
+ *
+ * ⚠ A type the reader has NOT connected resolves to an empty id list, which is
+ * correct and must not be "helpfully" collapsed into no filter at all. Asking
+ * for WhatsApp when no WhatsApp channel exists has one honest answer — nothing
+ * — and `TimelineEmpty` says which of the two empties it is.
+ */
+export function parseChannelFilter(
+  param: string | string[] | undefined,
+  known: readonly string[],
+): string[] {
+  if (!param) return [];
+
+  const asked = Array.isArray(param) ? param : [param];
+
+  /*
+   * Validated against the canonical list rather than passed through. This value
+   * comes off the query string, so it is user input; an unknown type here would
+   * silently produce an empty result that reads exactly like "you have no mail"
+   * — and a typo in a shared link would be indistinguishable from an empty
+   * mailbox. Unknown entries are dropped, and dropping them all yields "no
+   * filter", which is the state the bare route is already in.
+   */
+  const valid = [...new Set(asked.filter((type) => known.includes(type)))];
+
+  /*
+   * Selecting every line is the same as selecting none. Normalised here so the
+   * "filter is active" flag and the Clear control agree with each other.
+   *
+   * ⚠ De-duplicated FIRST, and a test pins that order. Comparing the raw list's
+   * length against `known.length` made `?channel=gmail&channel=gmail` — two
+   * entries, two known types — collapse to "no filter" and show both lines,
+   * which is the exact opposite of what the URL asks for. A repeated parameter
+   * is not exotic: it is what a browser sends if a checkbox is submitted twice,
+   * and it fails by showing MORE than was asked for, silently.
+   */
+  return valid.length === known.length ? [] : valid;
+}
+
+/**
  * Returns rather than throws, and never rejects — the page starts this without
  * awaiting it, so a rejection with no handler attached yet would take down the
  * whole request rather than showing an error in the message column.
+ *
+ * `channelIds` is `null` for "every line" and an array — possibly empty — for a
+ * filtered view. ⚠ The distinction matters: `null` skips the predicate, `[]`
+ * applies `channel_id in ()` and correctly returns nothing. Collapsing the two
+ * would make a filter on an unconnected channel show the full timeline, which
+ * is the most confusing possible answer to "show me WhatsApp only".
  */
 export async function fetchTimeline(
   supabase: SupabaseClient,
-  limit = 50,
+  { limit = 50, channelIds = null }: { limit?: number; channelIds?: string[] | null } = {},
 ): Promise<{ messages: TimelineMessage[]; truncated: boolean; error: string | null }> {
   try {
+    if (channelIds !== null && channelIds.length === 0) {
+      return { messages: [], truncated: false, error: null };
+    }
+
     // RLS scopes this to the signed-in user, so there is no owner_id filter —
     // adding one would imply the policy might not be doing its job.
     //
     // The join to contact_identities is what turns a sender_identity uuid into a
     // name to show. It is a left join: sender_identity is nullable, and a message
     // whose sender row was removed should still appear.
-    const { data, error } = await supabase
+    let query = supabase
       .from('messages')
       .select(
         'id, direction, subject, body_text, sent_at, channel_id, ' +
@@ -121,6 +185,18 @@ export async function fetchTimeline(
        * `count` would cost a full scan on every load to render one sentence.
        */
       .limit(limit + 1);
+
+    /*
+     * ⚠ Filters the PARENT rows — `channel_id` is a column on `messages`, so
+     * this is an ordinary predicate and NOT the embedded-filter trap documented
+     * above. It also runs on top of RLS rather than instead of it: the ids were
+     * resolved from `fetchChannels`, which is itself scoped to this user, so a
+     * forged id in the URL cannot widen what comes back. It can only narrow it
+     * to nothing.
+     */
+    if (channelIds !== null) query = query.in('channel_id', channelIds);
+
+    const { data, error } = await query;
 
     if (error) return { messages: [], truncated: false, error: error.message };
 

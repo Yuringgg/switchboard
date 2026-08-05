@@ -1,3 +1,4 @@
+import { CHANNEL_TYPES } from '@switchboard/core';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
@@ -5,13 +6,23 @@ import { Suspense } from 'react';
 import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
 import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
+import { TimelineFilter } from '@/components/timeline-filter';
 import { fetchChannels, type ChannelRow } from '@/lib/channels';
 import { createClient } from '@/lib/supabase/server';
-import { fetchTimeline, type TimelineMessage } from '@/lib/timeline';
+import { fetchTimeline, parseChannelFilter } from '@/lib/timeline';
 
 export const metadata: Metadata = { title: 'Timeline · Switchboard' };
 
-export default async function TimelinePage() {
+type TimelineResult = ReturnType<typeof fetchTimeline>;
+type ChannelsResult = Promise<{ channels: ChannelRow[]; error: string | null }>;
+
+export default async function TimelinePage({
+  searchParams,
+}: {
+  /** `?channel=gmail`, repeatable. See `parseChannelFilter` in lib/timeline.ts. */
+  searchParams: Promise<{ channel?: string | string[] }>;
+}) {
+  const params = await searchParams;
   const supabase = await createClient();
 
   // Middleware already gates this route. Checked again here on purpose: the
@@ -21,7 +32,10 @@ export default async function TimelinePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect('/login');
+  // `/welcome`, matching `proxy.ts` — the root's unauthenticated destination is
+  // the landing page in both guards, so the two cannot disagree about what a
+  // stranger sees.
+  if (!user) redirect('/welcome');
 
   /*
    * ⚠ NO DIRECTION FILTER — see lib/timeline.ts.
@@ -29,14 +43,28 @@ export default async function TimelinePage() {
    * The milestone email is one you send yourself, which is `outbound`. An
    * inbound-only query would hide it and make a working pipeline look broken.
    *
-   * Neither promise is awaited here, on purpose. Both requests are already in
-   * flight while the shell renders and streams; the message column arrives
-   * behind its <Suspense> boundary. Awaiting them here would put the whole
-   * frame behind another round trip to Singapore for no gain — the header and
-   * the sidebar do not depend on either result.
+   * The CHANNEL filter is a different thing and is new (Ms. Maria, 2026-08-05):
+   * it is asked for explicitly, it is stated in the URL, and the empty state
+   * says which empty it is. Hiding a whole direction silently is what is
+   * forbidden — narrowing the view on request is not.
    */
+  const selectedTypes = parseChannelFilter(params.channel, CHANNEL_TYPES);
+
   const channels = fetchChannels(supabase);
-  const timeline = fetchTimeline(supabase);
+
+  /*
+   * ⚠ The unfiltered query starts HERE, unawaited, exactly as it always has —
+   * in flight beside `channels` while the shell renders and streams.
+   *
+   * A filtered one cannot: the URL carries channel *types* and `messages` is
+   * keyed by channel *id*, so the filter has to wait for `fetchChannels` to
+   * resolve one into the other. That is one extra sequential round trip to
+   * Singapore, and it is why this is a branch rather than one tidy code path —
+   * the common case is the unfiltered timeline and it must not pay for a
+   * feature it is not using.
+   */
+  const unfiltered: TimelineResult | null =
+    selectedTypes.length === 0 ? fetchTimeline(supabase) : null;
 
   return (
     <AppShell
@@ -47,11 +75,55 @@ export default async function TimelinePage() {
       activeHref="/"
       channels={channels}
     >
-      <Suspense fallback={<TimelineSkeleton />}>
-        <TimelineSection timeline={timeline} channels={channels} />
+      {/*
+        Outside the message column's boundary and in one of its own: the filter
+        depends only on the channel list, which resolves well before the
+        messages do. Inside, it would appear at the same moment as the results
+        it is meant to control.
+      */}
+      <Suspense fallback={<FilterFallback />}>
+        <Filter channels={channels} selectedTypes={selectedTypes} />
+      </Suspense>
+
+      {/*
+        ⚠ Keyed on the filter. Without a key React reuses this boundary across
+        the navigation, so switching lines keeps showing the PREVIOUS list until
+        the new query lands rather than the skeleton — which reads as the filter
+        having done nothing for as long as the round trip takes.
+      */}
+      <Suspense key={selectedTypes.join()} fallback={<TimelineSkeleton />}>
+        <TimelineSection
+          supabase={supabase}
+          channels={channels}
+          selectedTypes={selectedTypes}
+          unfiltered={unfiltered}
+        />
       </Suspense>
     </AppShell>
   );
+}
+
+/** The chips. Needs the channel list and nothing else. */
+async function Filter({
+  channels,
+  selectedTypes,
+}: {
+  channels: ChannelsResult;
+  selectedTypes: string[];
+}) {
+  const { channels: rows } = await channels;
+
+  return (
+    <TimelineFilter
+      selected={selectedTypes}
+      connectedTypes={[...new Set(rows.map((c) => c.type))]}
+    />
+  );
+}
+
+/** Holds the filter row's height so the list below does not jump when it lands. */
+function FilterFallback() {
+  return <div className="mb-6 h-[26px]" aria-hidden />;
 }
 
 /**
@@ -60,18 +132,26 @@ export default async function TimelinePage() {
  * child is not async suspends on nothing.
  */
 async function TimelineSection({
-  timeline,
+  supabase,
   channels,
+  selectedTypes,
+  unfiltered,
 }: {
-  timeline: Promise<{
-    messages: TimelineMessage[];
-    truncated: boolean;
-    error: string | null;
-  }>;
-  channels: Promise<{ channels: ChannelRow[]; error: string | null }>;
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  channels: ChannelsResult;
+  selectedTypes: string[];
+  /** Already in flight when no filter is applied; null when one is. */
+  unfiltered: TimelineResult | null;
 }) {
-  const [{ messages, truncated, error }, { channels: rows, error: channelsError }] =
-    await Promise.all([timeline, channels]);
+  const { channels: rows, error: channelsError } = await channels;
+
+  const { messages, truncated, error } = await (unfiltered ??
+    fetchTimeline(supabase, {
+      // ⚠ May legitimately be empty — filtering to a channel the reader has not
+      // connected. `fetchTimeline` returns nothing for that rather than
+      // treating it as "no filter"; see the note there.
+      channelIds: rows.filter((c) => selectedTypes.includes(c.type)).map((c) => c.id),
+    }));
 
   // Channel type per message, so each row can show which line it came in on.
   const channelTypeById = new Map(rows.map((c) => [c.id, c.type]));
@@ -93,7 +173,10 @@ async function TimelineSection({
           truncated={truncated}
         />
       ) : (
-        <TimelineEmpty connectedTypes={rows.map((c) => c.type)} />
+        <TimelineEmpty
+          connectedTypes={[...new Set(rows.map((c) => c.type))]}
+          filteredTo={selectedTypes}
+        />
       )}
     </>
   );

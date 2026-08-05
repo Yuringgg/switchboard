@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { Brand } from '@/components/brand';
@@ -34,8 +35,16 @@ export function AuthCard({
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center px-5 py-12">
       <div className="w-full max-w-[22rem]">
+        {/*
+          The mark links out to the landing page. Somebody who arrives here from
+          a bookmark or a `next=` redirect has no other way to find out what
+          this is, and a wordmark that does not go home is the one link every
+          visitor tries first.
+        */}
         <div className="flex flex-col items-center text-center">
-          <Brand />
+          <Link href="/welcome" className="focus-ring rounded-md">
+            <Brand />
+          </Link>
           <p className="mt-2.5 text-note text-muted-foreground">
             One console for every conversation.
           </p>

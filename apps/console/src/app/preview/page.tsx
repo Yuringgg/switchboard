@@ -4,7 +4,7 @@ import { Suspense } from 'react';
 
 import { AppShell } from '@/components/app-shell';
 import { AssistantPanel } from '@/components/assistant-panel';
-import { AttentionEmpty, AttentionList } from '@/components/attention-list';
+import { AttentionBoard, AttentionEmpty } from '@/components/attention-board';
 import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
 import { ContactList, ContactsEmpty } from '@/components/contact-list';
 import { MeetingProposal } from '@/components/meeting-proposal';
@@ -16,6 +16,7 @@ import {
   SearchSkeleton,
 } from '@/components/search-results';
 import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
+import { TimelineFilter } from '@/components/timeline-filter';
 import type { AssistantAnswer } from '@/lib/assistant';
 import type { AttentionItem } from '@/lib/attention';
 import type { ChannelRow } from '@/lib/channels';
@@ -288,6 +289,8 @@ function attentionFixtures(): AttentionItem[] {
     {
       id: 'x1',
       kind: 'meeting',
+      status: 'not_started',
+      statusChangedAt: null,
       title: 'Project sync with Ms. Maria',
       quote:
         'Confirming our project sync on Friday 7 August 2026 at 3:00 PM, at the iOzera office. Agenda: Switchboard demo and Phase 5 scope.',
@@ -304,6 +307,8 @@ function attentionFixtures(): AttentionItem[] {
     {
       id: 'x2',
       kind: 'action_item',
+      status: 'in_progress',
+      statusChangedAt: new Date(now - 7_200_000).toISOString(),
       title: 'Review the Phase 5 scope before Monday',
       quote: 'Can you review the Phase 5 scope before then?',
       startsAt: null,
@@ -319,6 +324,8 @@ function attentionFixtures(): AttentionItem[] {
     {
       id: 'x3',
       kind: 'commitment',
+      status: 'not_started',
+      statusChangedAt: null,
       title: 'Send the files on Drive',
       quote: 'Sige, sending the files na — nasa drive na lahat. Salamat!',
       startsAt: null,
@@ -334,6 +341,14 @@ function attentionFixtures(): AttentionItem[] {
     {
       id: 'x4',
       kind: 'meeting',
+      /*
+       * ⚠ On the calendar and NOT done, on purpose. Migration 0012 argues that
+       * `confirmed_at` must not be read as completion — a meeting booked for
+       * tomorrow is squarely in progress — and this is the fixture that makes
+       * the claim visible rather than leaving it in a comment.
+       */
+      status: 'in_progress',
+      statusChangedAt: new Date(now - 5_400_000).toISOString(),
       title: 'Standup',
       quote: 'Standup moved to 9am tomorrow, same link.',
       startsAt: at(11),
@@ -349,6 +364,8 @@ function attentionFixtures(): AttentionItem[] {
     {
       id: 'x5',
       kind: 'question',
+      status: 'done',
+      statusChangedAt: new Date(now - 1_800_000).toISOString(),
       title: 'Which invoice number covers the July retainer?',
       quote:
         'Kailangan po namin ng confirmation bago mag Friday kasi may cutoff ang accounting team namin — alin pong invoice ang para sa July retainer?',
@@ -571,7 +588,7 @@ export default async function PreviewPage({
         {items.length === 0 ? (
           <AttentionEmpty extracted={state !== 'unread'} />
         ) : (
-          <AttentionList items={items} channels={rows} now={new Date()} />
+          <AttentionBoard items={items} channels={rows} now={new Date()} />
         )}
       </AppShell>
     );
@@ -715,6 +732,24 @@ export default async function PreviewPage({
       activeHref="/"
       channels={channels}
     >
+      {/*
+        The channel filter (Ms. Maria, 2026-08-05).
+
+        ⚠ Rendered here with `selected={[]}` and NOT wired to anything. This
+        harness has no database and no URL state — submitting it navigates to
+        `/` and lands on the real console. It is here so the control can be
+        LOOKED at without a login, which is the only reason /preview exists, and
+        because the real one lives on a route that redirects an unauthenticated
+        visitor to the landing page.
+
+        WhatsApp renders as "not connected" here exactly as it does in
+        production, because the fixture channel list mirrors the real one.
+      */}
+      <TimelineFilter
+        selected={[]}
+        connectedTypes={[...new Set(rows.map((c) => c.type))]}
+      />
+
       <Suspense fallback={<TimelineSkeleton />}>
         {state === 'loading' ? (
           <TimelineSkeleton />
@@ -727,7 +762,13 @@ export default async function PreviewPage({
             truncated={state === 'messages'}
           />
         ) : (
-          <TimelineEmpty connectedTypes={rows.map((c) => c.type)} />
+          <TimelineEmpty
+            connectedTypes={rows.map((c) => c.type)}
+            // `?state=filtered` shows the third empty state — narrowed to a
+            // line that is not connected — which is otherwise unreachable
+            // without actually connecting WhatsApp.
+            filteredTo={state === 'filtered' ? ['whatsapp'] : []}
+          />
         )}
       </Suspense>
     </AppShell>

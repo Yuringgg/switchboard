@@ -27,6 +27,18 @@ const PUBLIC_PATHS = [
   '/api',
 
   /*
+   * The landing page (`app/welcome/page.tsx`). Public by definition — it is the
+   * page that explains what this is to somebody who has never seen it.
+   *
+   * ⚠ It is safe to expose for the same reason `/preview` is: it reads no
+   * tenant data. It makes exactly one `getUser()` call, and only to decide
+   * whether its button should say "Sign in" or "Open the console". If anything
+   * on that route ever queries a message, a channel or an extraction, this
+   * entry has to be reconsidered.
+   */
+  '/welcome',
+
+  /*
    * The design preview (`app/preview/page.tsx`) — DEVELOPMENT ONLY, and the
    * only entry in this list that is conditional.
    *
@@ -81,6 +93,26 @@ export async function proxy(request: NextRequest) {
 
   if (!user && !isPublic) {
     const url = request.nextUrl.clone();
+
+    /*
+     * ⚠ The root is the front door, and a stranger arriving at it gets the
+     * landing page — not a login form for an account they do not have.
+     *
+     * It went to `/login?next=/` until 2026-08-06, which meant the first thing
+     * anybody ever saw of this product was a password field with no
+     * explanation attached. Ms. Maria asked for a landing page on 2026-08-05
+     * and this is the half of it that is routing rather than markup.
+     *
+     * Only the bare root. Every other gated path still goes to `/login` with
+     * `next`, because a request for `/attention` is a request to see a specific
+     * screen and marketing copy is not an answer to it.
+     */
+    if (pathname === '/') {
+      url.pathname = '/welcome';
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
+
     url.pathname = '/login';
     // Come back to where they were headed once signed in.
     url.searchParams.set('next', pathname);

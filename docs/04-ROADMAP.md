@@ -934,6 +934,56 @@ a row, without intervention.
 
 ---
 
+## Phase 5R — Ms. Maria's review ✅ BUILT (2026-08-06)
+
+Not a phase in the original plan. It is what came out of the 2026-08-05 meeting
+with Ms. Maria, and since she is the sole source of requirements (AGENTS.md §2)
+it is scope, not polish. Full note:
+`correspondence/2026-08-06-maria-changes.md`.
+
+- [x] **Channel filter on the timeline** — *"Gmail lang or WhatsApp lang… para
+      may option to see both"*. `?channel=gmail`, repeatable, server-rendered.
+      ⚠ The URL carries channel *types*, the query takes channel *ids*; ids in
+      the URL would break on a reconnect (migration 0003 permits a second row
+      for the same mailbox). Both channels are always offered, with the
+      unconnected one disabled and labelled — hiding it would have shipped her
+      request as no visible change at all.
+- [x] **`/attention` becomes a Kanban board** — *"not started, in progress,
+      done… similar to Trello"*. Migration **0012**, applied and verified live.
+      ⚠ `confirmed_at` is not "done"; Done sorts by `status_changed_at`.
+- [x] **Light mode rebuilt** — *"squint ka muna"*. Background/panel were 2.2% of
+      lightness apart. Measured after: 1.11:1 surface, 1.39:1 hairline, worst
+      text contrast 7.30:1 in light and 7.45:1 in dark, 0 failing AA.
+- [x] **Typefaces and type scale replaced** — *"halatang ginawa mo siya sa AI…
+      change the font, the spacing, the way you present it"*. Instrument Sans +
+      IBM Plex Mono were both training-data defaults; now Archivo + Martian
+      Mono. Every scale step moved.
+- [x] **Auto-sync** — *"tanggalin yung need to refresh para lang mag-sync"*.
+      Reconnection on capped backoff, a 20s/60s poll, and refresh on tab focus.
+      The red `Offline` state is gone; it was telling the reader to do the one
+      thing this change removes.
+- [x] **Landing page** — `/welcome`, public, with the animated patch field. An
+      unauthenticated request for `/` now lands here instead of on a login form.
+- [ ] **⚠ Prototype the landing page in Figma.** Asked for explicitly, with the
+      reason given: *"para ma-document yun for your defense"*. The page was
+      designed and built in code because the build session cannot drive Figma.
+      **This is still owed** and it is a defence artefact, not decoration.
+- [ ] **⚠ Look at all of it.** Every claim above is a DOM measurement — this
+      environment has no screenshot capability and the browser pane does not
+      composite. `/welcome` and `/preview?screen=attention` are where.
+- [ ] **⚠ Move a card on the deployed console.** The board was exercised over
+      `/preview` fixtures, which never reach Supabase. The action's RLS shape
+      matches `confirmMeeting`'s and the policy is unchanged, but the round trip
+      has not been run against real data.
+
+⚠ **WhatsApp was deliberately left alone** — *"yung sa WhatsApp kahit huwag muna
+natin masyadong pakialaman ngayon"*. It stays blocked on Meta and that is now
+her stated preference as well as a constraint.
+
+**Done when:** Ms. Maria has seen it, and the Figma prototype exists.
+
+---
+
 ## Stretch — only after Phase 5 is solid
 
 | Item | Notes |

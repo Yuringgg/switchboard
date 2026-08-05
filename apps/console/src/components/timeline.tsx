@@ -1,4 +1,4 @@
-import { Inbox, Radio } from 'lucide-react';
+import { Filter, Inbox, Radio } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -53,7 +53,7 @@ export function Timeline({
       <NewMessages />
       <TimelineKeys />
 
-      <div className="space-y-7">
+      <div className="space-y-10">
         {days.map((day) => (
           <section key={day.date}>
             {/*
@@ -61,7 +61,7 @@ export function Timeline({
               ring scrolls under it cleanly rather than clipping at the column
               edge.
             */}
-            <h2 className="sticky top-0 z-10 -mx-3 mb-3 flex items-center gap-3 bg-background px-3 py-2">
+            <h2 className="sticky top-0 z-10 -mx-3 mb-4 flex items-center gap-3 bg-background px-3 py-2.5">
               <time dateTime={day.date} className={LABEL}>
                 {formatDay(day.date)}
               </time>
@@ -160,13 +160,64 @@ function Key({ children }: { children: ReactNode }) {
  * one of them means wait, the other means act. So one is a lit lamp with no
  * action on it, and the other is an unlit inbox with the single action that
  * changes the situation.
+ *
+ * ⚠ The channel filter added a THIRD empty, and it is the one most likely to be
+ * misread: an empty screen because the reader narrowed to a line they have not
+ * connected. It looks exactly like a broken pipeline and it is the filter
+ * working correctly, so it is handled first and names the way out.
  */
-export function TimelineEmpty({ connectedTypes }: { connectedTypes: string[] }) {
+export function TimelineEmpty({
+  connectedTypes,
+  filteredTo = [],
+}: {
+  connectedTypes: string[];
+  /** Channel types the reader has narrowed to. Empty means no filter. */
+  filteredTo?: string[];
+}) {
   const connected = connectedTypes.length > 0;
 
   const names = CHANNELS.filter((c) => connectedTypes.includes(c.type)).map(
     (c) => c.label,
   );
+
+  if (filteredTo.length > 0) {
+    const filteredNames = CHANNELS.filter((c) => filteredTo.includes(c.type)).map(
+      (c) => c.label,
+    );
+    const anyConnected = filteredTo.some((type) => connectedTypes.includes(type));
+
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
+        <span
+          className="flex size-12 items-center justify-center rounded-xl border border-border bg-panel"
+          aria-hidden
+        >
+          <Filter className="size-5 text-muted-foreground" />
+        </span>
+
+        <h2 className="mt-4 text-heading font-semibold">
+          Nothing on {formatList(filteredNames)}
+        </h2>
+
+        <p className="mt-2 max-w-[38ch] text-row text-balance text-muted-foreground">
+          {anyConnected
+            ? `The filter is showing ${formatList(filteredNames)} only, and there are no messages on ${filteredNames.length === 1 ? 'that line' : 'those lines'} yet.`
+            : `${formatList(filteredNames)} ${filteredNames.length === 1 ? 'is' : 'are'} not connected, so there is nothing to show on ${filteredNames.length === 1 ? 'that line' : 'those lines'}.`}
+        </p>
+
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <Link href="/" className={buttonClass({ variant: 'subtle' })}>
+            Show both lines
+          </Link>
+          {!anyConnected && (
+            <Link href="/channels" className={buttonClass()}>
+              Connect a channel
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 py-16 text-center">
