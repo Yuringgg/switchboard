@@ -183,7 +183,7 @@ already has the account.
 
 ---
 
-## Phase 2 — WhatsApp 🟡 CODE COMPLETE, awaiting Meta credentials
+## Phase 2 — WhatsApp 🟢 PROVEN on a temporary upstream, awaiting a durable number
 
 **Goal:** prove the adapter abstraction holds against a structurally different
 channel. Gmail is hybrid push/pull with a cursor; WhatsApp is pure push. If the
@@ -194,8 +194,33 @@ tested (2026-07-28).** The pipeline is closed end to end — webhook → `raw_ev
 → worker → `messages` → timeline — and 103 new tests cover it, 286 total. What
 remains is credentials, and the first real message.
 
-- [ ] ★ Meta developer account, app created, WhatsApp product added — **Yuri**
-- [ ] ★ Free **test business number**; verify up to 5 recipient numbers — **Yuri**
+> ### ✅ 2026-08-04 — the first real WhatsApp message arrived, and the
+> ### done-condition below is met.
+>
+> `"Test 3"`, inbound, 11:35:42 UTC, through **360dialog's sandbox** on the
+> shared-token scheme. Verified 2026-08-05 against the live database
+> (`raw_events.received_at` two seconds after `sent_at` — a live delivery, not a
+> seeded row) and the live deployment (`GET` with a wrong verify token → 403,
+> unsigned `POST` → 401; both would be 503 if nothing were configured).
+> **A WhatsApp message and an email sit in the same timeline.**
+>
+> ⚠ **On a temporary instrument.** The sandbox links exactly one phone number,
+> so only Yuri's own messages reach the console — nobody else's traffic can be
+> demonstrated, which is most of what the product is for. It also has no media
+> and a Brazilian display number. **The remaining boxes are therefore about a
+> durable number, not about whether the code works.** Routes, ranked and
+> costed: `correspondence/2026-08-05-whatsapp-credentials.md`; the two account-
+> side unblocks that cost nothing are §4 and §5 there.
+
+- [ ] ★ Meta developer account, app created, WhatsApp product added — **Yuri**.
+      ⚠ **Blocked since 2026-08-04 on Meta's signup SMS, which is a documented
+      bug on their side** — not a cooldown, not the SIM (two carriers, two
+      Facebook accounts, 12+ hours). It does **not** block the phase; it blocks
+      the *durable* number. Try the Accounts Center re-confirmation over
+      **WhatsApp** before anything else.
+- [ ] ★ Free **test business number**; verify up to 5 recipient numbers — **Yuri**.
+      This is the line that upgrades the demo: **5 senders instead of 1**, so
+      Ms. Maria can message it and watch it land.
 - [ ] ★ Webhook registered in the Meta dashboard; `messages` field subscribed;
       the **two** `WHATSAPP_*` variables set on Vercel — `WHATSAPP_APP_SECRET`
       and `WHATSAPP_WEBHOOK_VERIFY_TOKEN`, the only two anything reads
@@ -240,7 +265,8 @@ remains is credentials, and the first real message.
       `messages.payload_raw` — so this is a backfill, not a re-ingest.
 
 **Done when:** a WhatsApp message and an email sit in the same timeline, visually
-distinguished by channel.
+distinguished by channel. — ✅ **Met 2026-08-04**, through the BSP sandbox. See
+the box above for what that does and does not prove.
 
 > The refactor checkpoint is the actual point of this phase. Don't skip it — it's
 > where you find out whether the abstraction was real or wishful.

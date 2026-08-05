@@ -660,11 +660,44 @@ from tooling.*
 > ours.** Anyone with a working developer account can register a webhook
 > pointing at our Vercel URL and hand those over. So:
 >
-> 1. **Someone else's developer account** — zero code change, free.
-> 2. **iOzera's Business Portfolio** — asked of Ms. Maria and Fatima
->    2026-08-04, no reply yet. Zero code change.
-> 3. **360dialog, a Meta Business Solution Provider** — see below.
-> 4. **Twilio** — ⚠ rejected, and not on effort. See below.
+> 1. **Re-confirm the number in Accounts Center first** — added 2026-08-05, and
+>    it goes above everything else because it is ten minutes and free. Meta's
+>    registration doc says the verify step *"will send a confirmation code to the
+>    phone number and email address that you provide"* — it reads the contact
+>    points already on the Facebook account. Re-adding the number under
+>    *Accounts Center → Password and security → Two-factor authentication* is
+>    reported on Meta's forums to make the developer registration skip its own
+>    check. ⚠ **That flow offers WhatsApp as well as SMS**, and WhatsApp on
+>    Yuri's number is provably working — it carried the first real Switchboard
+>    message on 2026-08-04. Choosing it keeps the broken component out of the
+>    loop. Steps: `correspondence/2026-08-05-whatsapp-credentials.md` §4.
+> 2. **Verify the Facebook account with a card instead** — Facebook's own help
+>    page (*"How do I verify my developer account on Facebook?"*) lists exactly
+>    two ways: confirm a mobile number **or add a credit card**, and says the
+>    card is not charged. ⚠ That page governs the *account verification* gate,
+>    not demonstrably the *registration* code — documented, free, worth trying,
+>    but second.
+> 3. **Someone else's developer account** — zero code change, free. ⚠ Scoped to
+>    one **test** app; the App Secret is a password and reaches nothing else
+>    they own. Fine for a demo, wrong for client traffic, and never a bought
+>    account. The exact packet to send them is in the correspondence file, §6.
+> 4. **iOzera's Business Portfolio** — asked of Ms. Maria and Fatima
+>    2026-08-04, no reply yet. Zero code change. ⚠ **This route needs no
+>    developer account at all**: a developer account only creates *apps*, so an
+>    admin on an existing portfolio can issue a System User token with
+>    `whatsapp_business_messaging` and the blocker never applies.
+> 5. **360dialog, a Meta Business Solution Provider** — see below. Its sandbox
+>    is what is live today; **paid plans start at €49/month**, which is out of
+>    an intern's budget, so the sandbox is the whole of this route in practice.
+> 6. **Twilio** — ⚠ rejected, and not on effort. See below.
+>
+> ⚠ **Not a route: `whatsapp-web.js`, Baileys, UltraMsg, Whapi, Wassenger,
+> Green API.** They drive the WhatsApp Web protocol with a personal account and
+> Meta bans the *number* for it. Banned since Phase 0 and still banned.
+> ⚠ **And do not register a personal number on Cloud API.** Meta: *"Numbers
+> already in use with WhatsApp cannot be registered unless they are deleted
+> first."* Deletion is permanent and the number stops working in the consumer
+> app. The free test number exists so this never has to happen.
 >
 > **Why 360dialog and not Twilio, verified against their own docs 2026-08-04.**
 > 360dialog forwards **Meta's envelope verbatim** — `object`, `entry[]`,
@@ -690,12 +723,28 @@ from tooling.*
 > - **The sandbox is a demo instrument, not a deployment.** Free, no card,
 >   **200 messages total**, one linked phone number, no media
 >   (<https://docs.360dialog.com/docs/get-started/sandbox>).
-> - ⚠ **It is not documented whether the sandbox issues a dedicated
->   `phone_number_id`.** `external_account_id` is the tenant key and migration
->   0006 makes it unique per channel type. Nothing leaks either way — a webhook
->   URL is per-account, so only our own traffic arrives — but a shared id would
->   be wrong as a permanent tenant key. **Read it off the first real payload
->   before treating it as one.**
+> - ⚠⚠ **Amended 2026-08-05 — the one-linked-number limit is the ceiling that
+>   matters, and it is a product limit, not a technical one.** Their wording is
+>   *"Any message **you** send to +551146733492 will be forwarded to the webhook
+>   URL you set"*, and *"Each Sandbox API key is linked to one phone number."*
+>   So **only Yuri's own messages ever reach Switchboard.** Ms. Maria messaging
+>   that number gets her own sandbox key and her own webhook; nothing arrives
+>   here. A demo on the sandbox shows the operator talking to himself, which
+>   proves the pipeline and not the product — *"messages I received"*. The
+>   Meta test number takes **5 verified senders** and is the fix.
+>   The 200-message cap says *"can be **sent**"*; we only receive, so it
+>   probably never binds — but inbound is undocumented, so treat it as a
+>   ceiling of unknown height rather than a non-issue.
+> - ✅ **Answered 2026-08-05 — the sandbox does issue a `phone_number_id`, and
+>   it is almost certainly shared.** Read off the first real payload:
+>   `851682941371819`, display `551146733492` — 360dialog's *single* sandbox
+>   number, so every sandbox user in the world plausibly sees that same id.
+>   Nothing leaks (a webhook URL is per-account, so only our own traffic
+>   arrives), but ⚠ **it is not a durable tenant key** and must not be reused as
+>   one when a real number arrives. The payload also carries `user_id` /
+>   `from_user_id` (`PH.…`) that Meta's own documented shape does not —
+>   ignored by `normalize`, harmless, worth knowing before re-recording
+>   fixtures from it.
 >
 > **What is already built for this (2026-08-04).** The route no longer hardcodes
 > Meta's header. `resolveSigningScheme` in `packages/core/src/webhook.ts` picks
