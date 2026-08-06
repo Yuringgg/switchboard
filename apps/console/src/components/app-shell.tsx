@@ -51,6 +51,17 @@ export function AppShell({
    */
   activeHref,
   channels,
+  /**
+   * How wide the content column runs.
+   *
+   * `default` (56rem) is a reading measure and is right for everything that is
+   * a list of prose — the timeline, search, a message. `wide` (76rem) exists
+   * for the attention board: three columns inside 56rem gives each card about
+   * 258px, which is narrower than the quote it has to show, and the result
+   * reads as cramped rather than dense. It is the only screen in the console
+   * whose content is laid out ACROSS rather than down.
+   */
+  width = 'default',
   children,
 }: {
   title: string;
@@ -59,8 +70,13 @@ export function AppShell({
   userId: string;
   activeHref: string;
   channels: Promise<{ channels: ChannelRow[]; error: string | null }>;
+  width?: 'default' | 'wide';
   children: ReactNode;
 }) {
+  // ⚠ Full class strings, never `max-w-${…}`. Tailwind scans source text, so a
+  // constructed class name is not in the stylesheet and silently does nothing.
+  const measure = width === 'wide' ? 'max-w-[76rem]' : 'max-w-4xl';
+
   return (
     <Live userId={userId}>
       {/*
@@ -164,7 +180,12 @@ export function AppShell({
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="shrink-0 border-b border-border bg-panel">
-            <div className="mx-auto flex w-full max-w-4xl items-center gap-4 px-5 py-4 md:px-10 md:py-5">
+            <div
+              className={cn(
+                'mx-auto flex w-full items-center gap-4 px-5 py-4 md:px-10 md:py-5',
+                measure,
+              )}
+            >
               <div className="min-w-0">
                 <h1 className="truncate text-heading font-semibold">{title}</h1>
                 {description && (
@@ -195,7 +216,12 @@ export function AppShell({
             aria-label={title}
             className="min-h-0 flex-1 overflow-y-auto outline-none"
           >
-            <div className="mx-auto flex min-h-full w-full max-w-4xl flex-col px-5 py-7 md:px-10 md:py-10">
+            <div
+              className={cn(
+                'mx-auto flex min-h-full w-full flex-col px-5 py-7 md:px-10 md:py-10',
+                measure,
+              )}
+            >
               {children}
             </div>
           </main>

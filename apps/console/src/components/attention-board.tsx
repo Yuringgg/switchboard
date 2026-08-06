@@ -82,7 +82,23 @@ export function AttentionBoard({
      */
     <div className="grid gap-x-5 gap-y-8 md:grid-cols-3">
       {columns.map((column) => (
-        <section key={column.status} aria-labelledby={`col-${column.status}`}>
+        /*
+         * ⚠ `min-w-0`. A grid track's default `min-width: auto` refuses to
+         * shrink below its content, so one unbreakable string — a promotional
+         * URL in a quoted sentence, which is exactly what a real mailbox is
+         * full of — pushed its column wider than its share and drew straight
+         * across the two beside it. Reported as "overlapping bugs" on
+         * 2026-08-06, and it is this, not a z-index or a position problem.
+         *
+         * `min-w-0` lets the track shrink; the wrapping rules on the card below
+         * are what then break the string. Both halves are needed — either one
+         * alone still overflows.
+         */
+        <section
+          key={column.status}
+          aria-labelledby={`col-${column.status}`}
+          className="min-w-0"
+        >
           {/*
             The column heading is a heading, not a coloured bar. This board
             takes Trello's columns and not its chrome: a tinted header strip per
@@ -152,7 +168,7 @@ function Card({
      * separated from the column by a hairline and a surface step, which is the
      * same device the whole console uses for frame-versus-record.
      */
-    <li className="rounded-lg border border-border bg-panel p-3.5">
+    <li className="min-w-0 overflow-hidden rounded-lg border border-border bg-panel p-3.5">
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className={cn(LABEL, 'text-foreground')}>{KIND_LABEL[item.kind]}</span>
 
@@ -183,14 +199,29 @@ function Card({
         {!when && <span className={LABEL}>no date given</span>}
       </div>
 
-      <p className="mt-1.5 text-row font-medium text-pretty">{item.title}</p>
+      {/*
+        ⚠ `[overflow-wrap:anywhere]` on both, not `break-words`.
+        `break-word` only breaks a word that would overflow *on its own line*;
+        a 120-character tracking URL sitting after two normal words is not that
+        case, so it happily runs off the card. `anywhere` also lets the browser
+        count the break opportunity when it computes min-content width, which is
+        what stops the grid track from being widened by it in the first place.
+      */}
+      <p className="mt-1.5 text-row font-medium text-pretty [overflow-wrap:anywhere]">
+        {item.title}
+      </p>
 
       {/*
         The sender's own words. Quoted, in the human voice, never paraphrased —
         this is the evidence, and evidence that has been reworded is not
         evidence.
+
+        ⚠ Which is also why it is not truncated. A quote cut short is a quote
+        whose meaning cannot be checked, and checking it is the entire job of
+        this line. Long ones wrap and make the card tall; that is the correct
+        trade on a board whose whole premise is that the evidence is on screen.
       */}
-      <blockquote className="mt-2 border-l-2 border-border pl-3 text-note text-muted-foreground text-pretty">
+      <blockquote className="mt-2 border-l-2 border-border pl-3 text-note text-muted-foreground text-pretty [overflow-wrap:anywhere]">
         {item.quote}
       </blockquote>
 

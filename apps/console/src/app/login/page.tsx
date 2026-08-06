@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { AuthCard } from '@/components/auth/auth-card';
 import { EmailField, PasswordField } from '@/components/auth/fields';
 import { SubmitButton } from '@/components/auth/submit-button';
+import { BoxReveal } from '@/components/ui/box-reveal';
 import { signIn } from '@/lib/auth-actions';
 
 export const metadata: Metadata = { title: 'Sign in · Switchboard' };
@@ -46,11 +47,15 @@ export default async function LoginPage({
         that reads as navigation should navigate: it gets Cmd/Ctrl+click and
         middle-click for free, and neither page has an ambiguous second action.
       */}
-      <form action={signIn} className="mt-6 space-y-3.5">
+      <form action={signIn} className="mt-7 space-y-4">
         <input type="hidden" name="next" value={next} />
         <EmailField />
         <PasswordField mode="signin" />
-        <SubmitButton>Sign in</SubmitButton>
+        {/* Last in the reveal stack, so the shutters clear downward and land on
+            the control the visitor is reaching for. */}
+        <BoxReveal delay={0.3} className="pt-1">
+          <SubmitButton>Sign in</SubmitButton>
+        </BoxReveal>
       </form>
     </AuthCard>
   );

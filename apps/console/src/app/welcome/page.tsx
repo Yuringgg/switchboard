@@ -69,13 +69,13 @@ export default async function WelcomePage() {
       </a>
 
       <header className="border-b border-border">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-4 md:px-10">
-          <Brand />
-          <div className="ml-auto flex items-center gap-2">
-            <ThemeToggle />
+        <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-5 md:px-10">
+          <Brand size="lg" />
+          <div className="ml-auto flex items-center gap-2.5">
+            <ThemeToggle size="md" />
             <Link
               href={user ? '/' : '/login'}
-              className={buttonClass({ variant: 'subtle', size: 'sm' })}
+              className={buttonClass({ variant: 'subtle' })}
             >
               {user ? 'Open the console' : 'Sign in'}
             </Link>
@@ -84,8 +84,47 @@ export default async function WelcomePage() {
       </header>
 
       <main>
-        {/* ── Hero ─────────────────────────────────────────────────────────── */}
-        <section className="mx-auto max-w-6xl px-5 pt-16 pb-4 md:px-10 md:pt-24">
+        {/*
+          ── Hero ─────────────────────────────────────────────────────────────
+
+          ⚠ The figure lives INSIDE the hero, not in a band below it.
+
+          It was its own full-bleed section at first, which looked tidier in the
+          markup and was wrong on a laptop: measured on Yuri's screen, the
+          diagram did not start until y≈930 in a 1010px viewport, so the first
+          thing anybody saw was a wall of type with the one moving thing hidden
+          below the fold. The whole reason this page has an animation is that it
+          explains the product faster than the paragraph does — it has to be on
+          the first screen or it may as well not exist.
+
+          Everything above it is therefore on a tighter rhythm than a marketing
+          hero would normally take, and the figure is capped at `max-w-4xl` so
+          its 2.24:1 box stays under ~400px tall.
+        */}
+        <section className="mx-auto max-w-6xl px-5 pt-10 pb-6 md:px-10 md:pt-14">
+          {/*
+            Colour in the fold, and the product's own vocabulary. The page was
+            monochrome type down to the figure, which is what "looks dull" was
+            describing — and these two dots are the one distinction the whole
+            console exists to draw, so they belong in the first sentence.
+          */}
+          <p className={cn(LABEL, 'flex flex-wrap items-center gap-x-2.5 gap-y-1')}>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-channel-gmail" aria-hidden />
+              Gmail
+            </span>
+            <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-channel-whatsapp" aria-hidden />
+              WhatsApp
+            </span>
+            <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-1.5 text-foreground">
+              <span className="animate-lamp size-1.5 rounded-full bg-live" aria-hidden />
+              One board
+            </span>
+          </p>
+
           {/*
             ⚠ The measure is on the H1 ITSELF, not on a wrapper.
             `ch` resolves against the element's own font, so `max-w-[16ch]` on a
@@ -95,17 +134,17 @@ export default async function WelcomePage() {
             markup, and on a desktop the container is wide enough that nothing
             is visibly wrong.
           */}
-          <h1 className="max-w-[16ch] text-hero font-semibold text-balance">
+          <h1 className="mt-5 max-w-[16ch] text-hero font-semibold text-balance">
             Stop checking two apps.
           </h1>
 
-          <p className="mt-6 max-w-[62ch] text-lg leading-relaxed text-muted-foreground text-pretty md:text-xl">
+          <p className="mt-5 max-w-[58ch] text-lg leading-relaxed text-muted-foreground text-pretty">
             Switchboard patches Gmail and WhatsApp into a single ordered
             timeline, reads every message as it lands, and tells you which ones
             want something from you.
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <Link href={user ? '/' : '/signup'} className={buttonClass()}>
               {user ? 'Open the console' : 'Create an account'}
             </Link>
@@ -116,22 +155,13 @@ export default async function WelcomePage() {
               See what it does
             </Link>
           </div>
-        </section>
 
-        {/*
-          The figure. Full-bleed on its own band so it reads as the board rather
-          than as an illustration sitting inside the copy. It carries its own
-          text alternative — see the component.
-        */}
-        <section className="mt-12 border-y border-border bg-panel/60 py-10 md:mt-16 md:py-14">
-          <div className="mx-auto max-w-6xl px-5 md:px-10">
-            <PatchField className="max-w-5xl" />
+          <PatchField className="mt-10 max-w-4xl md:mt-12" />
 
-            <p className={cn(LABEL, 'mt-8 normal-case')}>
-              Two lines in, one jack field, one record out — and every row still
-              carries the line it arrived on.
-            </p>
-          </div>
+          <p className={cn(LABEL, 'mt-6 max-w-[70ch] normal-case')}>
+            Two lines in, one jack field, one record out — and every row still
+            carries the line it arrived on.
+          </p>
         </section>
 
         {/* ── The problem, in one paragraph ────────────────────────────────── */}
@@ -231,33 +261,23 @@ export default async function WelcomePage() {
           </div>
         </section>
 
-        {/* ── What it will not do ──────────────────────────────────────────── */}
-        <section className="mx-auto max-w-6xl px-5 py-20 md:px-10 md:py-28">
-          <h2 className="max-w-[20ch] text-3xl font-semibold text-balance md:text-4xl">
-            Four things it will not do
-          </h2>
-          <p className="mt-5 max-w-[58ch] leading-relaxed text-muted-foreground text-pretty">
-            This thing reads private correspondence. What it refuses to do is a
-            feature of it, so it is written down rather than assumed.
-          </p>
+        {/*
+          ⚠ "Four things it will not do" stood here and was CUT on Yuri's
+          instruction, 2026-08-06.
 
-          <ul className="mt-12 max-w-[70ch] md:mt-14">
-            {LIMITS.map((limit, index) => (
-              <li
-                key={limit.title}
-                className={cn(
-                  'border-t border-border py-6',
-                  index === LIMITS.length - 1 && 'border-b',
-                )}
-              >
-                <p className="font-medium">{limit.title}</p>
-                <p className="mt-1.5 leading-relaxed text-muted-foreground text-pretty">
-                  {limit.body}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
+          Recorded rather than silently deleted, because it was a deliberate
+          piece of the argument and not filler: a page that states its own
+          limits — never sends, never books a calendar unasked, never answers
+          without a citation, never crosses tenants — is making the product's
+          real case, and those four guarantees are the ones a mentor reading
+          this for a defence would ask about.
+
+          The guarantees themselves are untouched. They are still enforced in
+          code, still recorded in `PRODUCT.md`, and still stated in the console
+          beside the features they constrain. Only the marketing section is
+          gone. Do not re-add it without asking, and do not read its absence as
+          the constraints having been relaxed.
+        */}
 
         {/* ── The one call to action ───────────────────────────────────────── */}
         <section className="border-t border-border">
@@ -362,35 +382,6 @@ const PIPELINE = [
     body:
       'The new row is pushed to the console over a live connection scoped, by ' +
       'the database itself, to the one account allowed to see it.',
-  },
-];
-
-const LIMITS = [
-  {
-    title: 'It never sends anything',
-    body:
-      'Read-only on every channel. There is no compose box and no reply button, ' +
-      'and the credentials it holds are not permitted to send.',
-  },
-  {
-    title: 'It never books your calendar for you',
-    body:
-      'A meeting found in a message is a proposal, shown beside the sentence it ' +
-      'came from. It becomes a real event when you press the button and not one ' +
-      'moment earlier.',
-  },
-  {
-    title: 'It never answers without a source',
-    body:
-      'The assistant cites the messages it used, and a citation opens the message ' +
-      'in full. When it has nothing to cite it says so instead of guessing.',
-  },
-  {
-    title: 'It never shows you someone else’s mail',
-    body:
-      'Every row in every table is owned by exactly one account and the database ' +
-      'enforces it, not the application. A test asserts that boundary on every ' +
-      'single push, and fails the build when it slips.',
   },
 ];
 

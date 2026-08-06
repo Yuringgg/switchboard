@@ -42,11 +42,14 @@ import { cn } from '@/lib/utils';
 export function TimelineFilter({
   selected,
   connectedTypes,
+  view,
 }: {
   /** Channel types currently in the URL. Empty means every line. */
   selected: string[];
   /** Which of them the reader actually has. */
   connectedTypes: string[];
+  /** Which layout the record is in. See `TimelineSplit`. */
+  view: 'merged' | 'split';
 }) {
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -62,8 +65,53 @@ export function TimelineFilter({
       ref={formRef}
       action="/"
       method="get"
-      className="mb-6 flex flex-wrap items-center gap-x-3 gap-y-2"
+      className="mb-6 flex flex-wrap items-center gap-x-5 gap-y-2.5"
     >
+      {/*
+        ── The layout switch (Yuri, 2026-08-06) ────────────────────────────────
+
+        ⚠ Radio inputs, not two links. Three reasons, and the third is the one
+        that decided it: a radio group is one tab stop with arrow-key movement
+        rather than two, it announces "2 of 2" so a screen-reader user knows it
+        is a choice rather than two unrelated buttons — and it rides inside this
+        form, so switching the layout PRESERVES the channel filter. Two links
+        would each have to reconstruct the whole query string, and the first
+        time somebody adds a third filter one of them will be forgotten.
+      */}
+      <fieldset className="flex items-center gap-1.5">
+        <legend className={cn(LABEL, 'float-left mr-2.5')}>View</legend>
+
+        <div className="flex items-center gap-0.5 rounded-md border border-border bg-panel p-0.5">
+          {VIEWS.map(({ value, label, hint }) => {
+            const checked = view === value;
+
+            return (
+              <label
+                key={value}
+                title={hint}
+                className={cn(
+                  'cursor-pointer rounded-[5px] px-2.5 py-1 text-note transition-colors',
+                  'has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/45',
+                  checked
+                    ? 'bg-accent font-medium text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="view"
+                  value={value}
+                  defaultChecked={checked}
+                  onChange={submit}
+                  className="sr-only"
+                />
+                {label}
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+
       <fieldset className="flex flex-wrap items-center gap-1.5">
         <legend className={cn(LABEL, 'float-left mr-2.5')}>Lines</legend>
 
@@ -136,8 +184,14 @@ export function TimelineFilter({
         route is what "show everything" actually means.
       */}
       {active && (
+        /*
+         * ⚠ The layout is preserved in this link and the channel filter is
+         * not — which is the whole point. "Show both lines" clears the filter;
+         * it is not a general reset, and dropping `view` here would silently
+         * throw away a layout choice the reader made separately.
+         */
         <Link
-          href="/"
+          href={view === 'merged' ? '/?view=merged' : '/'}
           className={cn(buttonClass({ variant: 'ghost', size: 'sm' }), '-my-1')}
         >
           <X className="size-3" aria-hidden />
@@ -147,3 +201,16 @@ export function TimelineFilter({
     </form>
   );
 }
+
+const VIEWS = [
+  {
+    value: 'split',
+    label: 'Split',
+    hint: 'One column per line — Gmail on the left, WhatsApp on the right.',
+  },
+  {
+    value: 'merged',
+    label: 'Merged',
+    hint: 'Every line in one record, in the order things happened.',
+  },
+] as const;

@@ -102,6 +102,143 @@ export function Timeline({
 }
 
 /**
+ * The same record, one column per line (Yuri, 2026-08-06).
+ *
+ * ── ⚠ What this gives up, stated because it is the product's own thesis ──────
+ *
+ * `Timeline` above exists to prove one claim: messages from different places
+ * are ONE ordered record. Splitting them puts that claim down. What you can no
+ * longer see at a glance is the thing the merged view is for — that the client
+ * answered on WhatsApp forty minutes after their colleague emailed, and which
+ * came first.
+ *
+ * It is still worth having, and the reason is not aesthetic. Two channels
+ * arriving at very different rates interleave badly: forty newsletters between
+ * two chat messages buries the chat thread, and "read what this person said, in
+ * sequence" is a real task the merged view answers poorly. So both exist, the
+ * choice is in the URL, and neither is hidden.
+ *
+ * ── What carries over, and must ──────────────────────────────────────────────
+ *
+ * ⚠ **Channel identity is still named in words.** In the merged view that is
+ * `channelChangePoints`; here it is the column heading, which is strictly
+ * better — every row is under a heading that says which line it is. The rule
+ * (WCAG 1.4.1, and the one question this console exists to answer) is met
+ * either way, and `showChannel` is therefore off on every row: a per-row badge
+ * under a heading that already says "Gmail" is noise.
+ *
+ * ⚠ **Days are still grouped, per column.** A flat list of fifty rows with no
+ * date structure is worse than either view.
+ */
+export function TimelineSplit({
+  messages,
+  channelTypeById,
+  truncated = false,
+}: {
+  messages: TimelineMessage[];
+  channelTypeById: Map<string, string>;
+  truncated?: boolean;
+}) {
+  const byType = new Map<string, TimelineMessage[]>();
+
+  for (const message of messages) {
+    // ⚠ `unknown` is a real bucket, not a fallback to hide. A message whose
+    // channel row failed to load has to appear SOMEWHERE — dropping it would
+    // make a loading failure look like missing mail, which is the one shape of
+    // wrong this console keeps paying for.
+    const type = channelTypeById.get(message.channel_id) ?? 'unknown';
+    const bucket = byType.get(type);
+    if (bucket) bucket.push(message);
+    else byType.set(type, [message]);
+  }
+
+  const columns = [
+    ...CHANNELS.map((c) => ({
+      key: c.type,
+      label: c.label,
+      dotClass: c.dotClass,
+      messages: byType.get(c.type) ?? [],
+    })),
+    ...(byType.has('unknown')
+      ? [
+          {
+            key: 'unknown',
+            label: 'Unknown line',
+            dotClass: 'bg-faint',
+            messages: byType.get('unknown')!,
+          },
+        ]
+      : []),
+  ];
+
+  return (
+    <div>
+      <NewMessages />
+      <TimelineKeys />
+
+      {/*
+        ⚠ Stacked below `lg`, never side-scrolled. Two 300px columns on a phone
+        is two unreadable columns; one after the other is two readable ones.
+        `min-w-0` on each track for the same reason the board needs it — a long
+        unbreakable subject would otherwise widen its column and shove the
+        other one off the screen.
+      */}
+      <div className="grid gap-x-8 gap-y-10 lg:grid-cols-2">
+        {columns.map((column) => (
+          <section key={column.key} className="min-w-0">
+            <h2 className="flex items-center gap-2 border-b border-border pb-2.5">
+              <span
+                className={cn('size-1.5 shrink-0 rounded-full', column.dotClass)}
+                aria-hidden
+              />
+              <span className={cn(LABEL, 'text-foreground')}>{column.label}</span>
+              <span className="ml-auto font-mono text-meta text-muted-foreground">
+                {String(column.messages.length).padStart(2, '0')}
+              </span>
+            </h2>
+
+            {column.messages.length === 0 ? (
+              <p className="mt-3 rounded-lg border border-dashed border-border px-3 py-8 text-center text-note text-muted-foreground">
+                Nothing on this line yet.
+              </p>
+            ) : (
+              <div className="mt-5 space-y-8">
+                {groupByDay(column.messages).map((day) => (
+                  <section key={day.date}>
+                    <h3 className="mb-3 flex items-center gap-3">
+                      <time dateTime={day.date} className={LABEL}>
+                        {formatDay(day.date)}
+                      </time>
+                      <span className="h-px flex-1 bg-border" aria-hidden />
+                    </h3>
+
+                    <ul>
+                      {day.messages.map((message, index) => (
+                        <MessageRow
+                          key={message.id}
+                          message={message}
+                          channelLabel={column.label}
+                          dotClass={column.dotClass}
+                          // The column heading already names the line.
+                          showChannel={false}
+                          isLast={index === day.messages.length - 1}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
+
+      <TimelineFoot count={messages.length} truncated={truncated} />
+    </div>
+  );
+}
+
+/**
  * The end of the record.
  *
  * Two jobs in one line, and they belong together — this is the moment you have

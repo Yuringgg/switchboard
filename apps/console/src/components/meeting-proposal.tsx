@@ -1,8 +1,9 @@
 'use client';
 
 import { CalendarCheck, CalendarPlus } from 'lucide-react';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import type { AttentionItem } from '@/lib/attention';
 import { toManilaInput } from '@/lib/manila';
 import type { ConfirmResult } from '@/lib/proposals';
@@ -63,10 +64,62 @@ export function MeetingProposal({
     );
   }
 
-  const start = item.startsAt ? toManilaInput(item.startsAt) : '';
+  return <ProposalForm item={item} submit={submit} pending={pending} result={result} />;
+}
+
+/**
+ * Split out so the picker state has somewhere to live below the early return
+ * above — hooks cannot sit after a conditional `return`.
+ */
+function ProposalForm({
+  item,
+  submit,
+  pending,
+  result,
+}: {
+  item: AttentionItem;
+  submit: (formData: FormData) => void;
+  pending: boolean;
+  result: ConfirmResult | null;
+}) {
+  /*
+   * ⚠ Held as state now, not as `defaultValue` on two `datetime-local` inputs.
+   *
+   * The reason is the one below: moving the start has to move the end with it.
+   * With uncontrolled inputs a reader who corrects a 3pm meeting to 4pm gets an
+   * event that ends before it begins, and Google rejects that with a 400 whose
+   * message names neither field.
+   */
+  const [start, setStart] = useState(
+    item.startsAt ? toManilaInput(item.startsAt) : '',
+  );
   // An hour, when the message named no end. Stated in the label rather than
   // slipped in, because a duration nobody chose is still a claim.
-  const end = item.startsAt ? toManilaInput(item.startsAt, 60) : '';
+  const [end, setEnd] = useState(
+    item.startsAt ? toManilaInput(item.startsAt, 60) : '',
+  );
+
+  /**
+   * Moving the start drags the end along, preserving the gap the reader chose.
+   *
+   * ⚠ Computed on the wall-clock string via `Date.UTC`, never by constructing a
+   * zoned `Date` from the parts — the same rule the picker itself follows and
+   * for the same reason `lib/manila.ts` exists. Treating these strings as UTC
+   * for arithmetic and printing them back unchanged is what keeps the value the
+   * reader approved identical to the one the action receives.
+   */
+  const moveStart = (next: string) => {
+    const before = toUtcMs(start);
+    const after = toUtcMs(next);
+    setStart(next);
+
+    if (before === null || after === null) return;
+
+    const endMs = toUtcMs(end);
+    // No usable end yet: default to an hour after the new start.
+    const gap = endMs === null ? 3_600_000 : Math.max(endMs - before, 60_000);
+    setEnd(fromUtcMs(after + gap));
+  };
 
   return (
     <section className="mt-6 rounded-md border border-border bg-panel p-4">
@@ -97,27 +150,32 @@ export function MeetingProposal({
           />
         </label>
 
+        {/*
+          ⚠ A real picker rather than two `datetime-local` inputs.
+
+          The native control is keyboard-accessible and localised for free,
+          which is why it was the right first version — but it renders as a
+          different widget in every browser, its month grid cannot be styled at
+          all, and on this screen it is the control that decides what lands on
+          somebody's real calendar. `components/ui/date-time-picker.tsx` is one
+          widget everywhere, in this console's own voice, and it submits the
+          identical `YYYY-MM-DDTHH:mm` string through a hidden input — so
+          `manilaInputToRfc3339` on the server is untouched.
+        */}
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1">
-            <span className={LABEL}>Starts</span>
-            <input
-              type="datetime-local"
-              name="startsAtLocal"
-              defaultValue={start}
-              required
-              className="focus-ring h-9 rounded-md border border-border bg-background px-2.5 text-row"
-            />
-          </label>
-          <label className="grid gap-1">
-            <span className={LABEL}>Ends {!item.startsAt && '(no time given)'}</span>
-            <input
-              type="datetime-local"
-              name="endsAtLocal"
-              defaultValue={end}
-              required
-              className="focus-ring h-9 rounded-md border border-border bg-background px-2.5 text-row"
-            />
-          </label>
+          <DateTimePicker
+            name="startsAtLocal"
+            label="Starts"
+            value={start}
+            onChange={moveStart}
+          />
+          <DateTimePicker
+            name="endsAtLocal"
+            label="Ends"
+            hint={item.startsAt ? undefined : '(no time given)'}
+            value={end}
+            onChange={setEnd}
+          />
         </div>
 
         <label className="grid gap-1">
@@ -181,6 +239,32 @@ export function MeetingProposal({
       </form>
     </section>
   );
+}
+
+/**
+ * `YYYY-MM-DDTHH:mm` → milliseconds, treating the wall clock as UTC.
+ *
+ * ⚠ That is deliberate and it is not a bug. These strings are Manila wall
+ * clock; treating them as UTC for *arithmetic* and printing them back the same
+ * way is exact, because the offset cancels. Parsing them with `new Date(str)`
+ * would apply the reader's own zone, and a user in another timezone would see
+ * the end field jump by that offset the first time they touched the start.
+ */
+function toUtcMs(local: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(local);
+  if (!m) return null;
+  return Date.UTC(
+    Number(m[1]),
+    Number(m[2]) - 1,
+    Number(m[3]),
+    Number(m[4]),
+    Number(m[5]),
+  );
+}
+
+/** The inverse. `toISOString` is UTC, which is what `toUtcMs` encoded. */
+function fromUtcMs(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 16);
 }
 
 function formatLocal(iso: string): string {

@@ -553,6 +553,153 @@
 }
 
 /*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE AUTH SCREENS — components/ui/box-reveal.tsx, switchboard-orbit.tsx
+ *
+ * ── ⚠ Why these are CSS and the component they came from used a library ──────
+ *
+ * The reveal and the orbit were supplied as a framer-motion component built on
+ * `useInView` (an IntersectionObserver) and `useAnimation`. Dropped in as
+ * given, both would have shipped a BLANK SIGN-IN PAGE here:
+ *
+ *   · `useInView` gates the content behind `opacity: 0` until the observer
+ *     fires. This project's browser pane delivers **zero** IntersectionObserver
+ *     callbacks, and so does any headless renderer or a tab that is never
+ *     painted. The observer not firing is not a degraded animation; it is a
+ *     login form nobody can see.
+ *   · A scroll-triggered reveal is the wrong mechanism regardless: the auth
+ *     form is above the fold by definition, so there is no scroll to trigger on.
+ *
+ * Rewritten so the RESTING STATE IS THE FINISHED STATE. Content sits at full
+ * opacity with no transform; the animation only takes it away and gives it
+ * back, and the wiping bar parks off-screen to the right when nothing runs.
+ * Under `prefers-reduced-motion` the global rule collapses every one of these
+ * to its base style, which is the completed layout — see the note on
+ * `@keyframes cord-signal` for the same reasoning applied to the landing page.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+
+/* The content rising as the bar clears it. ⚠ Ends at the base style, never
+   starts from it — see above. */
+@keyframes reveal-rise {
+  0%,
+  18% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The bar itself, sliding off to the right. */
+@keyframes reveal-bar {
+  0%,
+  18% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(101%);
+  }
+}
+
+@utility reveal {
+  position: relative;
+
+  & > * {
+    animation: reveal-rise 0.62s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: inherit;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 1px 0;
+    z-index: 5;
+    border-radius: 3px;
+    /* The console's ink, not the snippet's indigo. This bar is a shutter, not
+       a brand colour — a fifth hue on a screen that spends colour on channel
+       identity and liveness only would be the one thing this design refuses. */
+    background: var(--foreground);
+    transform: translateX(101%);
+    animation: reveal-bar 0.62s cubic-bezier(0.7, 0, 0.3, 1) both;
+    animation-delay: inherit;
+    pointer-events: none;
+  }
+}
+
+/*
+ * The spotlight that follows the pointer across a field.
+ *
+ * ⚠ `--x`/`--y` are written by a plain `pointermove` handler, NOT by a motion
+ * value on a rAF loop. The original used `useMotionValue` + `useMotionTemplate`,
+ * which is a per-frame subscription for something the compositor can do from
+ * two custom properties. Setting them directly also means the effect degrades
+ * to "no spotlight" rather than to a broken input if scripting never runs.
+ *
+ * `--ring` rather than the snippet's `#3b82f6`: this is a focus affordance and
+ * the console already has exactly one colour for that.
+ */
+@utility field-spotlight {
+  position: relative;
+  border-radius: calc(var(--radius) + 2px);
+  padding: 1.5px;
+  background: var(--border);
+  transition: background 0.25s ease;
+
+  &:hover,
+  &:focus-within {
+    background: radial-gradient(
+      92px circle at var(--x, 50%) var(--y, 50%),
+      color-mix(in oklch, var(--ring) 70%, transparent),
+      var(--border) 78%
+    );
+  }
+}
+
+/*
+ * ── The orbit, on the auth screens' left panel ───────────────────────────────
+ *
+ * ⚠ `--radius` here is a NUMBER of pixels, deliberately unitless, because the
+ * keyframe multiplies it (`calc(var(--radius) * 1px)`). It shadows nothing —
+ * the design token is `--radius` on `:root` and is a length — so an element
+ * carrying this must set its own. Named `--orbit-radius` for exactly that
+ * reason; the snippet's `--radius` would have silently overridden the corner
+ * radius of everything inside it.
+ */
+@keyframes orbit {
+  0% {
+    transform: rotate(0deg) translateY(calc(var(--orbit-radius) * 1px)) rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg) translateY(calc(var(--orbit-radius) * 1px))
+      rotate(-360deg);
+  }
+}
+
+@utility animate-orbit {
+  animation: orbit calc(var(--orbit-duration, 20) * 1s) linear infinite;
+  animation-delay: calc(var(--orbit-delay, 0) * -1s);
+}
+
+/* The rings behind it, breathing. Slow — this sits on screen for as long as
+   somebody is typing a password. */
+@keyframes ripple {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(0.94);
+  }
+}
+
+@utility animate-ripple {
+  animation: ripple 4.5s ease-in-out infinite;
+}
+
+/*
  * The assistant's blink — `components/ui/shader-svg.tsx`.
  *
  * ⚠ `ry` is a CSS *length*, so the value needs a unit. The source snippet this

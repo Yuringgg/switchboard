@@ -41,11 +41,33 @@ export function SwitchboardMark({ className }: { className?: string }) {
  * voice the console uses for everything the machine knows, which is what the
  * name is here: the label on the panel.
  */
-export function Brand({ className }: { className?: string }) {
+export function Brand({
+  className,
+  /**
+   * `sm` is the console's own size — the wordmark sits in a 256px rail and must
+   * not compete with the page title beside it.
+   *
+   * `lg` exists for the landing page, where the same mark is the *only* thing
+   * identifying the product to a stranger and sits alone in a 1152px header.
+   * Yuri's note on 2026-08-06 was that everything up there read as tiny, and it
+   * did: a 12px wordmark under a 72px headline is a rounding error.
+   */
+  size = 'sm',
+}: {
+  className?: string;
+  size?: 'sm' | 'lg';
+}) {
+  const large = size === 'lg';
+
   return (
-    <span className={cn('flex items-center gap-2.5', className)}>
-      <SwitchboardMark />
-      <span className="font-mono text-[12px] leading-none font-medium tracking-[0.2em] uppercase">
+    <span className={cn('flex items-center', large ? 'gap-3' : 'gap-2.5', className)}>
+      <SwitchboardMark className={large ? 'size-[22px]' : undefined} />
+      <span
+        className={cn(
+          'font-mono leading-none font-medium tracking-[0.2em] uppercase',
+          large ? 'text-[15px]' : 'text-[12px]',
+        )}
+      >
         Switchboard
       </span>
     </span>

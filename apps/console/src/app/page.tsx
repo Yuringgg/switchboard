@@ -5,7 +5,12 @@ import { Suspense } from 'react';
 
 import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
-import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
+import {
+  Timeline,
+  TimelineEmpty,
+  TimelineSkeleton,
+  TimelineSplit,
+} from '@/components/timeline';
 import { TimelineFilter } from '@/components/timeline-filter';
 import { fetchChannels, type ChannelRow } from '@/lib/channels';
 import { createClient } from '@/lib/supabase/server';
@@ -19,8 +24,12 @@ type ChannelsResult = Promise<{ channels: ChannelRow[]; error: string | null }>;
 export default async function TimelinePage({
   searchParams,
 }: {
-  /** `?channel=gmail`, repeatable. See `parseChannelFilter` in lib/timeline.ts. */
-  searchParams: Promise<{ channel?: string | string[] }>;
+  searchParams: Promise<{
+    /** `?channel=gmail`, repeatable. See `parseChannelFilter` in lib/timeline.ts. */
+    channel?: string | string[];
+    /** `?view=merged` — anything else, including absent, is the split layout. */
+    view?: string;
+  }>;
 }) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -49,6 +58,22 @@ export default async function TimelinePage({
    * forbidden — narrowing the view on request is not.
    */
   const selectedTypes = parseChannelFilter(params.channel, CHANNEL_TYPES);
+
+  /*
+   * ⚠ SPLIT IS THE DEFAULT, and that is a decision worth flagging to whoever
+   * reads this next.
+   *
+   * The merged record is this product's central claim — many lines in, one
+   * operator's view out — and it is what Ms. Maria reviewed. Defaulting to two
+   * columns puts that claim one click away rather than on screen. Yuri asked
+   * for it directly on 2026-08-06 ("left side is gmail, right side is
+   * whatsapp… they are separate and all") and it is the chief's call, but the
+   * merged view is the one to open for a demo. `?view=merged`.
+   *
+   * Read permissively: only the exact string `merged` selects it, so a typo or
+   * a stale link lands on the default rather than on a blank screen.
+   */
+  const view: 'merged' | 'split' = params.view === 'merged' ? 'merged' : 'split';
 
   const channels = fetchChannels(supabase);
 
@@ -82,7 +107,7 @@ export default async function TimelinePage({
         it is meant to control.
       */}
       <Suspense fallback={<FilterFallback />}>
-        <Filter channels={channels} selectedTypes={selectedTypes} />
+        <Filter channels={channels} selectedTypes={selectedTypes} view={view} />
       </Suspense>
 
       {/*
@@ -97,6 +122,7 @@ export default async function TimelinePage({
           channels={channels}
           selectedTypes={selectedTypes}
           unfiltered={unfiltered}
+          view={view}
         />
       </Suspense>
     </AppShell>
@@ -107,9 +133,11 @@ export default async function TimelinePage({
 async function Filter({
   channels,
   selectedTypes,
+  view,
 }: {
   channels: ChannelsResult;
   selectedTypes: string[];
+  view: 'merged' | 'split';
 }) {
   const { channels: rows } = await channels;
 
@@ -117,6 +145,7 @@ async function Filter({
     <TimelineFilter
       selected={selectedTypes}
       connectedTypes={[...new Set(rows.map((c) => c.type))]}
+      view={view}
     />
   );
 }
@@ -136,12 +165,14 @@ async function TimelineSection({
   channels,
   selectedTypes,
   unfiltered,
+  view,
 }: {
   supabase: Awaited<ReturnType<typeof createClient>>;
   channels: ChannelsResult;
   selectedTypes: string[];
   /** Already in flight when no filter is applied; null when one is. */
   unfiltered: TimelineResult | null;
+  view: 'merged' | 'split';
 }) {
   const { channels: rows, error: channelsError } = await channels;
 
@@ -167,11 +198,19 @@ async function TimelineSection({
       )}
 
       {messages.length > 0 ? (
-        <Timeline
-          messages={messages}
-          channelTypeById={channelTypeById}
-          truncated={truncated}
-        />
+        view === 'split' ? (
+          <TimelineSplit
+            messages={messages}
+            channelTypeById={channelTypeById}
+            truncated={truncated}
+          />
+        ) : (
+          <Timeline
+            messages={messages}
+            channelTypeById={channelTypeById}
+            truncated={truncated}
+          />
+        )
       ) : (
         <TimelineEmpty
           connectedTypes={[...new Set(rows.map((c) => c.type))]}

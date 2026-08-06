@@ -50,6 +50,8 @@ export default async function AttentionPage() {
       userId={user.id}
       activeHref="/attention"
       channels={channels}
+      // The only screen laid out across rather than down — see AppShell.
+      width="wide"
     >
       <Suspense fallback={<QueueSkeleton />}>
         <Queue attention={attention} channels={channels} />

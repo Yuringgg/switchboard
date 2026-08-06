@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { AuthCard } from '@/components/auth/auth-card';
 import { EmailField, PasswordField } from '@/components/auth/fields';
 import { SubmitButton } from '@/components/auth/submit-button';
+import { BoxReveal } from '@/components/ui/box-reveal';
 import { signUp } from '@/lib/auth-actions';
 
 export const metadata: Metadata = { title: 'Create an account · Switchboard' };
@@ -32,17 +33,21 @@ export default async function SignupPage({
         </>
       }
     >
-      <form action={signUp} className="mt-6 space-y-3.5">
+      <form action={signUp} className="mt-7 space-y-4">
         <input type="hidden" name="next" value={next} />
         <EmailField />
         <PasswordField mode="signup" />
-        <SubmitButton>Create account</SubmitButton>
+        <BoxReveal delay={0.3} className="pt-1">
+          <SubmitButton>Create account</SubmitButton>
+        </BoxReveal>
       </form>
 
-      <p className="mt-3.5 text-note text-muted-foreground">
-        We&rsquo;ll email you a confirmation link. You won&rsquo;t be signed in until
-        you click it.
-      </p>
+      <BoxReveal delay={0.36} className="mt-4">
+        <p className="text-note text-muted-foreground">
+          We&rsquo;ll email you a confirmation link. You won&rsquo;t be signed in
+          until you click it.
+        </p>
+      </BoxReveal>
     </AuthCard>
   );
 }

@@ -15,7 +15,12 @@ import {
   SearchResults,
   SearchSkeleton,
 } from '@/components/search-results';
-import { Timeline, TimelineEmpty, TimelineSkeleton } from '@/components/timeline';
+import {
+  Timeline,
+  TimelineEmpty,
+  TimelineSkeleton,
+  TimelineSplit,
+} from '@/components/timeline';
 import { TimelineFilter } from '@/components/timeline-filter';
 import type { AssistantAnswer } from '@/lib/assistant';
 import type { AttentionItem } from '@/lib/attention';
@@ -449,11 +454,20 @@ function contactFixtures(merged: boolean): ContactSummary[] {
 export default async function PreviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ state?: string; screen?: string }>;
+  searchParams: Promise<{ state?: string; screen?: string; view?: string }>;
 }) {
   if (process.env.NODE_ENV !== 'development') notFound();
 
-  const { state = 'messages', screen = 'timeline' } = await searchParams;
+  const {
+    state = 'messages',
+    screen = 'timeline',
+    // ⚠ Defaults to `merged` here and to `split` on the real timeline, and
+    // that asymmetry is deliberate: this harness exists to look at ONE thing at
+    // a time, and the merged record is the layout whose day grouping, channel
+    // change points and lamp rail are the parts worth reviewing. `?view=split`
+    // shows the other.
+    view = 'merged',
+  } = await searchParams;
 
   const rows =
     state === 'unconnected'
@@ -579,11 +593,15 @@ export default async function PreviewPage({
     return (
       <AppShell
         title="Needs attention"
-        description="Meetings, commitments and requests found in your messages."
+        description="Meetings, commitments and requests found in your messages, as a board."
         userEmail="preview@switchboard.local"
         userId={PREVIEW_USER_ID}
         activeHref="/attention"
         channels={channels}
+        // ⚠ Must match `/attention`. A harness rendering the board at a
+        // different measure than production shows column widths nobody will
+        // ever see — which is the one thing a preview must not do.
+        width="wide"
       >
         {items.length === 0 ? (
           <AttentionEmpty extracted={state !== 'unread'} />
@@ -748,19 +766,31 @@ export default async function PreviewPage({
       <TimelineFilter
         selected={[]}
         connectedTypes={[...new Set(rows.map((c) => c.type))]}
+        // ⚠ Reflects what is actually rendered below. A switch reporting the
+        // wrong state is worse than no switch — this harness exists to be
+        // trusted about what a screen looks like.
+        view={view === 'split' ? 'split' : 'merged'}
       />
 
       <Suspense fallback={<TimelineSkeleton />}>
         {state === 'loading' ? (
           <TimelineSkeleton />
         ) : messages.length > 0 ? (
-          <Timeline
-            messages={messages}
-            channelTypeById={channelTypeById}
-            // So the "Latest N messages" footer can be looked at without
-            // needing 51 real messages in the database.
-            truncated={state === 'messages'}
-          />
+          view === 'split' ? (
+            <TimelineSplit
+              messages={messages}
+              channelTypeById={channelTypeById}
+              truncated={state === 'messages'}
+            />
+          ) : (
+            <Timeline
+              messages={messages}
+              channelTypeById={channelTypeById}
+              // So the "Latest N messages" footer can be looked at without
+              // needing 51 real messages in the database.
+              truncated={state === 'messages'}
+            />
+          )
         ) : (
           <TimelineEmpty
             connectedTypes={rows.map((c) => c.type)}

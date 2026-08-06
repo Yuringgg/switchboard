@@ -43,9 +43,23 @@ const OPTIONS: { value: Theme; label: string; icon: LucideIcon }[] = [
   { value: 'system', label: 'System', icon: Monitor },
 ];
 
-export function ThemeToggle({ className }: { className?: string }) {
+export function ThemeToggle({
+  className,
+  /**
+   * `md` is for surfaces seen by somebody who is not signed in — the landing
+   * page and the auth screens. 24px targets are fine tucked into a console
+   * sidebar you use every day; they are not fine as one of three controls on
+   * the first page a stranger sees, which was Yuri's note on 2026-08-06.
+   * 28px also clears WCAG 2.5.8's 24px minimum with room rather than exactly.
+   */
+  size = 'sm',
+}: {
+  className?: string;
+  size?: 'sm' | 'md';
+}) {
   const name = useId();
   const theme = useSyncExternalStore(subscribeTheme, getTheme, getServerTheme);
+  const large = size === 'md';
 
   return (
     <fieldset className={cn('flex items-center', className)}>
@@ -60,7 +74,8 @@ export function ThemeToggle({ className }: { className?: string }) {
               key={value}
               title={label}
               className={cn(
-                'flex size-6 cursor-pointer items-center justify-center rounded-[5px] transition-colors',
+                'flex cursor-pointer items-center justify-center rounded-[5px] transition-colors',
+                large ? 'size-7' : 'size-6',
                 'has-focus-visible:ring-[3px] has-focus-visible:ring-ring/45',
                 active
                   ? 'bg-accent text-foreground'
@@ -75,7 +90,7 @@ export function ThemeToggle({ className }: { className?: string }) {
                 onChange={() => setTheme(value)}
                 className="sr-only"
               />
-              <Icon className="size-3.5" aria-hidden />
+              <Icon className={large ? 'size-4' : 'size-3.5'} aria-hidden />
               <span className="sr-only">{label}</span>
             </label>
           );
