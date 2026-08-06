@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { AuthCard } from '@/components/auth/auth-card';
 import { EmailField, PasswordField } from '@/components/auth/fields';
 import { SubmitButton } from '@/components/auth/submit-button';
-import { BoxReveal } from '@/components/ui/box-reveal';
 import { signIn } from '@/lib/auth-actions';
 
 export const metadata: Metadata = { title: 'Sign in · Switchboard' };
@@ -51,11 +50,9 @@ export default async function LoginPage({
         <input type="hidden" name="next" value={next} />
         <EmailField />
         <PasswordField mode="signin" />
-        {/* Last in the reveal stack, so the shutters clear downward and land on
-            the control the visitor is reaching for. */}
-        <BoxReveal delay={0.3} className="pt-1">
+        <div className="pt-1">
           <SubmitButton>Sign in</SubmitButton>
-        </BoxReveal>
+        </div>
       </form>
     </AuthCard>
   );

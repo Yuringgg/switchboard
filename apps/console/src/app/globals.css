@@ -579,54 +579,92 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-/* The content rising as the bar clears it. ⚠ Ends at the base style, never
-   starts from it — see above. */
-@keyframes reveal-rise {
-  0%,
-  18% {
-    opacity: 0;
-    transform: translateY(14px);
+/*
+ * ⚠⚠ THE `reveal` SHUTTER WAS REMOVED ON 2026-08-06. DO NOT BRING IT BACK
+ *    WITHOUT READING THIS.
+ *
+ * It was a bar that covered each element and slid off to the right on load. It
+ * shipped, and it shipped **visibly broken**: at rest the bar sat at
+ * `translateX(101%)`, which is only "hidden" if something clips it. Nothing
+ * did — `overflow: hidden` was deliberately left off so the bar could not clip
+ * a focus ring on the inputs underneath — so every element on the sign-in page
+ * rendered with a solid white rectangle parked beside it, down the whole right
+ * edge of the form. Yuri's screenshot, and it is unmistakable.
+ *
+ * The two constraints are genuinely in tension: a wipe needs clipping, and the
+ * fields need their focus rings unclipped. A wrapper with `overflow: hidden`
+ * plus generous padding would resolve it, and it was not worth the complexity —
+ * the entrance motion on this screen is now carried by the background instead,
+ * where it costs nothing and cannot cover a control.
+ *
+ * The lesson is the one this stylesheet keeps re-learning in a new costume:
+ * **an animation's resting frame is a thing you have to look at**, not a thing
+ * you can reason about. The reveal passed the "is anything at opacity 0?" check
+ * that the landing page's figure was written against, because nothing was
+ * transparent — the defect was an element that was fully opaque and in the
+ * wrong place.
+ */
+
+/*
+ * ── The auth backdrop's flowing lines — components/ui/auth-backdrop.tsx ──────
+ *
+ * Adapted from a `FloatingPaths` component that animated `pathLength` and
+ * `pathOffset` on 72 `motion.path`s through framer-motion. Two problems with
+ * taking that as given, and the second is the one that decided it:
+ *
+ *   · 72 paths on a rAF loop is 72 style writes a frame, on the screen a
+ *     visitor sees first and on whatever device they have.
+ *   · framer-motion drives it from JavaScript, so it does not run at all in a
+ *     renderer with no rAF — including this project's own browser pane.
+ *
+ * `stroke-dashoffset` on a `pathLength="100"` path expresses the identical
+ * effect, and the compositor owns it. Same trick the landing page's cords use;
+ * the arithmetic is worked out in full on `@keyframes cord-signal`.
+ *
+ * ⚠ At rest — reduced motion, a hidden tab, a headless render — every path
+ * keeps a visible 24-unit arc rather than vanishing. The panel is a composition
+ * either way, never an empty rectangle.
+ *
+ * ⚠ Colour comes from `currentColor` at the call site, which is `--foreground`.
+ * That is what makes it work in BOTH schemes off one declaration: dark lines on
+ * the light panel, light lines on the dark one. The original hardcoded
+ * `rgba(15,23,42,…)` and then had to patch it with `dark:text-white`.
+ */
+@keyframes path-flow {
+  from {
+    stroke-dashoffset: 0;
   }
-  100% {
-    opacity: 1;
-    transform: none;
+  to {
+    stroke-dashoffset: -100;
   }
 }
 
-/* The bar itself, sliding off to the right. */
-@keyframes reveal-bar {
-  0%,
-  18% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(101%);
-  }
+@utility animate-path-flow {
+  stroke-dasharray: 24 76;
+  animation: path-flow linear infinite;
+  animation-duration: calc(var(--flow-duration, 24) * 1s);
+  /* Negative, so each path starts mid-cycle instead of every one of them
+     setting off from the same point on the first frame. */
+  animation-delay: calc(var(--flow-delay, 0) * -1s);
 }
 
-@utility reveal {
-  position: relative;
-
-  & > * {
-    animation: reveal-rise 0.62s cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: inherit;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 1px 0;
-    z-index: 5;
-    border-radius: 3px;
-    /* The console's ink, not the snippet's indigo. This bar is a shutter, not
-       a brand colour — a fifth hue on a screen that spends colour on channel
-       identity and liveness only would be the one thing this design refuses. */
-    background: var(--foreground);
-    transform: translateX(101%);
-    animation: reveal-bar 0.62s cubic-bezier(0.7, 0, 0.3, 1) both;
-    animation-delay: inherit;
-    pointer-events: none;
-  }
+/*
+ * The soft light behind the form column.
+ *
+ * ⚠ `color-mix`, not the snippet's `--theme(--color-foreground/.06)`. That
+ * function is Tailwind-v4-only sugar that resolves at build time and reads as
+ * valid CSS while doing nothing if the arbitrary-value parser ever changes.
+ * `color-mix` is the actual platform feature and it composes against whatever
+ * `--foreground` currently is — so this glow inverts with the theme for free
+ * instead of needing a `dark:` twin.
+ */
+@utility auth-glow {
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklch, var(--foreground) 7%, transparent) 0%,
+    color-mix(in oklch, var(--foreground) 2%, transparent) 55%,
+    transparent 100%
+  );
 }
 
 /*

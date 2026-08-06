@@ -1,4 +1,5 @@
-import { BoxReveal } from '@/components/ui/box-reveal';
+import { AtSign } from 'lucide-react';
+
 import { PasswordInput, SpotlightField } from '@/components/ui/spotlight-field';
 import { MIN_PASSWORD_LENGTH } from '@/lib/auth-constants';
 
@@ -6,14 +7,14 @@ import { MIN_PASSWORD_LENGTH } from '@/lib/auth-constants';
  * The auth inputs.
  *
  * ⚠ These stay uncontrolled server-rendered inputs inside a `<form action={…}>`
- * that posts to a server action. The component this styling was adapted from
- * held every value in `useState` and validated in the browser; the visual
+ * that posts to a server action. Every component this styling has been adapted
+ * from held its values in `useState` and validated in the browser; the visual
  * treatment has been taken and that architecture has not, because it would move
  * this project's authentication into the client. See the note on `AuthCard`.
  *
- * `bg-background` rather than the snippet's `bg-gray-50` / `dark:bg-zinc-800`:
- * the field sits on `--panel` here, and a hardcoded neutral would be the one
- * element on the screen that does not follow the theme.
+ * ⚠ No entrance animation. A per-element wipe shipped here once and rendered a
+ * solid rectangle beside every field — the note on `AuthCard` has the detail.
+ * The motion on this screen belongs to the backdrop.
  */
 
 const INPUT_CLASS =
@@ -22,14 +23,18 @@ const INPUT_CLASS =
 
 const LABEL_CLASS = 'block text-note font-medium';
 
-export function EmailField({ delay = 0.2 }: { delay?: number }) {
+export function EmailField() {
   return (
-    <BoxReveal delay={delay}>
-      <div className="space-y-1.5">
-        <label htmlFor="email" className={LABEL_CLASS}>
-          Email
-        </label>
-        <SpotlightField>
+    <div className="space-y-1.5">
+      <label htmlFor="email" className={LABEL_CLASS}>
+        Email
+      </label>
+      <SpotlightField>
+        <div className="relative">
+          <AtSign
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
           <input
             id="email"
             name="email"
@@ -41,11 +46,11 @@ export function EmailField({ delay = 0.2 }: { delay?: number }) {
             spellCheck={false}
             autoCapitalize="none"
             required
-            className={INPUT_CLASS}
+            className={`${INPUT_CLASS} pl-9`}
           />
-        </SpotlightField>
-      </div>
-    </BoxReveal>
+        </div>
+      </SpotlightField>
+    </div>
   );
 }
 
@@ -59,40 +64,32 @@ export function EmailField({ delay = 0.2 }: { delay?: number }) {
  * used to do — means the manager suggests an existing password and never
  * offers to store the new one.
  */
-export function PasswordField({
-  mode,
-  delay = 0.26,
-}: {
-  mode: 'signin' | 'signup';
-  delay?: number;
-}) {
+export function PasswordField({ mode }: { mode: 'signin' | 'signup' }) {
   const isSignup = mode === 'signup';
 
   return (
-    <BoxReveal delay={delay}>
-      <div className="space-y-1.5">
-        <label htmlFor="password" className={LABEL_CLASS}>
-          Password
-        </label>
-        <SpotlightField>
-          <PasswordInput
-            id="password"
-            name="password"
-            autoComplete={isSignup ? 'new-password' : 'current-password'}
-            required
-            {...(isSignup && {
-              minLength: MIN_PASSWORD_LENGTH,
-              'aria-describedby': 'password-hint',
-            })}
-            className={INPUT_CLASS}
-          />
-        </SpotlightField>
-        {isSignup && (
-          <p id="password-hint" className="text-note text-muted-foreground">
-            At least {MIN_PASSWORD_LENGTH} characters.
-          </p>
-        )}
-      </div>
-    </BoxReveal>
+    <div className="space-y-1.5">
+      <label htmlFor="password" className={LABEL_CLASS}>
+        Password
+      </label>
+      <SpotlightField>
+        <PasswordInput
+          id="password"
+          name="password"
+          autoComplete={isSignup ? 'new-password' : 'current-password'}
+          required
+          {...(isSignup && {
+            minLength: MIN_PASSWORD_LENGTH,
+            'aria-describedby': 'password-hint',
+          })}
+          className={INPUT_CLASS}
+        />
+      </SpotlightField>
+      {isSignup && (
+        <p id="password-hint" className="text-note text-muted-foreground">
+          At least {MIN_PASSWORD_LENGTH} characters.
+        </p>
+      )}
+    </div>
   );
 }
