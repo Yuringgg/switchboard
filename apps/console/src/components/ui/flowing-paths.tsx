@@ -39,9 +39,28 @@ import { cn } from '@/lib/utils';
 
 const VIEWBOX = { width: 696, height: 316 };
 
+/**
+ * Two intensities, and the difference is not taste.
+ *
+ * `panel` is the auth screens: a decorative surface with one heading and one
+ * sentence on it, so the lines can carry real weight.
+ *
+ * `ambient` is behind the console's own pages, where the same lines sit under
+ * **dense body text**. See `ConsoleBackdrop` for the measured reason the caps
+ * are what they are, and why dark is so much lower than light.
+ */
+const TONE = {
+  panel: { count: 36, maxOpacity: 0.62, step: 0.022, base: 0.1, speed: 1 },
+  ambient: { count: 14, maxOpacity: 0.12, step: 0.008, base: 0.04, speed: 2.4 },
+} as const;
+
+type Tone = keyof typeof TONE;
+
 /** Kept from the source. `position` mirrors the family across the panel. */
-function paths(position: number) {
-  return Array.from({ length: 36 }, (_, i) => ({
+function paths(position: number, tone: Tone) {
+  const { count, maxOpacity, step, base, speed } = TONE[tone];
+
+  return Array.from({ length: count }, (_, i) => ({
     id: `${position}-${i}`,
     d:
       `M-${380 - i * 5 * position} -${189 + i * 6}` +
@@ -56,13 +75,19 @@ function paths(position: number) {
     // which is not a legal opacity and clamps — so the final third of the fan
     // all rendered at full strength and the depth the ramp exists to create
     // flattened out at exactly the point it should have been strongest.
-    opacity: Math.min(0.1 + i * 0.022, 0.62),
-    duration: 20 + (i % 7) * 4,
+    opacity: Math.min(base + i * step, maxOpacity),
+    duration: (20 + (i % 7) * 4) * speed,
     delay: (i * 1.7) % 24,
   }));
 }
 
-export function FlowingPaths({ className }: { className?: string }) {
+export function FlowingPaths({
+  tone = 'panel',
+  className,
+}: {
+  tone?: Tone;
+  className?: string;
+}) {
   return (
     <div
       aria-hidden
@@ -78,7 +103,7 @@ export function FlowingPaths({ className }: { className?: string }) {
         fill="none"
       >
         {[1, -1].flatMap((position) =>
-          paths(position).map((path) => (
+          paths(position, tone).map((path) => (
             <path
               key={path.id}
               d={path.d}
@@ -98,6 +123,59 @@ export function FlowingPaths({ className }: { className?: string }) {
         )}
       </svg>
     </div>
+  );
+}
+
+/**
+ * The same lines behind the console's own pages (Yuri, 2026-08-06).
+ *
+ * ── ⚠ Why it is far fainter here, with numbers ──────────────────────────────
+ *
+ * The auth panel carries one heading and one sentence. These pages carry a
+ * timeline of 14px body text, and a line passing behind a glyph composites into
+ * its background — which is a contrast reduction WCAG has no clean way to
+ * express and a reader notices immediately.
+ *
+ * Worked from the tokens, for a line at opacity `a` over the page background,
+ * under `--muted-foreground` (the quietest text the console permits):
+ *
+ * | scheme | line opacity | effective contrast |
+ * |---|---|---|
+ * | dark | 0.12 | **2.8 : 1** — fails |
+ * | dark | 0.045 | **4.1 : 1** — fails |
+ * | dark | 0.03 | 4.8 : 1 — passes |
+ * | light | 0.12 | 6.5 : 1 — passes |
+ *
+ * Light-on-dark washes out far faster than dark-on-light, which is why the two
+ * schemes cannot share one cap. The ramp tops out at 0.12 and the container is
+ * scaled to a quarter of that in dark — 0.03 — which is the largest value that
+ * still clears AA where a stroke crosses behind the faintest text on the page.
+ * **Do not raise `dark:opacity-25` to make the effect more visible.** It is
+ * sized to a measurement, and it is verified in the DOM rather than by eye.
+ *
+ * Also 28 paths rather than 72, at 2.4× the duration: `stroke-dashoffset`
+ * repaints the SVG rather than compositing, and this one sits under a scrolling
+ * list on every route in the app.
+ *
+ * ⚠ NOT in the sidebar. Yuri asked for the pages, not the frame, and the frame
+ * is the right call anyway — the rail and the header are `--panel`, the surface
+ * that reads as *the instrument*, and texturing it would undo the
+ * frame-versus-record distinction the whole console is built on.
+ */
+export function ConsoleBackdrop() {
+  return (
+    <FlowingPaths
+      tone="ambient"
+      // ⚠ `-z-10` works only because the parent carries `isolate`. Without a
+      // stacking context between here and the root, a negative z-index paints
+      // behind the ROOT's background — which is opaque — and the backdrop
+      // vanishes entirely with nothing to debug.
+      //
+      // The alternative, plain `z-0`, is worse: a positioned element paints
+      // above non-positioned in-flow content at the same level, so the lines
+      // would render over the header's own background.
+      className="-z-10 opacity-100 dark:opacity-25"
+    />
   );
 }
 

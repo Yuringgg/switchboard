@@ -5,6 +5,7 @@ import { Brand } from '@/components/brand';
 import { ConsoleNav } from '@/components/console-nav';
 import { Live, LiveStatus, SCROLLER_ID } from '@/components/live';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ConsoleBackdrop } from '@/components/ui/flowing-paths';
 import { signOut } from '@/lib/auth-actions';
 import { CHANNELS, type ChannelRow } from '@/lib/channels';
 import { buttonClass, LABEL } from '@/lib/ui';
@@ -178,7 +179,27 @@ export function AppShell({
           </div>
         </aside>
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/*
+          ⚠ `relative isolate` is what makes the backdrop below work at all.
+
+          `ConsoleBackdrop` is `-z-10`, and a negative z-index only stays inside
+          its parent when that parent establishes a stacking context. Without
+          `isolate` it paints behind the ROOT's background — which is opaque —
+          and the lines disappear completely with nothing in the DOM to explain
+          it. `relative` alone does not establish one.
+        */}
+        <div className="relative isolate flex min-h-0 min-w-0 flex-1 flex-col">
+          {/*
+            The flowing lines, behind the content and NOT behind the sidebar.
+
+            ⚠ It sits on this wrapper rather than inside `<main>`, which is the
+            one element in the app that scrolls. Inside, it would scroll away
+            after one viewport and leave every page below the fold untextured.
+            Here it stays put and the record moves over it, which is also the
+            right reading: the lines are the board, not part of the record.
+          */}
+          <ConsoleBackdrop />
+
           <header className="shrink-0 border-b border-border bg-panel">
             <div
               className={cn(

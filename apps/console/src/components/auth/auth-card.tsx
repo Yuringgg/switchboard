@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { Brand } from '@/components/brand';
 import { Callout } from '@/components/callout';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { AuthAside, AuthGlow } from '@/components/ui/auth-backdrop';
+import { AuthAside, AuthGlow } from '@/components/ui/flowing-paths';
 import { buttonClass } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
