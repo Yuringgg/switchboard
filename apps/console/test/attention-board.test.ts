@@ -33,6 +33,9 @@ const base = {
   dueAt: null,
   confidence: null,
   statusChangedAt: null,
+  // Migration 0013. Null means "on the board" — `fetchAttention` filters
+  // archived rows out before anything here ever sees them.
+  archivedAt: null,
 };
 
 function item(id: string, overrides: Partial<AttentionItem> = {}): AttentionItem {

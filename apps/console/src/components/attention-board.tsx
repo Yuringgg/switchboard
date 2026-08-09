@@ -1,6 +1,7 @@
 import { CalendarCheck, Inbox, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 
+import { ArchiveButton, ClearDoneButton } from '@/components/attention-archive';
 import { MoveCard } from '@/components/attention-move';
 import {
   groupForBoard,
@@ -111,6 +112,14 @@ export function AttentionBoard({
             className="flex items-baseline gap-2 border-b border-border pb-2.5"
           >
             <span className={cn(LABEL, 'text-foreground')}>{column.label}</span>
+
+            {/* ⚠ Done only. It is the one column nothing ever leaves, so it is
+                where the pile forms — and a bulk clear on a column somebody is
+                still working through would be a way to lose their place. */}
+            {column.status === 'done' && (
+              <ClearDoneButton count={column.items.length} />
+            )}
+
             {/* Zero-padded, like the timeline's day counts: a ledger column
                 that does not reflow when it reaches ten. */}
             <span className="ml-auto font-mono text-meta text-muted-foreground">
@@ -197,6 +206,20 @@ function Card({
         )}
 
         {!when && <span className={LABEL}>no date given</span>}
+
+        {/*
+          ⚠ Archive sits at the TOP of the card, away from the move arrows at
+          the bottom. They are different kinds of action and putting them in one
+          row invites the wrong click: the arrows say "where does this go next",
+          archive says "this does not belong here at all". Separating them by
+          the height of the card keeps them distinguishable at a glance.
+
+          Last in the row so `ml-auto` pushes it to the right edge without
+          displacing the kind or the date beside it.
+        */}
+        <span className="-my-1 -mr-1 ml-auto shrink-0">
+          <ArchiveButton id={item.id} title={item.title} />
+        </span>
       </div>
 
       {/*

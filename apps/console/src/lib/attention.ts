@@ -71,6 +71,14 @@ export interface MoveResult {
    * that had nowhere to go.
    */
   error: string | null;
+  /**
+   * How many cards a bulk archive took off the board.
+   *
+   * ⚠ Reported because zero is a real outcome. "Cleared nothing because the
+   * column was already empty" and "cleared nothing because it failed" are the
+   * pair this console keeps having to keep apart.
+   */
+  archived?: number;
 }
 
 /** A card's controls before anything has been tried. */
@@ -101,6 +109,14 @@ export interface AttentionItem {
   status: AttentionStatus;
   /** When a person last moved it. Null means never — see migration 0012. */
   statusChangedAt: string | null;
+  /**
+   * When a person took it off the board. Null means it is still on it.
+   * Migration 0013.
+   *
+   * ⚠ Independent of `status`, on purpose: archiving does not overwrite which
+   * column the card was in, so restoring returns it exactly where it came from.
+   */
+  archivedAt: string | null;
   title: string;
   /** The verbatim sentence it came from. Shown, never hidden — see below. */
   quote: string;
@@ -191,6 +207,7 @@ interface ExtractionRow {
   kind: string;
   status: string;
   status_changed_at: string | null;
+  archived_at: string | null;
   payload: AttentionPayload | null;
   confidence: number | null;
   model: string;
@@ -234,13 +251,29 @@ interface ExtractionRow {
  */
 export async function fetchAttention(
   supabase: SupabaseClient,
-  { limit = 100, messageId }: { limit?: number; messageId?: string } = {},
+  {
+    limit = 100,
+    messageId,
+    /**
+     * Which side of the archive line to read. Migration 0013.
+     *
+     * ⚠ `board` is the default and it EXCLUDES archived rows. That default
+     * matters: `fetchMessageExtractions` calls through here for the proposal
+     * shown on `/messages/[id]`, and a card somebody archived should not
+     * reappear there. Anything that wants both has to say so.
+     */
+    scope = 'board',
+  }: {
+    limit?: number;
+    messageId?: string;
+    scope?: 'board' | 'archived' | 'all';
+  } = {},
 ): Promise<{ items: AttentionItem[]; error: string | null }> {
   try {
     let query = supabase
       .from('extractions')
       .select(
-        'id, kind, status, status_changed_at, payload, confidence, model, ' +
+        'id, kind, status, status_changed_at, archived_at, payload, confidence, model, ' +
           'calendar_event_id, confirmed_at, ' +
           'message:messages!extractions_message_id_fkey(' +
           'id, subject, sent_at, channel_id, ' +
@@ -267,6 +300,12 @@ export async function fetchAttention(
     // `extractions`, so this is an ordinary predicate and not the embedded-filter
     // trap `fetchTimeline` documents.
     if (messageId) query = query.eq('message_id', messageId);
+
+    // ⚠ `is('archived_at', null)`, not `eq(…, null)`. PostgREST turns `eq` into
+    // `= null`, which is NULL in SQL rather than true — the filter would match
+    // nothing and the board would render empty with no error anywhere.
+    if (scope === 'board') query = query.is('archived_at', null);
+    else if (scope === 'archived') query = query.not('archived_at', 'is', null);
 
     const { data, error } = await query;
 
@@ -308,6 +347,7 @@ export async function fetchAttention(
          */
         status: isAttentionStatus(row.status) ? row.status : 'not_started',
         statusChangedAt: row.status_changed_at,
+        archivedAt: row.archived_at,
         title: payload.title,
         quote: payload.quote,
         startsAt: payload.starts_at ?? null,

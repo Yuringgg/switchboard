@@ -296,6 +296,7 @@ function attentionFixtures(): AttentionItem[] {
       kind: 'meeting',
       status: 'not_started',
       statusChangedAt: null,
+      archivedAt: null,
       title: 'Project sync with Ms. Maria',
       quote:
         'Confirming our project sync on Friday 7 August 2026 at 3:00 PM, at the iOzera office. Agenda: Switchboard demo and Phase 5 scope.',
@@ -314,6 +315,7 @@ function attentionFixtures(): AttentionItem[] {
       kind: 'action_item',
       status: 'in_progress',
       statusChangedAt: new Date(now - 7_200_000).toISOString(),
+      archivedAt: null,
       title: 'Review the Phase 5 scope before Monday',
       quote: 'Can you review the Phase 5 scope before then?',
       startsAt: null,
@@ -331,6 +333,7 @@ function attentionFixtures(): AttentionItem[] {
       kind: 'commitment',
       status: 'not_started',
       statusChangedAt: null,
+      archivedAt: null,
       title: 'Send the files on Drive',
       quote: 'Sige, sending the files na — nasa drive na lahat. Salamat!',
       startsAt: null,
@@ -354,6 +357,7 @@ function attentionFixtures(): AttentionItem[] {
        */
       status: 'in_progress',
       statusChangedAt: new Date(now - 5_400_000).toISOString(),
+      archivedAt: null,
       title: 'Standup',
       quote: 'Standup moved to 9am tomorrow, same link.',
       startsAt: at(11),
@@ -371,6 +375,7 @@ function attentionFixtures(): AttentionItem[] {
       kind: 'question',
       status: 'done',
       statusChangedAt: new Date(now - 1_800_000).toISOString(),
+      archivedAt: null,
       title: 'Which invoice number covers the July retainer?',
       quote:
         'Kailangan po namin ng confirmation bago mag Friday kasi may cutoff ang accounting team namin — alin pong invoice ang para sa July retainer?',

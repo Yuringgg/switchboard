@@ -148,3 +148,121 @@ export async function moveAttentionItemAction(
 ): Promise<MoveResult> {
   return moveAttentionItem(formData);
 }
+
+/**
+ * Taking a card off the board, and putting it back (Ms. Maria, 2026-08-09).
+ *
+ * ⚠⚠ **THIS IS NOT A DELETE, AND IT MUST NOT BECOME ONE.** Migration 0013 has
+ * the full reasoning; the short version is that migration 0011 records per
+ * message that extraction has already run, so a deleted row is never
+ * re-extracted. Deleting a card here destroys it permanently. `archived_at` is
+ * a timestamp and nothing in this file issues a DELETE.
+ *
+ * `status` is deliberately untouched — that is what lets restore return a card
+ * to the column it was in rather than dumping everything into "Not started".
+ */
+export async function setArchived(formData: FormData): Promise<MoveResult> {
+  const id = String(formData.get('id') ?? '');
+  // Absent means archive; `restore` means put it back. A missing value must
+  // never be read as "restore" — the destructive-looking direction is the one
+  // that has to be asked for explicitly.
+  const restore = String(formData.get('restore') ?? '') === 'true';
+
+  if (!id) return { ok: false, error: 'That card is missing an identifier.' };
+
+  const supabase = await createClient();
+
+  // A server action is a POST endpoint with a stable id, reachable
+  // independently of the page that renders the form. This one writes.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Sign in again to change this card.' };
+
+  const { data, error } = await supabase
+    .from('extractions')
+    .update({ archived_at: restore ? null : new Date().toISOString() })
+    .eq('id', id)
+    // A summary row must never be archivable — `archived_at` exists on every
+    // row because a column does, but only the four attention kinds mean
+    // anything by it.
+    .in('kind', [...ATTENTION_KINDS])
+    // RLS makes "not yours" and "does not exist" both zero rows rather than an
+    // error, which is the same shape ADR-018 settled for `/messages/[id]`.
+    .select('id');
+
+  if (error) {
+    // ⚠ Never surface the raw message: these rows quote real message bodies.
+    return { ok: false, error: 'Could not update that card. Try again.' };
+  }
+  if (!data || data.length === 0) {
+    return { ok: false, error: 'That card no longer exists.' };
+  }
+
+  revalidatePath('/attention');
+  return { ok: true, error: null };
+}
+
+/**
+ * Clear the whole Done column in one go.
+ *
+ * ── Why this exists at all ───────────────────────────────────────────────────
+ *
+ * Done is the column that accumulates — it is the only one nothing ever leaves,
+ * and it is most of what made the board read as a pile. Archiving finished work
+ * one card at a time is the interaction somebody stops doing after a week.
+ *
+ * ⚠ Scoped to `status = 'done'` in the WHERE clause rather than by handing up a
+ * list of ids from the client. A client-supplied list is a list somebody can
+ * edit; deriving the set on the server means this action cannot be persuaded to
+ * archive anything that is not finished, whatever arrives in the request.
+ *
+ * ⚠ Bounded to what is already archivable — no `limit`, because RLS scopes it
+ * to one owner and "clear my done column" has no sensible partial answer. It is
+ * still reversible: every row keeps `status = 'done'`, so Restore puts each one
+ * back in Done.
+ */
+export async function archiveAllDone(): Promise<MoveResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: 'Sign in again to clear the column.' };
+
+  const { data, error } = await supabase
+    .from('extractions')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('status', 'done')
+    .is('archived_at', null)
+    .in('kind', [...ATTENTION_KINDS])
+    .select('id');
+
+  if (error) return { ok: false, error: 'Could not clear the column. Try again.' };
+
+  revalidatePath('/attention');
+
+  return {
+    ok: true,
+    error: null,
+    // Reported back, because "nothing happened" and "there was nothing to do"
+    // look identical otherwise — the collapse this console keeps guarding
+    // against.
+    archived: data?.length ?? 0,
+  };
+}
+
+/** `useActionState` shape for the card-level archive control. */
+export async function setArchivedAction(
+  _previous: MoveResult,
+  formData: FormData,
+): Promise<MoveResult> {
+  return setArchived(formData);
+}
+
+/** `useActionState` shape for the column-level clear. */
+export async function archiveAllDoneAction(
+  _previous: MoveResult,
+): Promise<MoveResult> {
+  return archiveAllDone();
+}

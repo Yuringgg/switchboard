@@ -26,6 +26,8 @@ const base = {
   // the database default gives every row that predates the board.
   status: 'not_started' as const,
   statusChangedAt: null,
+  // Migration 0013. Null means "on the board".
+  archivedAt: null,
 };
 
 const NOW = new Date('2026-08-03T12:00:00+08:00');
