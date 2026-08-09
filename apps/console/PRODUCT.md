@@ -73,6 +73,11 @@ as a fact.
   means a socket is genuinely open; if it is not, it says Offline in red.
 - **Trello's own look.** The board Ms. Maria asked for takes Trello's *columns*,
   not its chrome — no drop shadows on cards, no coloured column headers.
+- **A pasted component's own design language.** Three drops were adopted in
+  August 2026 and none was copied: no Apple system red, no shadcn Button
+  component, no orbiting framework logos, no invented testimonial, no social
+  sign-in buttons for identity providers this product does not federate with.
+  `.claude/skills/component-adoption/SKILL.md` has the full procedure.
 
 ## Design Principles
 
@@ -92,6 +97,15 @@ as a fact.
    owns vertical scroll.
 5. **Nothing needs a refresh.** If the reader has to reload to see what arrived,
    the product has not done its job.
+6. **Nothing is destroyed.** Cards leave the attention board by archiving, and
+   the way back is always on screen. This matters more here than the usual
+   soft-delete argument: the extraction pass records that it has read a message,
+   so a deleted proposal is never regenerated (ADR-021).
+7. **The resting frame is the finished frame.** Every animation must be legible
+   with motion disabled — this project's own preview environment delivers no
+   `requestAnimationFrame` or `IntersectionObserver` callbacks, and a reveal that
+   never fires ships a blank screen. Verify by killing every animation and
+   looking, not by checking that nothing is at `opacity: 0`.
 
 ## Accessibility & Inclusion
 

@@ -137,26 +137,89 @@ taste.
    reads no tenant data — if anything on it ever queries a message, a channel or
    an extraction, that entry has to be reconsidered.
 
-⚠ **Still owed to Ms. Maria: the Figma prototype of the landing page.** She
-asked for it explicitly and gave the reason — *"para ma-document yun for your
-defense"*. The page was designed and built in code because this session cannot
-drive Figma. It is documentation for the defence, not decoration.
+**Still owed to Ms. Maria: the Figma prototype of the landing page.** She asked
+for it explicitly and gave the reason — *"para ma-document yun for your
+defense"*. The page was designed and built in code. **Yuri took this on himself
+on 2026-08-09**; do not spend session time on it.
 
-⚠ **Nobody has LOOKED at any of it.** This environment has no screenshot
-capability and the browser pane does not composite, so every claim above is a
-DOM measurement. `localhost:3100/welcome` and `/preview?screen=attention` are
-where to look before showing Ms. Maria.
+### A second round of design work landed 2026-08-09 — six more things to know
+
+Full note: `correspondence/2026-08-09-design-revisions.md`.
+
+1. **The auth screens are two panels with an animated backdrop**, and the same
+   flowing lines sit behind every console page. `components/ui/flowing-paths.tsx`
+   serves both through a `tone` prop. **CAUTION: the two tones are not
+   interchangeable.** `ambient` runs at a quarter of `panel`'s opacity in dark,
+   and that number is derived from a contrast measurement — a line crossing
+   behind 14px muted text measures 4.97:1 dark and 6.47:1 light as shipped, and
+   2.8:1 at the panel's own opacity. Do not raise it to make the effect more
+   visible.
+2. **The backdrop is on the content wrapper, never inside `<main>`**, and the
+   wrapper carries `isolate`. A negative z-index without a stacking context
+   paints behind the opaque root background and vanishes with nothing in the DOM
+   to explain it. It is deliberately absent from the sidebar.
+3. **`/attention` has archive (migration 0013), and it is NOT a delete.** See
+   ADR-021. `archived_at` is one nullable column; `status` is untouched so
+   Restore returns a card to the column it came from. `fetchAttention` defaults
+   to `scope: 'board'`, which excludes archived rows — `fetchMessageExtractions`
+   relies on that default. **CAUTION: filter with `is('archived_at', null)`,
+   never `eq(..., null)`** — PostgREST turns `eq` into `= null`, which matches
+   nothing and empties the board with no error.
+4. **The timeline defaults to the SPLIT layout** — Gmail left, WhatsApp right.
+   ADR-022. The merged record is still the product's central claim and is the
+   one to open for a demo: `/?view=merged`.
+5. **Three component drops were adopted, none was pasted.** Every one was
+   rebuilt on CSS because framer-motion, `useInView` and `ResizeObserver` all
+   deliver nothing in this project's browser pane and in headless renderers — a
+   gated reveal ships a blank login form rather than an unanimated one. The
+   refusals (no social sign-in, no invented testimonial, no Terms link, no
+   Apple red, no self-managed theme toggle) are listed in the note and the
+   reusable patterns are in `.claude/skills/component-adoption/SKILL.md`.
+6. **`/messages/[id]` uses a real date-time picker** rather than two
+   `datetime-local` inputs. It submits the identical `YYYY-MM-DDTHH:mm` through
+   a hidden input, so `manilaInputToRfc3339` and ADR-010 are untouched. All its
+   arithmetic is on wall-clock parts via `Date.UTC` — constructing a zoned
+   `Date` from those parts is the drift `lib/manila.ts` exists to prevent.
+
+**CAUTION: an animation's resting frame is something you have to look at.** A
+reveal shipped on the auth screens that left a solid rectangle parked beside
+every field. Nothing was at `opacity: 0`, so the obvious check passed; the
+element was fully opaque and in the wrong place. Kill every animation and
+inspect the result:
+
+```js
+const k = document.createElement('style');
+k.textContent = '*,*::before,*::after{animation:none!important;transition:none!important}';
+document.head.append(k);
+```
+
+**CAUTION: do not edit source files with PowerShell string round-trips.** On
+2026-08-09 a `Get-Content -Raw` / regex / `Set-Content -Encoding utf8` edit read
+a BOM-less UTF-8 file as ANSI, double-encoded every box-drawing character in the
+comment banners, and added a BOM — turning a 5-line change into 115. `tsc` and
+`vitest` both passed. Same class as the BOM that broke a Vercel build in July.
+Use the editing tool; if PowerShell must touch a source file, verify with
+`[System.IO.File]::ReadAllBytes` afterwards.
+
+**Nobody has LOOKED at any of it.** This environment has no screenshot
+capability and the browser pane does not composite — `computer{action:
+"screenshot"}` errors rather than returning a blank image. Every visual claim in
+these notes is a DOM measurement. `localhost:3100/welcome`, `/login` and
+`/preview?screen=attention` are where to look before showing Ms. Maria.
 
 **§7 at the bottom of this file is the fastest way to know where things stand** —
 it carries the verified numbers and the next action. Read that, then come back.
 
 > **Joining cold? Read these in order after this file:**
-> `correspondence/2026-08-06-maria-changes.md` — **most recent.** Ms. Maria's
-> five changes from the 2026-08-05 meeting: the landing page, the Kanban board
-> (migration 0012), the timeline's channel filter, the light-mode rebuild, the
-> font replacement, and auto-sync. ⚠ Read it before touching `apps/console` —
-> both typefaces changed, every step of the type scale moved, and `live.tsx`'s
-> `offline` state no longer exists.
+> `correspondence/2026-08-09-design-revisions.md` — **most recent.** Yuri's
+> screenshot review, three third-party components adopted rather than pasted,
+> the flowing-line backdrop, and archive (migration 0013). Read it before
+> touching `apps/console`.
+> `correspondence/2026-08-06-maria-changes.md` — Ms. Maria's five changes from
+> the 2026-08-05 meeting: the landing page, the Kanban board (migration 0012),
+> the timeline's channel filter, the light-mode rebuild, the font replacement,
+> and auto-sync. CAUTION: both typefaces changed, every step of the type scale
+> moved, and `live.tsx`'s `offline` state no longer exists.
 > `correspondence/2026-08-04-assistant-figure-and-mobile-dock.md` — the two
 > generator-supplied components and the seven silent defects in them.
 > `correspondence/2026-08-02-assistant-loose-ends.md` — Why the
@@ -790,8 +853,9 @@ personal conversations, and no library changes that legitimately.
 | Queue | **0 not done** |
 | Channels | 1 Gmail, **0 in error**. ⚠ See the watch/token note below — they are different dates |
 | Console | `/attention`, `/contacts`, `/messages/[id]` all gated correctly |
-| Tests | **541** on 2026-08-06 (was 496) · typecheck and `next build` green; all 11 tables verified `rowsecurity` + `forcerowsecurity` + a policy with USING **and** WITH CHECK after 0012 |
-| Migrations | **0012** applied 2026-08-06 (`extractions.status`, `status_changed_at`) — additive, no new table, so `assert-rls.ts` needed no change |
+| Tests | **541** on 2026-08-09 (was 496) · typecheck and `next build` green; all 11 tables verified `rowsecurity` + `forcerowsecurity` + a policy with USING **and** WITH CHECK after 0012 |
+| Migrations | **0013** is the latest. 0012 (`extractions.status`, `status_changed_at`) 2026-08-06; 0013 (`extractions.archived_at`) 2026-08-09. Both additive with no new table, so `assert-rls.ts` needed no change |
+| Attention board | 10 cards live, 0 archived, verified by querying 2026-08-09 |
 | Blob storage | ✅ **provisioned** — `swbattachments` / container `attachments`, malaysiawest |
 
 ### ✅ THE ASSISTANT EVAL HAS A COMPLETE SCORE, FOR THE FIRST TIME

@@ -1261,6 +1261,139 @@ warned about.
 
 ---
 
+## ADR-021 — Cards leave the attention board by archiving, never by deleting
+
+**Status:** Accepted · 2026-08-09 · *Migration 0013*
+
+**Context.** The "needs attention" board accumulates. Done is the only column
+nothing ever leaves, and the board also collects genuine noise: two of the ten
+live cards were extracted out of marketing email, one of them quoting a
+promotional tracking URL. Yuri proposed a delete button. Ms. Maria asked for an
+archive instead.
+
+The disagreement looks like a matter of taste and is not. It turns on a fact
+about this schema:
+
+**Migration 0011 records, per message, that the extraction pass has run.** That
+table exists so a Pub/Sub redelivery, a Meta retry or a backfill never re-pays
+Groq for work already done, and `extractMessage` reads it before spending a
+request. The consequence for deletion is the part that decides this ADR: **a
+deleted extraction is never re-extracted.** The worker will skip that message
+forever. Delete here is not "it comes back on the next sync" — it is permanent
+loss of a row quoting somebody's real correspondence, with no record that it
+existed.
+
+There is a second reason, weaker but real. These rows are a model's readings of
+somebody's mail. Keeping them is what makes "what did the model find, and what
+did the human do with it?" answerable, which is the beginning of measuring
+extraction quality. A delete erases the evidence along with the noise.
+
+**Decision.** One nullable column, `extractions.archived_at`. Null means the card
+is on the board. Nothing in the console issues a DELETE against `extractions`.
+
+Archiving is available from **all three columns**, not only Done. Done is the
+obvious case; Not started is the valuable one, because clearing noise before
+ever touching it is most of what stops the board reading as a pile.
+
+**Why not a fourth `status` value.** `status = 'archived'` is the obvious move
+and it fails on restore: the card's column would have been overwritten, so
+putting it back would drop everything into Not started regardless of where it
+came from. Archiving is orthogonal to which column a card is in. Leaving
+`status` untouched makes restore a single `archived_at = null`, returns the card
+exactly where it was, and lets the archived view state which column each item
+will go back to before the reader clicks.
+
+**Why no confirmation dialog.** The action is reversible and the way back is
+never hidden: the page header always shows the archived count as a link, and
+every archived card has Restore. A confirm step on a reversible action teaches
+people to click through confirm steps, which is what makes the next irreversible
+one dangerous. **If this ever becomes a real delete, that reasoning inverts.**
+
+**Consequences.**
+
+- Every board read carries `archived_at is null`. **CAUTION: express that as
+  `is('archived_at', null)`, never `eq(..., null)`** — PostgREST turns `eq` into
+  `= null`, which is NULL rather than true in SQL, so the filter matches nothing
+  and the board renders empty with no error anywhere.
+- `fetchAttention` defaults to `scope: 'board'`. That default is load-bearing:
+  `fetchMessageExtractions` calls through it for the proposal on
+  `/messages/[id]`, and a card somebody archived must not reappear there.
+- Bulk "Archive all" on Done is scoped by `status = 'done'` in the WHERE clause,
+  never by a list of ids from the client. A client-supplied list is a list
+  somebody can edit; deriving the set on the server means the action cannot be
+  persuaded to archive unfinished work.
+- No index. The query is bounded to 100 rows for one owner and already filtered
+  by `kind`; Postgres will not use one to answer it, and it would be write cost
+  on the ingest path. Revisit past a few thousand rows per tenant.
+
+**Rejected.** Deleting the row (permanent, per the context above). A fourth
+status (breaks restore). Auto-archiving Done after N days — never hide somebody's
+data on a timer without them asking; the bulk action gives the same relief and
+is a decision they made.
+
+**Open.** Distinguishing *"I handled this"* from *"the model should not have
+surfaced this"*. The second is feedback about extraction quality rather than
+about the work, and recording it would make "how often is the pass right?"
+answerable. Not built; one archive action is the proportionate version.
+
+---
+
+## ADR-022 — The timeline defaults to the split layout, not the merged record
+
+**Status:** Accepted · 2026-08-09 · *Yuri's call, and it costs something*
+
+**Context.** `Timeline` renders one ordered record across every channel. That is
+not a layout preference — it is the product's central claim, the thing the name
+means, and what `docs/01-PRODUCT-SPEC.md` frames the whole console around. It is
+also what Ms. Maria reviewed and approved on 2026-08-05.
+
+On 2026-08-06, with both channels finally connected, Yuri asked for Gmail on the
+left and WhatsApp on the right: *"they are separate and all."*
+
+There is a real argument for it beyond preference. Two channels arriving at very
+different rates interleave badly — forty newsletters between two chat messages
+buries the chat thread, and "read what this person said, in sequence" is a task
+the merged view answers poorly.
+
+**Decision.** Both layouts exist, the choice lives in the URL (`?view=merged`),
+and **split is the default.**
+
+**What it gives up, stated plainly.** In split, you can no longer see at a glance
+that the client answered on WhatsApp forty minutes after their colleague emailed,
+or which came first. That is the one thing the merged view is for. Defaulting to
+split puts the product's own claim one click away from the first screen anybody
+opens.
+
+That was Yuri's call as chief and it is recorded as such. **The merged record is
+the view to open for a demo or a defence**, because it is the one that
+demonstrates what the product is for.
+
+**Consequences.**
+
+- Channel identity is still named in words in both layouts, satisfying the
+  WCAG 1.4.1 rule the console has enforced since Phase 1. In merged that is
+  `channelChangePoints`; in split it is the column heading, which is strictly
+  better — every row sits under a heading naming its line. `showChannel` is
+  therefore off on every row in split; a per-row badge under a heading that
+  already says "Gmail" is noise.
+- Days are still grouped, per column. A flat list of fifty rows with no date
+  structure is worse than either layout.
+- Messages whose channel row failed to load go into a visible "Unknown line"
+  column rather than being dropped. Dropping them would make a loading failure
+  look like missing mail.
+- The layout switch and the channel filter live in the same GET form, so
+  changing one preserves the other. Two separate links would each have to
+  rebuild the whole query string, and the first time a third filter is added one
+  of them forgets it.
+
+**Rejected.** Split-only (throws away the product's claim). Merged-only (ignores
+a direct instruction and a real reading problem). Remembering the choice per user
+in the database — the URL already survives a reload and is shareable, and a
+stored preference is a migration plus a write path for something a query string
+does for free.
+
+---
+
 ## Template for new ADRs
 
 ```markdown

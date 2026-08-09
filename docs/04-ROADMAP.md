@@ -964,23 +964,69 @@ it is scope, not polish. Full note:
       thing this change removes.
 - [x] **Landing page** — `/welcome`, public, with the animated patch field. An
       unauthenticated request for `/` now lands here instead of on a login form.
-- [ ] **⚠ Prototype the landing page in Figma.** Asked for explicitly, with the
-      reason given: *"para ma-document yun for your defense"*. The page was
-      designed and built in code because the build session cannot drive Figma.
-      **This is still owed** and it is a defence artefact, not decoration.
-- [ ] **⚠ Look at all of it.** Every claim above is a DOM measurement — this
-      environment has no screenshot capability and the browser pane does not
-      composite. `/welcome` and `/preview?screen=attention` are where.
-- [ ] **⚠ Move a card on the deployed console.** The board was exercised over
-      `/preview` fixtures, which never reach Supabase. The action's RLS shape
-      matches `confirmMeeting`'s and the policy is unchanged, but the round trip
-      has not been run against real data.
+- [x] ~~Prototype the landing page in Figma~~ **Taken on by Yuri himself,
+      2026-08-09.** Still owed to Ms. Maria as a defence artefact — it was asked
+      for with the reason *"para ma-document yun for your defense"* — but it is
+      no longer a build-session task.
 
-⚠ **WhatsApp was deliberately left alone** — *"yung sa WhatsApp kahit huwag muna
-natin masyadong pakialaman ngayon"*. It stays blocked on Meta and that is now
-her stated preference as well as a constraint.
+WhatsApp was deliberately left alone — *"yung sa WhatsApp kahit huwag muna natin
+masyadong pakialaman ngayon"*. It is now her stated preference as well as a
+constraint, and as of 2026-08-09 the channel is connected and carrying real
+messages.
 
-**Done when:** Ms. Maria has seen it, and the Figma prototype exists.
+---
+
+## Phase 5R2 — the design revisions, round two, BUILT (2026-08-09)
+
+Yuri's review of the deployed console, three third-party component drops, and
+the archive Ms. Maria asked for. Full note:
+`correspondence/2026-08-09-design-revisions.md`.
+
+- [x] **The landing hero reworked.** The animated figure started below the fold;
+      it is inside the hero now and 91% visible at 1280x900. The "four things it
+      will not do" section was cut on instruction — the guarantees themselves are
+      untouched and still enforced.
+- [x] **Board card overflow fixed.** A promotional URL in a quoted sentence was
+      forcing its grid track wider and drawing across the other two columns.
+      `min-w-0` plus `[overflow-wrap:anywhere]`; neither alone is enough.
+      `/attention` also runs at 76rem now.
+- [x] **Split timeline** — Gmail left, WhatsApp right, with a Merged/Split
+      switch. **ADR-022**, and note that split is the DEFAULT: the merged record
+      is still the product's claim and is the view to open for a demo.
+- [x] **Sign in and sign up rebuilt** as two panels with a flowing-line backdrop,
+      working in both schemes off one declaration.
+- [x] **The same backdrop behind every console page**, excluding the sidebar.
+      Opacity derived from a contrast measurement, coverage from a 4x4 grid
+      count — both recorded in the note.
+- [x] **A real date-time picker** on the meeting proposal, replacing two
+      `datetime-local` inputs. Submits the identical string, so
+      `manilaInputToRfc3339` and ADR-010 are untouched. Also fixed a live defect:
+      moving the start now drags the end with it.
+- [x] **Archive on the attention board** — migration 0013, **ADR-021**. Not a
+      delete: migration 0011 means a deleted extraction is never re-extracted.
+- [x] **A `component-adoption` skill** at `.claude/skills/`, written from the
+      defects this round actually hit, so the next pasted component is adapted
+      rather than copied.
+
+Still open:
+
+- [ ] **Look at all of it.** Every visual claim in the note is a DOM
+      measurement — this environment has no screenshot capability and the browser
+      pane does not composite. `/welcome`, `/login` and
+      `/preview?screen=attention` are where.
+- [ ] **Exercise the board's write actions against the real database.** Move and
+      Archive were both tested over `/preview` fixtures, which never reach
+      Supabase. Their RLS shape matches `confirmMeeting`'s and the policies are
+      unchanged, but clicking Archive on the deployed console and watching the
+      card move has not been done.
+- [ ] **Consider recording WHY a card was archived** — "handled" versus "the
+      model should not have surfaced this". The second is feedback about
+      extraction quality, and it would make "how often is the pass right?"
+      answerable, which is worth having measured before a defence. See ADR-021's
+      open question.
+
+**Done when:** Ms. Maria has seen it, and somebody has confirmed the write
+actions work against real rows.
 
 ---
 
