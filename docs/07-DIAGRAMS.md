@@ -110,11 +110,11 @@ sequenceDiagram
     W->>Q: mark done
 ```
 
-**⚠ None of steps 11–13 can fail the event.** A summary, an embedding and an
+**CAUTION: None of steps 11–13 can fail the event.** A summary, an embedding and an
 extraction are all *additive* — if Groq is down, the mail still arrives, still
 appears, still searches. That is a requirement, not a nicety.
 
-**⚠ The order is deliberate.** Extraction runs last because summaries and
+**CAUTION: The order is deliberate.** Extraction runs last because summaries and
 extraction share one 6,000 tokens/minute budget, and if that budget runs out
 mid-batch the right thing to lose is the one nobody is looking at yet. The
 consequence — that extraction is therefore the step that gets dropped — is why
@@ -144,7 +144,7 @@ flowchart LR
     class R refusal
 ```
 
-**⚠ The refusal is the model's job, not a similarity threshold — and that is a
+**CAUTION: The refusal is the model's job, not a similarity threshold — and that is a
 measured finding, not a preference.** ADR-007 originally specified an absolute
 floor. Measured on the real corpus, the lowest *answerable* score (0.8487) sat
 **below** the highest *unanswerable* one (0.8563): *"recipe for adobo"*
@@ -184,7 +184,7 @@ flowchart TB
 **RLS is the security boundary, not defence in depth.** Every table denies by
 default and permits only `owner_id = auth.uid()`.
 
-**⚠ The worker is the one place a leak is possible**, because `service_role`
+**CAUTION: The worker is the one place a leak is possible**, because `service_role`
 bypasses RLS entirely — so `owner_id` is derived from the channel being
 processed and never from anything a provider sent. A CI job asserts the boundary
 on every push, and it is negative-controlled: disable RLS on any table and it

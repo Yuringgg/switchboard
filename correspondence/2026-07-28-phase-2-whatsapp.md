@@ -109,7 +109,7 @@ There is no correct way to pick.
 
 **Media download deferred to Phase 3**, joining Gmail's. `attachments.blob_url`
 is `not null`, the Blob container does not exist, and every reference survives in
-`messages.payload_raw` — so it is a backfill, not a re-ingest. ⚠ One asymmetry:
+`messages.payload_raw` — so it is a backfill, not a re-ingest. CAUTION: One asymmetry:
 Gmail attachments can be fetched whenever, but **WhatsApp media ids exchange for
 a short-lived URL**, so that download cannot be deferred long after arrival.
 
@@ -167,13 +167,13 @@ Each step's output feeds the next. Full version with the traps:
    automatically. Copy the **phone number ID** and the **temporary access token**.
 4. **Add recipients.** Same page, "To" → Manage phone number list. Add the number
    that will send test messages; it confirms with a code in WhatsApp. Up to 5.
-5. **App settings → Basic → App Secret.** Copy it. ⚠ Not the access token.
+5. **App settings → Basic → App Secret.** Copy it. CAUTION: Not the access token.
 6. **Invent a verify token** — any long random string.
 7. **Vercel → switchboard-console → Settings → Environment Variables**, for
    Production **and** Preview, pasted **unquoted**: `WHATSAPP_APP_SECRET` and
    `WHATSAPP_WEBHOOK_VERIFY_TOKEN`. **Then redeploy** — Vercel binds variables
    when a deployment is created.
-   ⚠ **Amended 2026-08-03: this said four, and four is wrong.** Grepped across
+   CAUTION: **Amended 2026-08-03: this said four, and four is wrong.** Grepped across
    `apps/console`, `apps/worker` and `packages/adapters/whatsapp`, the only
    `WHATSAPP_*` reads anywhere are those two, both in
    `app/api/webhooks/whatsapp/route.ts`. `WHATSAPP_PHONE_NUMBER_ID` is never
@@ -191,7 +191,7 @@ Each step's output feeds the next. Full version with the traps:
      --owner <uuid> --phone-number-id <id> --display "+1 555 078 3881"
    ```
    with `WHATSAPP_ACCESS_TOKEN` set in the environment.
-   ⚠ **Amended 2026-08-03.** This step used to read `node --env-file=…
+   CAUTION: **Amended 2026-08-03.** This step used to read `node --env-file=…
    packages/db/scripts/provision-whatsapp.ts`, which cannot run: Node ESM will
    not resolve the extensionless imports inside `@switchboard/core`, so it fails
    with `ERR_MODULE_NOT_FOUND` naming *core* rather than the script. `tsx` does.

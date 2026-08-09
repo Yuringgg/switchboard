@@ -18,40 +18,52 @@ The name is the design: many lines in, one operator's view out.
 
 ## Status
 
-✅ **Phase 0 — Foundation.** Deployed, behind a login, RLS forced on all **eleven**
-tables with a CI job that keeps checking it — and that fails, naming the table,
-when RLS is disabled on any one of them.
+**Phase 0 — Foundation. Complete.** Deployed, behind a login, RLS forced on all
+**eleven** tables with a CI job that keeps checking it — and that fails, naming
+the table, when RLS is disabled on any one of them.
 
-✅ **Phase 1 — Gmail, end to end.** An email arriving in Gmail appears in the
-deployed console within seconds, with no refresh. Watch registered and
+**Phase 1 — Gmail, end to end. Complete.** An email arriving in Gmail appears in
+the deployed console within seconds, with no refresh. Watch registered and
 auto-renewing, webhook verifying and queueing, worker normalizing, timeline
 live over Supabase Realtime.
 
-🟡 **Phase 2 — WhatsApp.** Adapter, ingest, worker and migration are written,
-typechecked and tested. Waiting on a Meta developer account and a free test
-number — see [`docs/03-RESOURCES.md`](./docs/03-RESOURCES.md) §6.
+**Phase 2 — WhatsApp. Proven, on a temporary upstream.** Adapter, ingest, worker
+and migration are written, typechecked and tested, and the first real WhatsApp
+message arrived on 2026-08-04 through a BSP sandbox. What is still outstanding is
+a **durable number** — the sandbox upstream is temporary — see
+[`docs/03-RESOURCES.md`](./docs/03-RESOURCES.md) §6.
 
-🟡 **Phase 3 — the console.** Cross-channel search with filters, highlighting and
-per-result AI summaries; a message detail route; contacts with merged
-cross-channel history; and manual identity merge. Remaining: attachments and
-timeline virtualization.
+**Phase 3 — the console. Mostly shipped.** Cross-channel search with filters,
+highlighting and per-result AI summaries; a message detail route; contacts with
+merged cross-channel history; manual identity merge; and a channel filter on the
+timeline with a merged/split layout switch. Remaining: attachments and timeline
+virtualization.
 
-✅ **Phase 4A — per-message summaries.** Every message over 280 characters
+**Phase 4A — per-message summaries. Shipped.** Every message over 280 characters
 carries a one-glance AI summary, written on ingest and shown in the opened row
 and in search results. Ms. Maria asked for this in the founding message.
 
-✅ **Phase 4B — the assistant.** Ask a question in plain language, get an answer
+**Phase 4B — the assistant. Shipped.** Ask a question in plain language, get an answer
 where **every claim cites the message it came from**, and each citation is a link
 to that message. An answer that cites nothing renders as a refusal — that is a
 success criterion, not a UI detail.
 
-✅ **Phase 5 — extraction, attention, calendar.** The worker pulls meetings,
-commitments, requests and questions out of every message; `/attention` is the
-queue, ordered by what is actually urgent rather than by what arrived last; and
-a detected meeting becomes a **proposal** on the message it came from, editable,
-which becomes a real Google Calendar event **only when you confirm it**. Every
-item quotes the sentence it was read from, and a row whose quote is not in the
-message is thrown away.
+**Phase 5 — extraction, attention, calendar. Shipped.** The worker pulls
+meetings, commitments, requests and questions out of every message; `/attention`
+is a **board** — not started, in progress, done — ordered by what is actually
+urgent rather than by what arrived last, with archive to take a card off it and
+restore to put it back; and a detected meeting becomes a **proposal** on the
+message it came from, editable through a date-time picker, which becomes a real
+Google Calendar event **only when you confirm it**. Every item quotes the
+sentence it was read from, and a row whose quote is not in the message is thrown
+away. Nothing is ever deleted: the extraction pass will not re-read a message it
+has already been through, so a removed card could not come back.
+
+**The design revisions — Ms. Maria's review, 2026-08-05 onward. Built.** A public
+landing page at `/welcome`, both typefaces replaced, the light theme rebuilt so
+its surfaces are actually distinguishable, auto-sync so a dropped connection
+recovers itself, and an animated backdrop across the console. See
+[`correspondence/2026-08-09-design-revisions.md`](./correspondence/2026-08-09-design-revisions.md).
 
 Remaining Phase 5 polish: an error-handling audit, timeline virtualization, and
 a demo rehearsal on the deployed infrastructure. *(The daily digest was **cut** —
@@ -88,12 +100,12 @@ channels → ingest (verify, queue, ack fast) → worker (normalize, embed, extr
 | Worker | Node · TypeScript, containerized, always warm | Azure Container Apps |
 | Database | Postgres · pgvector · Realtime · Auth · RLS | Supabase |
 | Attachments | Blob storage | Azure |
-| Assistant Q&A | **Groq `llama-3.3-70b-versatile`** — ⚠ not Gemini | — |
+| Assistant Q&A | **Groq `llama-3.3-70b-versatile`** — CAUTION: not Gemini | — |
 | Summaries · extraction | **Groq `llama-3.1-8b-instant`** — a different model on purpose | — |
 | Embeddings | Transformers.js, local in-worker, multilingual | — |
 | Calendar | Google Calendar (write, confirmed only) | — |
 
-⚠ **The assistant does not run on Gemini**, though several older notes say so.
+CAUTION: **The assistant does not run on Gemini**, though several older notes say so.
 Gemini 2.5 Flash's free tier was measured at **20 requests per day** on
 2026-08-02 — one eval run needs 15. The two Groq models are deliberately
 different so heavy assistant use can never stop mail being summarised, since
@@ -136,7 +148,7 @@ executed, not remembered.*
 npm i -g pnpm@11.17.0
 ```
 
-⚠ **pnpm is not optional and it may not already be there.** Node 25 unbundled
+CAUTION: **pnpm is not optional and it may not already be there.** Node 25 unbundled
 corepack, so a fresh Node install has no pnpm — and it disappears again after a
 Node upgrade. Match the version pinned in `packageManager`: a different major
 writes a lockfile CI rejects.
@@ -161,7 +173,7 @@ get on a clean clone with nothing configured, and it is a real check — the
 adapters, the refusal logic, the extraction validator and the RLS boundary test
 all run here.
 
-**4. ⚠ To actually see the console, you need Supabase credentials first.**
+**4. CAUTION: To actually see the console, you need Supabase credentials first.**
 
 ```bash
 cp .env.example apps/console/.env.local   # then fill in the two Supabase values

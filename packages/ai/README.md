@@ -9,7 +9,7 @@ interface EmbeddingProvider  { embed(texts: string[]): Promise<number[][]>; read
 
 | Workload | Provider | Why |
 |---|---|---|
-| Assistant Q&A | **Groq `llama-3.3-70b-versatile`** | 1,000 req/day · 12,000 tokens/min. ⚠ **Not Gemini** — see below. |
+| Assistant Q&A | **Groq `llama-3.3-70b-versatile`** | 1,000 req/day · 12,000 tokens/min. CAUTION: **Not Gemini** — see below. |
 | Per-message summaries | **Groq `llama-3.1-8b-instant`** | 14,400 req/day. A *different model on purpose*. |
 | Embeddings | **Local Transformers.js** | Free, unlimited, offline, cannot fail mid-demo. |
 
@@ -18,7 +18,7 @@ interface EmbeddingProvider  { embed(texts: string[]): Promise<number[][]>; read
 ADR-003's failure-isolation argument, satisfied inside one vendor. Embeddings are
 local and cannot fail at all, so semantic search survives every provider outage.
 
-> ⚠ **This file said Gemini until 2026-08-02, and it was wrong.** Gemini 2.5
+> CAUTION: **This file said Gemini until 2026-08-02, and it was wrong.** Gemini 2.5
 > Flash's free tier measured **20 requests per DAY** — read off the quota error,
 > not a docs page — against the 250 `docs/03-RESOURCES.md` had recorded. One run
 > of this project's own eval needs 15. `ASSISTANT_PROVIDER=gemini` switches back
@@ -59,7 +59,7 @@ local and cannot fail at all, so semantic search survives every provider outage.
   schema in `extract.ts` and the model's response is parsed through it. A parse
   failure is a job to retry, not a row to insert: nothing is written and no run
   is recorded, so the backfill picks the message up again.
-- **⚠ Every extracted item must QUOTE the message, and the quote is checked.**
+- **CAUTION: Every extracted item must QUOTE the message, and the quote is checked.**
   `validateExtractions` drops any row whose quote is not in the body. That is
   the only hallucination guard this feature has — a fabricated meeting has to
   fabricate a sentence, and a fabricated sentence is not found. It is also what
@@ -82,7 +82,7 @@ because *"try again in a moment"* is correct for the per-minute window and
 **misleading for the daily allowance** — the limit that actually binds this
 project at ~30 assistant questions a day.
 
-⚠ **No header can tell them apart.** Measured 2026-08-02: Groq publishes **no
+CAUTION: **No header can tell them apart.** Measured 2026-08-02: Groq publishes **no
 tokens-per-day header at all**, a daily rejection arrives carrying a *full*
 per-minute budget, and when the request limit trips the token headers vanish
 entirely. So `groq.ts` reads the error body **only on a 429**, extracts **only**
@@ -103,7 +103,7 @@ requiring a key and a network is one that starts getting skipped.
 node --env-file=apps/worker/.env apps/worker/node_modules/tsx/dist/cli.mjs apps/worker/scripts/probe-context.ts
 ```
 
-⚠ **Reach for `probe-context.ts` before `eval-assistant.ts`.** It prints what
+CAUTION: **Reach for `probe-context.ts` before `eval-assistant.ts`.** It prints what
 actually reaches the model, costs **no quota**, and separates "the model judged
 wrongly" from "the model never saw it" — opposite fixes, which the answer-level
 eval cannot distinguish at any price.

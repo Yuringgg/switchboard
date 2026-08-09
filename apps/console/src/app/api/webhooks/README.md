@@ -58,7 +58,7 @@ is deliberate: an endpoint that silently accepts and discards webhooks is worse
 than one that says it is not ready. **Unset config must never mean "skip
 verification"** — fail closed.
 
-⚠ A verified WhatsApp payload for a number with no provisioned channel returns
+CAUTION: A verified WhatsApp payload for a number with no provisioned channel returns
 **200 and stores nothing**, logging `unknownNumber`. There is no safe default
 owner, and inventing one is the single mistake in this system that no RLS policy
 can catch. Provision the number: `packages/db/scripts/provision-whatsapp.ts`.

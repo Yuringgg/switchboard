@@ -54,7 +54,7 @@ Five things in there that the reconstruction lost:
 4. **"we have this project in the loop and isa yan sa features"** — this is a
    **feature of a real iOzera project**, not a standalone exercise. It raises the
    stakes on scope confirmation (§7) and it is why she keeps checking in.
-5. **The name is Switchboard. ⚠ Do not use "Aika" anywhere.** She suggested
+5. **The name is Switchboard. CAUTION: Do not use "Aika" anywhere.** She suggested
    filing the work under that name on day one. **Yuri overruled it explicitly on
    2026-08-02: *"do not use aika. Switchboard is the final name."*** Naming is
    the product owner's call (R2), and this one is settled — repo, docs, console,
@@ -63,11 +63,11 @@ Five things in there that the reconstruction lost:
 
 **She offered a BRD** — *"ill try to compile a short brd or feats you can add"*.
 It was never delivered, and it is very likely what she meant on 2026-08-01 by
-*"set aside the answers and recommendations"*. **✅ Yuri withdrew the chase on
+*"set aside the answers and recommendations"*. **Yuri withdrew the chase on
 2026-08-03 (R22) — do not re-open it.** The verbatim quote stays above because it
 is a record of what was said, not a live action.
 
-⚠ **What that leaves standing:** §7 below records that the scope has never been
+CAUTION: **What that leaves standing:** §7 below records that the scope has never been
 formally confirmed by iOzera, and closing the chase **accepts** that risk rather
 than resolving it. In practice it looks fine — the built system matches her
 founding message closely, summarizer and "real time" included — but a future

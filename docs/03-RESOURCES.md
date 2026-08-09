@@ -68,7 +68,7 @@ rather than a budget to exhaust.
   a notification containing the user's address and a `historyId`. You then call
   `users.history.list` from your stored `historyId` to get the delta, then fetch
   each message.
-- **⚠ Trap:** **`watch` must be renewed at least every 7 days** or notifications
+- **CAUTION: Trap:** **`watch` must be renewed at least every 7 days** or notifications
   stop silently. Handled in `docs/02-ARCHITECTURE.md` §5.
 
 This is **genuine monitoring of a real existing inbox** — no recipient caps, no
@@ -91,14 +91,14 @@ Not a channel — the one place Switchboard writes outward.
 - Request the narrowest scopes that work: broader scopes add consent-screen
   friction and lengthen any future Google review.
 
-**⚠ OAuth mode is the real multi-tenancy ceiling.** Gmail's restricted scopes in
+**CAUTION: OAuth mode is the real multi-tenancy ceiling.** Gmail's restricted scopes in
 **production** trigger a Google CASA security assessment — expensive and slow. In
 **testing mode** there's no assessment, but every user must be manually
 allowlisted. **Verified 2026-08-02: the cap is exactly 100 test users, and it is
 hard** — the 101st gets an error, and the cap lifts only on successful
 verification. Ample for iOzera.
 
-### ⚠⚠ The one that will interrupt a demo — verified 2026-08-02
+### The one that will interrupt a demo — verified 2026-08-02
 
 **With user type External and publishing status Testing, Google expires every
 refresh token 7 days after consent.** Not 7 days after last use — **7 days from
@@ -114,13 +114,13 @@ nothing anywhere said to *expect* it, which is why it is written down here now.
 **The fix is to reconnect**, which takes one click on `/channels` and mints a
 fresh 7-day token. There is no way to extend it inside testing mode.
 
-⚠ **The button is labelled `Reconnect`, not `Connect`.** `channel-list.tsx`
+CAUTION: **The button is labelled `Reconnect`, not `Connect`.** `channel-list.tsx`
 picks the label from whether a channel row exists, so `Connect` only ever shows
 for an account that has never been connected. Written down because an
 instruction saying "click Connect" sends the reader looking for a button that
 is not on the screen.
 
-⚠ **Everything after that click is Google's, and it varies.** The account
+CAUTION: **Everything after that click is Google's, and it varies.** The account
 chooser appears only when more than one Google account is signed in; the
 "unverified app" interstitial depends on Google's verification state rather than
 on anything here. Sometimes the whole flow completes with no interaction at all.
@@ -159,7 +159,7 @@ Gmail *and* Calendar — because `exchangeCode` refuses a partial grant outright
   the Meta Business account and verified business number, and that approval can
   take days or stall.
 - **Verification:** `X-Hub-Signature-256` HMAC on every webhook.
-- **⚠ Number limits shape multi-tenancy.** A WABA holds **2 business phone
+- **CAUTION: Number limits shape multi-tenancy.** A WABA holds **2 business phone
   numbers initially, raised to 20** once business-verified. Each is verified
   separately with its own display name and quality rating — but **messaging
   limits are shared across the portfolio**, so one busy number can throttle every
@@ -170,7 +170,7 @@ Gmail *and* Calendar — because `exchangeCode` refuses a partial grant outright
 
 *Source:* [WhatsApp business phone numbers](https://developers.facebook.com/documentation/business-messaging/whatsapp/business-phone-numbers/phone-numbers)
 
-### ⚠ The constraint that actually matters
+### The constraint that actually matters
 
 **The Cloud API only receives messages sent *to a business number you control*.
 It cannot read existing personal WhatsApp conversations.** Personal WhatsApp is
@@ -225,7 +225,7 @@ long weekend is offline when you open the demo. Mitigation is in Phase 0.
 
 ## 4. AI layer — three providers, matched to workload (ADR-003)
 
-### 4a. Assistant Q&A — ⚠ **NO LONGER GEMINI.** See ADR-003's amendment.
+### 4a. Assistant Q&A — CAUTION: **NO LONGER GEMINI.** See ADR-003's amendment.
 
 > ## 🔴 THE NUMBER IN THIS SECTION WAS WRONG BY 12×
 >
@@ -250,7 +250,7 @@ long weekend is offline when you open the demo. Mitigation is in Phase 0.
 > carries the reasoning; `ASSISTANT_PROVIDER=gemini` switches back in one
 > variable if Google ever restores a usable tier.
 >
-> ⚠ **Re-verify any figure below before relying on it.** They were correct when
+> CAUTION: **Re-verify any figure below before relying on it.** They were correct when
 > recorded and one of them silently stopped being correct.
 
 The historical table, kept because the *reasoning* it drove is still sound —
@@ -276,7 +276,7 @@ are large, so *tokens per minute is the binding constraint, not requests*. Groq'
 minute and ~15 per day**. Gemini's 250K TPM is about **20× that headroom**, and
 the 1M window makes retrieval tuning far less fragile.
 
-**⚠ Two warnings.** Google cut free quotas 50–80% in December 2025 without
+**CAUTION: Two warnings.** Google cut free quotas 50–80% in December 2025 without
 notice. And **enabling billing on a Gemini project permanently destroys its free
 tier** — every call becomes billable from the first token. **Keep billing
 disabled.**
@@ -295,14 +295,14 @@ vendor rather than across two.
 | **Assistant** (Phase 4B) | `llama-3.3-70b-versatile` | 1,000 req/day · **12,000 tokens/min** |
 | **Summaries** (Phase 4A) | `llama-3.1-8b-instant` | 14,400 req/day · 6,000 tokens/min |
 
-**⚠ The real ceiling is ~30 assistant questions per day, and it is a TOKEN cap.**
+**CAUTION: The real ceiling is ~30 assistant questions per day, and it is a TOKEN cap.**
 One question sends the system prompt plus 8 retrieved messages — **3,000–3,500
 tokens**. Against a documented ~100,000 tokens/day that is roughly 30 questions;
 the 1,000 requests/day never binds. Observed directly, twice: a request rejected
 with `x-ratelimit-remaining-tokens: 12000` — a *full* per-minute budget, refused,
 which is only possible if the daily token cap is what ran out.
 
-### ⚠⚠ The daily token cap is INVISIBLE in headers — measured 2026-08-02
+### The daily token cap is INVISIBLE in headers — measured 2026-08-02
 
 Read straight off a live 200 for `llama-3.3-70b-versatile`:
 
@@ -350,7 +350,7 @@ that narrow body read is a permitted exception to the never-log-content rule.
 
 Per minute: 12,000 ÷ ~3,200 ≈ **3–4 questions**.
 
-### ⚠⚠ That ~30/day is SHARED BY EVERY USER, not granted per user
+### That ~30/day is SHARED BY EVERY USER, not granted per user
 
 Asked directly on 2026-08-03, and no doc in this repo answered it either way,
 which on a multi-tenant product is a gap worth closing.
@@ -376,7 +376,7 @@ messages. It becomes real the moment a second person at iOzera uses it, so it is
 recorded now rather than discovered then. Tracked as **Q11** in
 `docs/06-OPEN-QUESTIONS.md`.
 
-⚠ **Do not confuse this with the Gmail limits.** Those genuinely *are* per user —
+CAUTION: **Do not confuse this with the Gmail limits.** Those genuinely *are* per user —
 the 7-day refresh-token expiry (§2) and the 100-user lifetime cap are both
 Google's, per person. The assistant's ceiling is per *deployment*. The two are
 unrelated and they fail differently.
@@ -398,10 +398,10 @@ was measurably worse at refusing, which is the property that matters most).
 | | Free tier |
 |---|---|
 | General cap | 30 req/min · 6,000 tokens/min · **14,400 req/day** |
-| **`llama-3.1-8b-instant`** ⭐ **chosen** | **14,400 req/day** · 6,000 TPM |
+| **`llama-3.1-8b-instant`** **chosen** | **14,400 req/day** · 6,000 TPM |
 | `llama-3.3-70b-versatile` | 30 RPM · **1,000 RPD** · 12,000 TPM · 100,000 TPD |
 
-**⚠ Verified 2026-08-02 from the live API's own rate-limit headers**, not from a
+**CAUTION: Verified 2026-08-02 from the live API's own rate-limit headers**, not from a
 docs page — send any request and read `x-ratelimit-limit-requests`. The two
 numbers differ by **14×**, and Phase 4A picks `llama-3.1-8b-instant` for exactly
 that reason: one backfill over a real mailbox would eat a large slice of the
@@ -412,7 +412,7 @@ pins the choice with the numbers beside it.
 Summarising one short message is not a task that needs a 70B model. If quality
 ever proves otherwise, the answer is a better prompt before a bigger model.
 
-### ⚠⚠ The limit that actually bites is TOKENS per minute — found 2026-08-02
+### The limit that actually bites is TOKENS per minute — found 2026-08-02
 
 **6,000 TPM, not 14,400 requests/day.** A backfill 429'd on its fifth message
 while the daily request allowance was **99.97% unused**:
@@ -435,11 +435,11 @@ too, at a tenth of the prompt size.
 Two fixes, both shipped: the body sent to the model is capped at **4,000
 characters** (`SUMMARY_INPUT_LIMIT` — a message's substance is at the top; past
 that is quoted chains and footers), and the backfill reads Groq's `retry-after`
-and waits rather than abandoning the run. ⚠ **`retry-after` can be fractional
+and waits rather than abandoning the run. CAUTION: **`retry-after` can be fractional
 ("11.75") — `parseFloat`, not `parseInt`,** or an 11.75s wait becomes 11s and
 429s again immediately.
 
-### ⚠ What Phase 5 extraction actually costs — measured 2026-08-03
+### What Phase 5 extraction actually costs — measured 2026-08-03
 
 Re-verified from the live headers on the day extraction shipped, so the numbers
 above are not being taken on trust: `llama-3.1-8b-instant` returns
@@ -490,11 +490,11 @@ Why this is the better answer regardless: embedding is the high-volume operation
 impossible to exhaust mid-demo.** It also isolates failure: if Groq degrades,
 search still works and only the assistant's answers are affected.
 
-**⚠ Model choice — do not reach for the popular default.** The corpus will be
+**CAUTION: Model choice — do not reach for the popular default.** The corpus will be
 **Taglish**, and `all-MiniLM-L6-v2` is English-only; it degrades badly on
 code-switched text. Use a **multilingual** model:
 
-**✅ Built and measured 2026-08-02.** 73 messages → **394 chunks** in 128s, all
+**Built and measured 2026-08-02.** 73 messages → **394 chunks** in 128s, all
 local, no quota. On disk the quantised model is **129 MB**; loaded once it
 embeds in **~22 ms**. The multilingual choice paid off immediately — against the
 query *"do I have any meetings coming up?"*:
@@ -508,7 +508,7 @@ query *"do I have any meetings coming up?"*:
 The Tagalog message out-scored the English one. `all-MiniLM-L6-v2` would have
 ranked it near the bottom, and the symptom would have looked like a ranking bug.
 
-⚠ **But note the narrow band — 0.77 to 0.85.** That compression is why an
+CAUTION: **But note the narrow band — 0.77 to 0.85.** That compression is why an
 absolute similarity floor cannot decide relevance here, and why the refusal path
 had to move onto the model. **ADR-016** has the measurements.
 
@@ -518,11 +518,11 @@ had to move onto the model. **ADR-016** has the measurements.
 | `Xenova/paraphrase-multilingual-MiniLM-L12-v2` | 384 | Solid alternative. |
 | `BAAI/bge-m3` | 1024 | Best quality, much heavier. Overkill here. |
 
-**⚠ e5 models require prefixes.** Prepend `"query: "` to searches and
+**CAUTION: e5 models require prefixes.** Prepend `"query: "` to searches and
 `"passage: "` to stored text before embedding. Skipping this doesn't error — it
 just quietly degrades retrieval quality, which is very hard to diagnose later.
 
-**⚠ Token limit.** These models cap around 256–512 tokens. Chat messages fit
+**CAUTION: Token limit.** These models cap around 256–512 tokens. Chat messages fit
 easily; **emails do not.** Long emails must be chunked, with each chunk embedded
 separately and linked back to the parent message. See `docs/02-ARCHITECTURE.md` §4.
 
@@ -566,7 +566,7 @@ Phase 4's AI keys.*
       pending, none failed**, which is only possible with the key present.
       Checking a claim against the database beats re-reading the doc that made
       it; see §8.*
-      **⚠ Never prefix it with `NEXT_PUBLIC_`.** That inlines a key which
+      **CAUTION: Never prefix it with `NEXT_PUBLIC_`.** That inlines a key which
       bypasses every RLS policy into browser JavaScript. There is a test that
       fails if anyone does.
 
@@ -598,7 +598,7 @@ Phase 4's AI keys.*
       stored. At this corpus size that is **well under $0.01/month**, inside the
       student offer's 5 GB LRS allowance, and it does not meaningfully touch the
       credit. The worker at ~$20–30/month remains the only real spend.
-      ⚠ **`Microsoft.Storage` was `NotRegistered` on the subscription**, and the
+      CAUTION: **`Microsoft.Storage` was `NotRegistered` on the subscription**, and the
       failure names the wrong cause: `az storage account check-name` returns
       **`SubscriptionNotFound`**, which reads as a broken login or an expired
       subscription rather than a missing resource provider. `az provider
@@ -608,13 +608,13 @@ Phase 4's AI keys.*
 - [x] ★ **Worker resized to 0.5 vCPU / 1.0 GiB** (2026-08-02). It crashlooped at
       the original 0.25 / 0.5 with **exit code 137 — OOM** — a 129 MB quantised
       ONNX model needs far more than its own size once the runtime and Node's
-      heap are counted. ⚠ **Running cost roughly doubles to ~$20–30/month**, so
+      heap are counted. CAUTION: **Running cost roughly doubles to ~$20–30/month**, so
       §1's "expect meaningful headroom left over" is now spent. ADR-011 amended.
 - [x] ★ **`EMBED_API_SECRET`** — an Azure Container Apps *secret*
       (`embed-api-secret`), referenced by env var, and the same value on Vercel.
       Gates `POST /embed`, the only public route on the worker. Verified from the
       open internet: no token → 401, wrong token → 401, correct → 384 dims.
-      ⚠ **Unset disables the route rather than opening it.**
+      CAUTION: **Unset disables the route rather than opening it.**
 - [x] ★ **Worker ingress is now EXTERNAL** (was internal). Required because the
       console cannot hold a 129 MB model in a serverless function. FQDN:
       `switchboard-worker.jollyriver-9d68797d.malaysiawest.azurecontainerapps.io`.
@@ -642,7 +642,7 @@ Phase 4's AI keys.*
 real message. Every item needs the Meta dashboard, so none of it can be done
 from tooling.*
 
-> ### ⚠ 2026-08-04 — Meta's developer registration is blocked, and there is a
+> ### CAUTION: 2026-08-04 — Meta's developer registration is blocked, and there is a
 > ### sanctioned second route. Read this before working the list below.
 >
 > **The blocker.** Yuri cannot complete *Create a Meta for Developers account*.
@@ -654,7 +654,7 @@ from tooling.*
 > follows it:
 > <https://communityforums.atmeta.com/discussions/Questions_Discussions/cannot-create-meta-for-developers-account-%E2%80%94-verification-sms-never-arrives/1375822>
 >
-> **What actually unblocks it, cheapest first.** ⚠ Switchboard never talks to
+> **What actually unblocks it, cheapest first.** CAUTION: Switchboard never talks to
 > Meta's dashboard — it needs four values (`phone_number_id`, access token, App
 > Secret, and a verify token we invent). **The dashboard does not have to be
 > ours.** Anyone with a working developer account can register a webhook
@@ -667,34 +667,34 @@ from tooling.*
 >    points already on the Facebook account. Re-adding the number under
 >    *Accounts Center → Password and security → Two-factor authentication* is
 >    reported on Meta's forums to make the developer registration skip its own
->    check. ⚠ **That flow offers WhatsApp as well as SMS**, and WhatsApp on
+>    check. CAUTION: **That flow offers WhatsApp as well as SMS**, and WhatsApp on
 >    Yuri's number is provably working — it carried the first real Switchboard
 >    message on 2026-08-04. Choosing it keeps the broken component out of the
 >    loop. Steps: `correspondence/2026-08-05-whatsapp-credentials.md` §4.
 > 2. **Verify the Facebook account with a card instead** — Facebook's own help
 >    page (*"How do I verify my developer account on Facebook?"*) lists exactly
 >    two ways: confirm a mobile number **or add a credit card**, and says the
->    card is not charged. ⚠ That page governs the *account verification* gate,
+>    card is not charged. CAUTION: That page governs the *account verification* gate,
 >    not demonstrably the *registration* code — documented, free, worth trying,
 >    but second.
-> 3. **Someone else's developer account** — zero code change, free. ⚠ Scoped to
+> 3. **Someone else's developer account** — zero code change, free. CAUTION: Scoped to
 >    one **test** app; the App Secret is a password and reaches nothing else
 >    they own. Fine for a demo, wrong for client traffic, and never a bought
 >    account. The exact packet to send them is in the correspondence file, §6.
 > 4. **iOzera's Business Portfolio** — asked of Ms. Maria and Fatima
->    2026-08-04, no reply yet. Zero code change. ⚠ **This route needs no
+>    2026-08-04, no reply yet. Zero code change. CAUTION: **This route needs no
 >    developer account at all**: a developer account only creates *apps*, so an
 >    admin on an existing portfolio can issue a System User token with
 >    `whatsapp_business_messaging` and the blocker never applies.
 > 5. **360dialog, a Meta Business Solution Provider** — see below. Its sandbox
 >    is what is live today; **paid plans start at €49/month**, which is out of
 >    an intern's budget, so the sandbox is the whole of this route in practice.
-> 6. **Twilio** — ⚠ rejected, and not on effort. See below.
+> 6. **Twilio** — CAUTION: rejected, and not on effort. See below.
 >
-> ⚠ **Not a route: `whatsapp-web.js`, Baileys, UltraMsg, Whapi, Wassenger,
+> CAUTION: **Not a route: `whatsapp-web.js`, Baileys, UltraMsg, Whapi, Wassenger,
 > Green API.** They drive the WhatsApp Web protocol with a personal account and
 > Meta bans the *number* for it. Banned since Phase 0 and still banned.
-> ⚠ **And do not register a personal number on Cloud API.** Meta: *"Numbers
+> CAUTION: **And do not register a personal number on Cloud API.** Meta: *"Numbers
 > already in use with WhatsApp cannot be registered unless they are deleted
 > first."* Deletion is permanent and the number stops working in the consumer
 > app. The free test number exists so this never has to happen.
@@ -714,7 +714,7 @@ from tooling.*
 > Business API and predates Cloud API existing. It is not remotely the same
 > category as `whatsapp-web.js` or Baileys, which stay banned.
 >
-> ⚠ **Three things to know before choosing 360dialog.**
+> CAUTION: **Three things to know before choosing 360dialog.**
 > - **Message bodies would pass through a third party.** Today only Groq and
 >   Google see content. This is Q2 / RA 10173 territory and is fine for
 >   dogfooding on Yuri's own number, **not** for real client mail. Their
@@ -723,7 +723,7 @@ from tooling.*
 > - **The sandbox is a demo instrument, not a deployment.** Free, no card,
 >   **200 messages total**, one linked phone number, no media
 >   (<https://docs.360dialog.com/docs/get-started/sandbox>).
-> - ⚠⚠ **Amended 2026-08-05 — the one-linked-number limit is the ceiling that
+> - CRITICAL: **Amended 2026-08-05 — the one-linked-number limit is the ceiling that
 >   matters, and it is a product limit, not a technical one.** Their wording is
 >   *"Any message **you** send to +551146733492 will be forwarded to the webhook
 >   URL you set"*, and *"Each Sandbox API key is linked to one phone number."*
@@ -735,12 +735,12 @@ from tooling.*
 >   The 200-message cap says *"can be **sent**"*; we only receive, so it
 >   probably never binds — but inbound is undocumented, so treat it as a
 >   ceiling of unknown height rather than a non-issue.
-> - ✅ **Answered 2026-08-05 — the sandbox does issue a `phone_number_id`, and
+> - **Answered 2026-08-05 — the sandbox does issue a `phone_number_id`, and
 >   it is almost certainly shared.** Read off the first real payload:
 >   `851682941371819`, display `551146733492` — 360dialog's *single* sandbox
 >   number, so every sandbox user in the world plausibly sees that same id.
 >   Nothing leaks (a webhook URL is per-account, so only our own traffic
->   arrives), but ⚠ **it is not a durable tenant key** and must not be reused as
+>   arrives), but CAUTION: **it is not a durable tenant key** and must not be reused as
 >   one when a real number arrives. The payload also carries `user_id` /
 >   `from_user_id` (`PH.…`) that Meta's own documented shape does not —
 >   ignored by `normalize`, harmless, worth knowing before re-recording
@@ -756,30 +756,30 @@ from tooling.*
 > | `WHATSAPP_BSP_WEBHOOK_SECRET` | `360dialog-hmac` | `x-360dialog-signature`, bare digest | HMAC |
 > | `WHATSAPP_BSP_SHARED_TOKEN` | `360dialog-token` | `x-switchboard-webhook-token` | shared token — **weakest** |
 >
-> ⚠⚠ **Strongest-first is the rule, not an accident: adding a weaker credential
+> CRITICAL: **Strongest-first is the rule, not an accident: adding a weaker credential
 > can never downgrade a deployment.** A shared token left set when a real Meta
 > App Secret arrives is inert. The failure this prevents is the quiet one — a
 > forgotten fallback becoming the live scheme because it was checked first.
-> ⚠ **No scheme can mean "do not verify".** Nothing configured returns `null`
+> CAUTION: **No scheme can mean "do not verify".** Nothing configured returns `null`
 > and the route answers 503. Verified against production 2026-08-04: `GET` and
 > `POST` both 503 with nothing set.
 > `/api/health/config` names the live scheme and treats the three secrets as
 > alternatives, not a set.
 >
-> **⚠ The sandbox issues NO signing secret — measured, not assumed.** Messaging
+> **CAUTION: The sandbox issues NO signing secret — measured, not assumed.** Messaging
 > `START` returns an API key and nothing else. But the webhook config endpoint
 > accepts an arbitrary **`headers`** object and replays it on every delivery
 > (confirmed live: it echoed the registered header back). So authenticity rests
 > on a 256-bit random token we generate, register there, and compare
 > timing-safely.
-> ⚠ **That is strictly weaker than HMAC and the code says so.** A shared token
+> CAUTION: **That is strictly weaker than HMAC and the code says so.** A shared token
 > proves the caller holds the secret and **nothing about the body** — there is a
 > test asserting exactly that, so nobody later mistakes the two as equivalent.
 > Acceptable here because the alternative was no authentication at all, the
 > token never travels outside TLS, and this is a 200-message sandbox. **Not
 > acceptable as a production posture** — if 360dialog turns out to sign as well,
 > move to `WHATSAPP_BSP_WEBHOOK_SECRET` and the token goes inert on its own.
-> ⚠ **360dialog does not publish whether their HMAC digest is hex or base64**, so
+> CAUTION: **360dialog does not publish whether their HMAC digest is hex or base64**, so
 > both encodings of the *same* digest are compared. That adds no forgeries — the
 > attacker still needs the secret — but it is a documentation gap standing on a
 > security path. **Narrow it once a real delivery has been observed and delete
@@ -817,7 +817,7 @@ from tooling.*
       dashboard looks configured, and nothing is ever delivered.
 - [ ] ★ **TWO** `WHATSAPP_*` variables on **Vercel (Production and Preview)** —
       `WHATSAPP_WEBHOOK_VERIFY_TOKEN` and `WHATSAPP_APP_SECRET`.
-      ⚠ **Corrected 2026-08-03: this said "all four", and four is wrong.**
+      CAUTION: **Corrected 2026-08-03: this said "all four", and four is wrong.**
       Grepped across `apps/console`, `apps/worker` and
       `packages/adapters/whatsapp`: the only reads of a `WHATSAPP_*` variable
       anywhere are these two, both in `app/api/webhooks/whatsapp/route.ts`.
@@ -829,9 +829,9 @@ from tooling.*
       buys nothing, and this project has already lost time to a value pasted
       into Vercel with its quotes attached — two fewer fields is two fewer
       chances at that.
-      ⚠ **Vercel binds environment variables when a deployment is created** — a
+      CAUTION: **Vercel binds environment variables when a deployment is created** — a
       variable added afterwards does nothing until the next build. Redeploy.
-      ⚠ **Paste values unquoted.** Vercel stores the field verbatim, so a value
+      CAUTION: **Paste values unquoted.** Vercel stores the field verbatim, so a value
       pasted with its surrounding quotes fails auth in a way that reads as a bad
       secret. `apps/worker/.env` quotes some values and dotenv strips them;
       Vercel does not.
@@ -839,7 +839,7 @@ from tooling.*
       `pnpm --filter @switchboard/db provision-whatsapp --
       --owner <uuid> --phone-number-id <id> --display "+1 555 078 3881"`
       with `WHATSAPP_ACCESS_TOKEN` in the environment.
-      ⚠ **Corrected 2026-08-03: the command this file gave could never have
+      CAUTION: **Corrected 2026-08-03: the command this file gave could never have
       run.** It was `node --env-file=apps/worker/.env packages/db/scripts/
       provision-whatsapp.ts …`, and plain `node` dies before `main()` with
       `ERR_MODULE_NOT_FOUND: Cannot find module '…/packages/core/src/adapter'`.
@@ -868,11 +868,11 @@ from tooling.*
       Note it lives in its own Cloud project (`231090633304`, "Default Gemini
       Project"), **not** `switchboard-503613`. That is a happy accident worth
       keeping: enabling billing on one can no longer destroy the free tier of
-      the other. ⚠ **KEEP BILLING DISABLED** — it is irreversible.
+      the other. CAUTION: **KEEP BILLING DISABLED** — it is irreversible.
       Not yet needed on Vercel; Phase 4B will need it there.
 - [x] *(no key needed for embeddings — they run locally)*
 
-⚠ **Both keys were pasted into a chat transcript on 2026-08-02.** Nothing was
+CAUTION: **Both keys were pasted into a chat transcript on 2026-08-02.** Nothing was
 committed and `.env` is gitignored, but **rotate both before this repo or these
 sessions are shown to iOzera.** Rotating is ~30 seconds each: delete in the
 dashboard, create a new one, update `.env` and the Azure secret.
@@ -917,14 +917,14 @@ Tested by calling each one, 2026-07-25:
 
 | MCP | Status | Use |
 |---|---|---|
-| **Supabase** | ✅ working — org `Yuringgg's Org` | create project, apply migrations, generate TS types, read logs. **The most useful tool on this project** — see the note below. |
-| **Vercel** | ⚠️ **cannot see `switchboard-console`** — corrected 2026-07-27 | of limited use; see below |
-| **Azure MCP** | ⚠️ **still times out — do not use** | superseded by the `az` CLI |
-| **`az` CLI** | ✅ working — `Azure for Students`, Mapúa tenant | resource groups, Container Apps, policy, deployment |
+| **Supabase** | working — org `Yuringgg's Org` | create project, apply migrations, generate TS types, read logs. **The most useful tool on this project** — see the note below. |
+| **Vercel** | **cannot see `switchboard-console`** — corrected 2026-07-27 | of limited use; see below |
+| **Azure MCP** | **still times out — do not use** | superseded by the `az` CLI |
+| **`az` CLI** | working — `Azure for Students`, Mapúa tenant | resource groups, Container Apps, policy, deployment |
 | **Notion** | connected | write-up for Ms. Maria |
 | **GitHub** *(via Claude Code)* | — | repo, branches, PRs |
 
-**⚠ The Vercel MCP cannot reach the Switchboard project** (corrected 2026-07-27).
+**CAUTION: The Vercel MCP cannot reach the Switchboard project** (corrected 2026-07-27).
 It authenticates to team **`Yuringgg`** (`team_KUQXesLs2KU5zFVJ4rRBODbe`), whose
 only project is `ageni-academy`. **`switchboard-console` lives on the personal
 Hobby scope**, which the MCP does not enumerate — `list_projects` does not
@@ -940,7 +940,7 @@ to end. It is also why "did the env vars land on `switchboard-console` or
 `ageni-academy`?" was a live question at all — both projects exist under the same
 login. **Don't try the MCP again expecting it to work; check the dashboard.**
 
-**⚠ The Azure MCP still times out even after `az login`** (2026-07-26), so
+**CAUTION: The Azure MCP still times out even after `az login`** (2026-07-26), so
 `az login` was not the fix. **Use the `az` CLI directly instead** — it works, and
 all of Phase 0's Azure work was done with it. Don't spend more time on the MCP.
 
@@ -954,7 +954,7 @@ database over reading the code that makes it.**
 `az` is not on `PATH` in this environment; it lives at
 `C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd`.
 
-**⚠ Region policy discovered 2026-07-26.** The student subscription enforces an
+**CAUTION: Region policy discovered 2026-07-26.** The student subscription enforces an
 **"Allowed resource deployment regions"** policy limiting deployments to
 `japaneast`, `malaysiawest`, `indonesiacentral`, `centralindia`, `koreacentral`.
 **`southeastasia` is blocked**, and the failure is `RequestDisallowedByAzure`,
@@ -986,7 +986,7 @@ creation, so this is now fixed.
 `ageni-academy` stays paused. Anything needing a third project means pausing one
 of these first.
 
-⚠ **Do not create a third active project.** If a slot is needed later, pause
+CAUTION: **Do not create a third active project.** If a slot is needed later, pause
 rather than delete.
 
 ---

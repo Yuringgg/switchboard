@@ -8,7 +8,7 @@ these were not recorded from a live account — Phase 2 was built before the Met
 test number existed, so the envelopes were taken from Meta's webhook reference
 (linked in `docs/03-RESOURCES.md` §2) rather than from traffic.
 
-> ⚠ **Re-record `text.json` and one media fixture against the real test number
+> CAUTION: **Re-record `text.json` and one media fixture against the real test number
 > once it is connected**, and note it here. Documentation and reality diverge —
 > that is a lesson this project already paid for twice on the Gmail side, where
 > header case and part nesting were both wrong until a real inbox corrected

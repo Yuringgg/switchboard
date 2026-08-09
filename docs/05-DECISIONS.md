@@ -134,7 +134,7 @@ mandatory** — the corpus is Taglish, and English-only defaults like
 `all-MiniLM-L6-v2` degrade badly on code-switched text, failing in a way that
 looks like a ranking bug rather than a model problem.
 
-⚠ **e5 models require prefixes:** `"query: "` on searches, `"passage: "` on
+CAUTION: **e5 models require prefixes:** `"query: "` on searches, `"passage: "` on
 stored text. Omitting them silently degrades retrieval quality. Easy to miss.
 
 **Consequences.** Two API keys instead of one. Vector dimension 384. The worker
@@ -343,7 +343,7 @@ WABA, then assigned to a user), while Gmail channels are **self-serve**. Same
 `channels` table, same `owner_id`, different connection flow. This is honest and
 it works; pretending WhatsApp self-serves would produce a design that can't ship.
 
-**⚠ The practical user ceiling is OAuth, not the database.** Gmail's restricted
+**CAUTION: The practical user ceiling is OAuth, not the database.** Gmail's restricted
 scopes in *production* require a Google CASA security assessment — expensive and
 slow. In **testing mode** no assessment is needed, but users must be manually
 allowlisted and the cap is around 100. That's ample for iOzera and avoids a
@@ -452,7 +452,7 @@ a student project, worth flagging if iOzera ever runs this for real.
 warm (~$28/mo, exceeds the credit); worker on Vercel (serverless timeouts make
 queue processing and model loading impractical).
 
-**⚠ Amendment · 2026-08-02 — the worker needed twice the memory, and the cost
+**CAUTION: Amendment · 2026-08-02 — the worker needed twice the memory, and the cost
 estimate above is now low.**
 
 Phase 4B put the embedding model in the worker, as this ADR always intended.
@@ -470,7 +470,7 @@ Two things follow, and the second is the important one:
    credit's correct job, but it is no longer comfortably inside it —
    `docs/03-RESOURCES.md` §1's "expect meaningful headroom left over" should be
    read as spent.
-2. **⚠ Graceful degradation cannot survive OOM.** `warmEmbedder()` is
+2. **CAUTION: Graceful degradation cannot survive OOM.** `warmEmbedder()` is
    deliberately non-fatal so an image lacking the native ONNX binaries degrades
    to "no semantic search" instead of crashlooping. That design is correct and
    it did not help here: the kernel kills the process, so no `catch` runs and no
@@ -718,7 +718,7 @@ the object is *the messages*, established in the founding request, and
 *"summarize"* sits inside *"view whatsapp messages real time **and have ai
 summarize**"*.
 
-⚠ **The correction record, because both errors are instructive.** This ADR was
+CAUTION: **The correction record, because both errors are instructive.** This ADR was
 first written from a paraphrase — *"summarize each emails received"* — which
 asserted more than the source did. It was then over-corrected to "she probably
 just means the AI layer generally", which asserted *less* than the source did.
@@ -850,7 +850,7 @@ because ADR-007's whole point is that a monitoring tool must not invent.
 - The refusal is only as good as the prompt and the model, so it is now a
   **measured** property rather than a guaranteed one. That is what the eval set
   is for, and why it includes must-refuse cases.
-- ⚠ **Re-run `probe-floor.ts` after any change to the embedding model, the
+- CAUTION: **Re-run `probe-floor.ts` after any change to the embedding model, the
   chunker, or the e5 prefixes.** All three move the distribution, and the
   relative floor is calibrated against it.
 
@@ -1016,7 +1016,7 @@ route reads the whole body and this ceiling stays where it is: it bounds the
 list, not the record."* **Phase 5 needs it independently**: ADR-010 requires the
 source message shown beside every meeting proposal.
 
-**⚠ This amends the "bodies render in exactly one place" rule**, stated in
+**CAUTION: This amends the "bodies render in exactly one place" rule**, stated in
 `message-row.tsx` and in the UX brief. The rule's *intent* — private content is
 not scattered across the app — is intact: this is one deliberate route, behind
 the session gate, scoped by RLS, whose entire purpose is showing one message to
@@ -1129,7 +1129,7 @@ it exists to answer.
 
 ## ADR-020 — Should the assistant read `extractions` as well as `message_chunks`?
 
-**Status:** ✅ **ACCEPTED in the narrow form, 2026-08-03, by Yuri** · built behind
+**Status:** **ACCEPTED in the narrow form, 2026-08-03, by Yuri** · built behind
 `ASSISTANT_GROUND_EXTRACTIONS`, **default off pending a full measured run**
 
 > ### The decision, and the condition attached to it
@@ -1149,7 +1149,7 @@ it exists to answer.
 > only when the queue is empty), backfilled to **0 outstanding**, and only then
 > was this built.
 >
-> **⚠ It ships OFF, and the default is the decision, not an oversight.** This
+> **CAUTION: It ships OFF, and the default is the decision, not an oversight.** This
 > ADR requires the refusal to be re-measured on both numbers. The daily token
 > cap allows roughly one full eval a day, and 2026-08-03's run is the baseline:
 > **answerable 6/6, must-refuse 7/7** — the first complete score this project has
@@ -1197,7 +1197,7 @@ it exists to answer.
 
 *Original proposal, kept as written because the reasoning is what was decided on:*
 
-**Status when raised:** 🟡 PROPOSED — not accepted, not built · 2026-08-03 · *For Yuri*
+**Status when raised:** PROPOSED — not accepted, not built · 2026-08-03 · *For Yuri*
 
 **Context.** `docs/04-ROADMAP.md` names this as *"the natural follow-on once
 extraction exists"*, and adds the condition it is being honoured by: *"That is a

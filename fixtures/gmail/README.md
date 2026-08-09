@@ -28,7 +28,7 @@ of ordinary mail — and fails at insert time, far from the cause. `normalize`
 converts HTML when no text part exists, and `nested-html-only.json` and
 `bare-html.json` are what keep that honest.
 
-## ⚠ Scrub the content, keep the ENCODING
+## Scrub the content, keep the ENCODING
 
 The first version of these fixtures was scrubbed to clean ASCII, which quietly
 removed the cases they most needed to preserve — and two real bugs shipped

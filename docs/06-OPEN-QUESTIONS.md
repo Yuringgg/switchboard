@@ -5,7 +5,7 @@ to the bottom with their answer.*
 
 ---
 
-## 🟡 Needs a decision, not blocking
+## Needs a decision, not blocking
 
 ### ~~Q12 — Should the assistant read `extractions` as well as `message_chunks`?~~ → **R24**
 **Decided by Yuri 2026-08-03: the narrow version, after the coverage fix.** Moved
@@ -30,11 +30,11 @@ a quiet addition, because it changes what the assistant is grounded in."*
   answerable today only because a real future-dated mail exists, and **that mail
   stops being upcoming on 8 August**. Extraction holds the same fact as a
   structured row that does not expire.
-- ⚠ It changes what a citation means. Today every claim traces to text somebody
+- CAUTION: It changes what a citation means. Today every claim traces to text somebody
   wrote; an extraction row is a model's reading of that text. The verbatim
   `quote` makes this recoverable, but only if the answer is built from the quote
   rather than the title.
-- ⚠ **It reopens the refusal**, which ADR-016 put entirely on the model reading
+- CAUTION: **It reopens the refusal**, which ADR-016 put entirely on the model reading
   its context. It would have to be re-measured on both numbers, and the eval
   cannot be run reliably on a day the assistant has also been used.
 
@@ -73,7 +73,7 @@ it becomes real, in ascending cost:
 
 *Leaning:* the first, and only when a second real user exists. It costs least and
 it is the one that would have prevented the confusion that raised this question.
-⚠ Whatever is chosen, **do not fix this by moving the assistant to the 8B model**
+CAUTION: Whatever is chosen, **do not fix this by moving the assistant to the 8B model**
 — it was measurably worse at refusing, which is the property the product is
 judged on (Q10).
 
@@ -117,7 +117,7 @@ WhatsApp reality check are the two things she'll actually care about.
 
 ---
 
-## ✅ Resolved
+## Resolved
 
 ### R24 — Should the assistant read `extractions` too? *(was Q12)*
 **Yes, in the narrow form only, and the coverage hole was fixed first.** Decided
@@ -125,7 +125,7 @@ by Yuri 2026-08-03. A date-window lookup for questions explicitly about schedule
 time, feeding the model each extraction's **verbatim quote** and parsed date,
 cited to the source message. Not a general merge of the two sources.
 
-⚠ **The condition attached to it turned out to matter more than the feature.**
+CAUTION: **The condition attached to it turned out to matter more than the feature.**
 Measured the same day: `extractions` was missing **four of the last five
 substantive messages** — extraction runs last of the three AI steps, meets an
 exhausted 6,000 tokens/minute window, records nothing by design, and **nothing
@@ -135,7 +135,7 @@ would have made it less reliable while reading as an improvement. Fixed
 (`extract-catchup.ts`, a 15-minute sweep that runs only when the queue is
 empty), backfilled to 0 outstanding, then built.
 
-⚠ **Ships behind `ASSISTANT_GROUND_EXTRACTIONS`, default OFF.** ADR-020 requires
+CAUTION: **Ships behind `ASSISTANT_GROUND_EXTRACTIONS`, default OFF.** ADR-020 requires
 both numbers re-measured; the daily cap allows about one full run; 2026-08-03's
 **answerable 6/6 · must-refuse 7/7** is the baseline. To close it, run the full
 eval with the flag on, on a day the assistant is otherwise unused, and compare.
@@ -152,7 +152,7 @@ scheduler in the console. "Daily" would therefore mean *a screen you visit*,
 which is precisely what `/attention` is.
 
 US-9's actual ask — *"I get a daily digest of what needs my attention"* — is
-satisfied by the screen. ⚠ Recorded here rather than left as an unticked box so
+satisfied by the screen. CAUTION: Recorded here rather than left as an unticked box so
 a future session does not read the empty checkbox as work outstanding.
 *2026-08-03*
 
@@ -186,7 +186,7 @@ Both were checked exhaustively on 2026-08-02 and are not on GitHub.
 scope already built, and that is their call to make (R2 set the same precedent on
 naming).
 
-⚠ **What this does NOT close, stated plainly so nobody assumes it did:**
+CAUTION: **What this does NOT close, stated plainly so nobody assumes it did:**
 `docs/00-CONTEXT.md` §7 records that **the scope has never been formally
 confirmed by iOzera** — everything in these docs rests on Ms. Maria's verbal
 description. That risk is now **accepted rather than resolved**. It is very
@@ -194,7 +194,7 @@ likely fine: the built system matches her founding message closely, including th
 summarizer and "real time" (§2a). But a future session should not read the
 absence of Q6/Q8 as evidence that scope was signed off.
 
-⚠ **The consent conversation is a separate question and is still open.** Q6 used
+CAUTION: **The consent conversation is a separate question and is still open.** Q6 used
 to carry it along, so it needs saying on its own: Phase 4A sends message bodies
 to a third-party LLM, and `docs/02-ARCHITECTURE.md` §6 gates **real iOzera client
 data** on an RA 10173 consent discussion. Dogfooding on Yuri's own accounts —
@@ -209,7 +209,7 @@ which is all that has ever happened — remains fine and unaffected. *2026-08-03
 
 **Reaffirmed 2026-08-02 against an alternative.** Ms. Maria suggested filing the
 work under the name **Aika** in her founding message (`docs/00-CONTEXT.md` §2a).
-Yuri's ruling: *"do not use aika. Switchboard is the final name."* ⚠ **Do not
+Yuri's ruling: *"do not use aika. Switchboard is the final name."* CAUTION: **Do not
 reintroduce it** — not in the repo, not in the console, not in the demo, and not
 when talking to iOzera. Naming is the product owner's call and this one is
 closed.

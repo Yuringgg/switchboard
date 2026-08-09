@@ -88,50 +88,51 @@ feature that works and is understood beats a clever one that half-works.
 
 ## 5. Current status
 
-**Phase 0 ✅ · Phase 1 ✅ · Phase 2 🟡 code complete, awaiting Meta ·
-Phase 3 🟡 search + message route + timeline channel filter shipped ·
-Phase 4A ✅ shipped · Phase 4B ✅ shipped and its loose ends closed ·
-Phase 5 ✅ shipped (extraction, the `/attention` **board**, calendar
-write-back) · **Ms. Maria's 2026-08-05 review ✅ built** — polish remains.**
+**Phase 0 complete · Phase 1 complete · Phase 2 code complete, proven on a
+temporary upstream, awaiting a durable number ·
+Phase 3 search + message route + timeline channel filter shipped ·
+Phase 4A shipped · Phase 4B shipped and its loose ends closed ·
+Phase 5 shipped (extraction, the `/attention` **board**, calendar
+write-back) · **Ms. Maria's 2026-08-05 review built** — polish remains.**
 
-### ⚠ Ms. Maria's review landed 2026-08-06 — six things a console session must know
+### Ms. Maria's review landed 2026-08-06 — six things a console session must know
 
 Full note: `correspondence/2026-08-06-maria-changes.md`. The headline was
 *"halatang ginawa mo siya sa AI"* — and two thirds of it was measurable, not
 taste.
 
-1. **⚠ BOTH TYPEFACES CHANGED.** Instrument Sans + IBM Plex Mono → **Archivo +
+1. **CAUTION: BOTH TYPEFACES CHANGED.** Instrument Sans + IBM Plex Mono → **Archivo +
    Martian Mono**. The old pair sits on the reflex-reject list of training-data
    defaults in `.agents/skills/impeccable/reference/brand.md`, which is exactly
    why a person who sees a lot of generated work recognised them. The *two-voice
    split* (sans for what a person wrote, mono for what the machine knows) is
    kept and is not negotiable.
-2. **⚠ EVERY STEP OF THE TYPE SCALE MOVED, and `--text-hero` is new.** Anything
+2. **CAUTION: EVERY STEP OF THE TYPE SCALE MOVED, and `--text-hero` is new.** Anything
    added to the `--text-*` tokens must be added to `lib/utils.ts` in the same
    commit — tailwind-merge reads an unknown `text-*` as a *colour*, so `cn()`
    drops it and the element renders at 16px with no error. The stencilled
    label's tracking came DOWN (0.16em → 0.1em): Martian Mono is a wider face.
-   ⚠ The mobile dock's label is pinned at a literal 12px and deliberately does
+   CAUTION: The mobile dock's label is pinned at a literal 12px and deliberately does
    **not** follow the scale — six entries fit 375px within two pixels.
-3. **⚠ THE LIGHT RAMP WAS REBUILT.** *"Squint ka muna"* was a defect: background
+3. **CAUTION: THE LIGHT RAMP WAS REBUILT.** *"Squint ka muna"* was a defect: background
    `oklch(0.994)` against panel `oklch(0.972)` is **2.2% of lightness apart**,
    so the frame-versus-record idea was carried by a step nobody can see. Now
    0.981 / 0.947 / border 0.872. **Do not push `--background` back toward 1.0 to
    make it look cleaner** — that is the change that produced the complaint.
-4. **⚠ `live.tsx` NO LONGER HAS AN `offline` STATE.** A dropped socket now
+4. **CAUTION: `live.tsx` NO LONGER HAS AN `offline` STATE.** A dropped socket now
    reconnects on capped backoff, polls every 20s meanwhile, and refreshes on
    tab focus. The third state is `Syncing`, not a red `Offline` telling the
    reader to reload — which was the manual refresh Ms. Maria asked to be rid
    of, dressed as a status light. It must stay visibly distinct from `Live`
    (different word, non-blinking lamp), because "no new mail" and "the socket
    died" looking alike is the defect that indicator exists to prevent.
-5. **⚠ `/attention` IS A BOARD, and migration 0012 added `extractions.status`.**
+5. **CAUTION: `/attention` IS A BOARD, and migration 0012 added `extractions.status`.**
    `confirmed_at` is **not** read as "done" — a meeting on the calendar is
    *real*, not *finished*. The Done column sorts by `status_changed_at`, never
    by deadline: everything completed is eventually overdue, so the obvious sort
    fills the column you just cleared with red flags. `status` is written by a
    person and by nothing else, the same rule ADR-010 sets for calendar events.
-6. **⚠ `/` IS PUBLIC-FACING NOW.** An unauthenticated request for the bare root
+6. **CAUTION: `/` IS PUBLIC-FACING NOW.** An unauthenticated request for the bare root
    redirects to **`/welcome`**, the landing page, not to `/login`. Every other
    gated path still goes to `/login?next=…`. `/welcome` is in `PUBLIC_PATHS` and
    reads no tenant data — if anything on it ever queries a message, a channel or
@@ -233,10 +234,10 @@ it carries the verified numbers and the next action. Read that, then come back.
 > `correspondence/2026-07-28-phase-2-whatsapp.md` — Phase 2 and the refactor
 > checkpoint's finding.
 
-⚠ **This project keeps having documented decisions contradicted by measurement**
+CAUTION: **This project keeps having documented decisions contradicted by measurement**
 (ADR-012, ADR-014, ADR-016, ADR-003's provider, **ADR-017**, and four more found
 on 2026-08-03 — see below). The pattern is usually the same: the doc was right
-when written and quietly stopped being right. ⚠ **ADR-017 adds a variant worth
+when written and quietly stopped being right. CAUTION: **ADR-017 adds a variant worth
 knowing: the doc was wrong from the moment it was written**, because the failing
 measurement was never traced past its first plausible explanation.
 
@@ -251,7 +252,7 @@ measurement was never traced past its first plausible explanation.
    and the docs had merged them into one.
 4. **"All four `WHATSAPP_*` variables on Vercel" — only two are ever read.**
 
-⚠ The shape they share: **a claim that was checkable in seconds and had never
+CAUTION: The shape they share: **a claim that was checkable in seconds and had never
 been checked.** Three of the four were found by counting rows or grepping for a
 variable name, not by anything clever.
 **Check a claim against the live system before building on it** — the Supabase
@@ -267,7 +268,7 @@ separate from the human-readable `display_name`. 13 fixtures, 103 new tests, 286
 total. `next build` green, the worker bundle boots. **Nothing is stored until a
 number is provisioned** — see `docs/03-RESOURCES.md` §6.
 
-**⚠ The refactor checkpoint found a real defect — read ADR-014.** The canonical
+**CAUTION: The refactor checkpoint found a real defect — read ADR-014.** The canonical
 types held against a structurally different channel with no special case
 anywhere above the adapter. **Three of `ChannelAdapter`'s five signatures could
 not be implemented**, and nothing had noticed because nothing implemented the
@@ -315,7 +316,7 @@ timeline, and CI asserts tenant isolation on every push.
   **working pre-commit secret scan** (`.githooks/`, wired via `core.hooksPath`
   by `pnpm install`)
 
-> **⚠ CI was RED from 2026-07-28 to 2026-08-02, and this file said it was
+> **CAUTION: CI was RED from 2026-07-28 to 2026-08-02, and this file said it was
 > green.** Runs #31–#39 all failed at `pnpm install --frozen-lockfile`. The
 > cause: Phase 2 added `packages/adapters/whatsapp` and new dependencies to
 > `apps/console` and `apps/worker` **without regenerating `pnpm-lock.yaml`** —
@@ -378,7 +379,7 @@ timeline, and CI asserts tenant isolation on every push.
 - **CI runs `next build`**, and the pre-commit hook rejects BOM'd JSON. Both
   guard the same class of failure; see `docs/02-ARCHITECTURE.md` §8.
 
-**✅ THE PIPELINE IS CLOSED, AND THE CONSOLE IS LIVE (2026-07-28).** `history.list`
+**THE PIPELINE IS CLOSED, AND THE CONSOLE IS LIVE (2026-07-28).** `history.list`
 + `normalize`, the worker's upsert into `messages`, contact identity resolution
 and the timeline all landed. Verified against the live database: **10 messages,
 10 conversations, 7 contact identities.** A real email now reaches the screen.
@@ -421,7 +422,7 @@ changed that a build session must know about:
   said it followed the OS only; **Yuri overruled that on 2026-07-28** and the
   toggle shipped. The tokens switch on a `.dark` class, `lib/theme.ts` owns the
   decision, and a **blocking inline script in `<head>`** applies it before
-  first paint. ⚠ That script must stay synchronous and stay in `<head>` — move
+  first paint. CAUTION: That script must stay synchronous and stay in `<head>` — move
   it and the page renders light then flips. Its fallback logic must also keep
   matching `readStored()`, or an unrecognised stored value paints one theme
   while the control claims another.
@@ -433,14 +434,14 @@ column is `not null`, HTML-only email is common, `''` is a legal value), and
 
 Do not skip ahead. The adapter contract exists; use it.
 
-**⚠ NEVER RUN `drizzle-kit generate` OR `drizzle-kit migrate`.** Run against the
+**CAUTION: NEVER RUN `drizzle-kit generate` OR `drizzle-kit migrate`.** Run against the
 live database on 2026-07-26, `generate` proposed disabling RLS on all ten tables
 and dropping all ten `tenant_isolation` policies — silently dismantling the
 security boundary. Migrations are hand-written SQL in `packages/db/migrations/`.
 Full reasoning in `packages/db/drizzle.config.ts`. Drizzle-as-ORM is fine and
 unaffected. `drizzle-kit pull` is safe.
 
-**✅ RESOLVED 2026-07-27 — two consecutive incidents, kept because the second
+**RESOLVED 2026-07-27 — two consecutive incidents, kept because the second
 misdiagnosis is instructive and the failure mode will recur.**
 
 **Incident 1 — the Google env var.** `/api/auth/google/start` returned 500.
@@ -478,14 +479,14 @@ Three lessons, all now guarded:
    code.** `sync_state` had a cursor for hours while the build session's notes
    still said it was empty.
 
-**✅ INGEST IS LIVE — first real notifications queued 2026-07-27 05:30 UTC.**
+**INGEST IS LIVE — first real notifications queued 2026-07-27 05:30 UTC.**
 
 `SUPABASE_SERVICE_ROLE_KEY` is set on Vercel (Production + Preview, Sensitive).
 **Two `raw_events` rows landed from a real email**, correct `channel_id`, correct
 `owner_id`, `status='done'`, one attempt, no error. Gmail → Pub/Sub → OIDC
 verification → channel lookup → insert now works end to end for the first time.
 
-**⚠ Never prefix that variable with `NEXT_PUBLIC_`** — it would inline a key that
+**CAUTION: Never prefix that variable with `NEXT_PUBLIC_`** — it would inline a key that
 bypasses every RLS policy into browser JavaScript. A test fails if anyone does.
 
 **Paste hygiene, learned the hard way:** `apps/worker/.env` wraps some values in
@@ -496,13 +497,13 @@ request fails auth in a way that reads as a bad key. Paste values unquoted.
 does not yet flag wrapping quotes; both are worth adding next to the existing
 whitespace and line-break checks.
 
-**⚠⚠ THE GMAIL CONNECTION EXPIRES EVERY 7 DAYS. Verified 2026-08-02.**
+**CRITICAL: THE GMAIL CONNECTION EXPIRES EVERY 7 DAYS. Verified 2026-08-02.**
 The consent screen is **External + Testing**, and Google expires every refresh
 token **7 days from the moment the user clicked Allow** — not from last use, not
 configurable, per user. When it lapses `refreshAccessToken` returns
 `invalid_grant`, the worker's sweep sets `channels.status='error'` within 6
 hours, `/channels` shows *Needs attention*, and **mail stops arriving.** The fix
-is one click on **Reconnect** on `/channels` — ⚠ the button is labelled
+is one click on **Reconnect** on `/channels` — CAUTION: the button is labelled
 `Connect` only while a channel is *unconnected*; once a row exists it reads
 `Reconnect` (`channel-list.tsx`), and telling someone to look for "Connect"
 sends them hunting for a button that is not on the screen. Everything after the
@@ -525,7 +526,7 @@ exists to avoid — do not. Full note: `docs/03-RESOURCES.md` §2.
   only way, and Google withdrew the IAP OAuth Admin APIs in March 2026, so this
   genuinely cannot be automated. Asked and answered on 2026-08-02; do not spend
   time looking for one again.
-- **⚠ The 100 cap is a LIFETIME total, not a concurrent one.** Google's wording
+- **CAUTION: The 100 cap is a LIFETIME total, not a concurrent one.** Google's wording
   on the Audience screen: *"Allowed user cap prior to app verification is 100,
   and is counted over the entire lifetime of the app."* It never resets. At
   **1/100** on 2026-08-02. Every throwaway account burns one permanently, so do
@@ -540,7 +541,7 @@ exists to avoid — do not. Full note: `docs/03-RESOURCES.md` §2.
   on its own page without redirecting back at all — so the callback's message is
   often never seen. Fixed 2026-08-02: the message names both causes, and
   `/channels` states the requirement **before** the click, quoting the reader's
-  own address for an admin to paste. ⚠ Do not collapse that message back into a
+  own address for an admin to paste. CAUTION: Do not collapse that message back into a
   confident "Connection cancelled." — it sends a blocked user to retry the same
   click forever.
 - **WhatsApp's limit is what WhatsApp is:** there is no personal WhatsApp API, so
@@ -551,7 +552,7 @@ exists to avoid — do not. Full note: `docs/03-RESOURCES.md` §2.
   ingest: `.maybeSingle()` errors on two rows, so the route 500'd and Pub/Sub
   retried that mailbox forever while both consoles stayed empty. It now writes
   one `raw_events` row per owner — `fanOutToChannels`,
-  `apps/console/src/lib/ingest.ts`. ⚠ **Never "fix" a multi-row lookup on this
+  `apps/console/src/lib/ingest.ts`. CAUTION: **Never "fix" a multi-row lookup on this
   path with `.limit(1)`.** That is worse than the crash: it delivers one
   tenant's mail to whichever row sorted first, and no RLS policy catches it.
 
@@ -561,7 +562,7 @@ rows), but one small prompt per message on ingest. Sequenced **before** the
 assistant because it is far cheaper and proves the Groq path first. Plan in
 `docs/04-ROADMAP.md`; storage decision in **ADR-015**.
 
-⭐ **It is in the founding request, not an addition.** Ms. Maria, 2026-07-25:
+**It is in the founding request, not an addition.** Ms. Maria, 2026-07-25:
 *"Do you think you can make a live webapp that can view whatsapp messages real
 time **and have ai summarize** bebe? Parang admin view"*, and again on
 2026-08-01: *"dont forget to incorporate an llm din to summarize noo"*. **The
@@ -570,7 +571,7 @@ summarizer was always half the product.** It reached the roadmap only on
 docs — `docs/00-CONTEXT.md` §2a now carries it verbatim, and it corrects three
 other things the reconstruction had lost.
 
-⚠ **It is also the first time message bodies leave this system.** Nothing has
+CAUTION: **It is also the first time message bodies leave this system.** Nothing has
 ever been sent to a third party. That makes Q2's consent conversation with Ms.
 Maria more urgent, and it makes prompt injection a real surface — an email can
 try to dictate its own summary, and a human reads the result.
@@ -578,9 +579,9 @@ try to dictate its own summary, and a human reads the result.
 **She also said (2026-08-01) she "checked your systems and queries and set aside
 the answers and recommendations".** Checked exhaustively on 2026-08-02: they are
 not on GitHub — no issues, pull requests, comments, branches besides `main` or
-forks, and every repo event is Yuri's own push. **✅ CLOSED 2026-08-03 — Yuri
+forks, and every repo event is Yuri's own push. **CLOSED 2026-08-03 — Yuri
 withdrew the chase; the project proceeds on the scope already built (R22). Do not
-re-open it.** ⚠ That accepts `docs/00-CONTEXT.md` §7's open-scope risk rather
+re-open it.** CAUTION: That accepts `docs/00-CONTEXT.md` §7's open-scope risk rather
 than resolving it: do not read the absence of the question as scope having been
 formally confirmed by iOzera. The **consent** question (Q2 / RA 10173) is
 separate and stays open — it gates real *client* data, not the dogfooding on
@@ -591,7 +592,7 @@ WhatsApp product, the free test number, up to 5 verified recipients, the webhook
 registered with the **`messages` field subscribed**, **two** `WHATSAPP_*`
 variables on Vercel (`WHATSAPP_APP_SECRET`, `WHATSAPP_WEBHOOK_VERIFY_TOKEN` —
 **not four**, corrected 2026-08-03), then
-`pnpm --filter @switchboard/db provision-whatsapp` — ⚠ **not** plain `node`,
+`pnpm --filter @switchboard/db provision-whatsapp` — CAUTION: **not** plain `node`,
 which cannot resolve this workspace's extensionless imports and dies naming
 `core` rather than the script. The full checklist with the traps is
 `docs/03-RESOURCES.md` §6.
@@ -620,12 +621,12 @@ Migration 0008, `packages/ai`, a worker step, a backfill script and a 10-case
 eval set that passes 10/10 against the live model. Five things a session
 touching it must know:
 
-- **⚠ It must NEVER fail an event.** A summary is additive. The step sits
+- **CAUTION: It must NEVER fail an event.** A summary is additive. The step sits
   between ingest and `markDone`, wrapped so nothing it does can reach the
   handler that calls `markFailed` — that would burn an attempt on a message
   which ingested perfectly. `GROQ_API_KEY` is deliberately **optional** in
   `env.ts`: no key means no summaries and mail flows exactly as before.
-- **⚠ `llama-3.1-8b-instant`, never `llama-3.3-70b-versatile`.** Verified from
+- **CAUTION: `llama-3.1-8b-instant`, never `llama-3.3-70b-versatile`.** Verified from
   the live rate-limit headers: 14,400 req/day against **1,000**. One backfill
   would eat the 70B's allowance and live summarisation would then stop silently
   until midnight UTC.
@@ -648,14 +649,14 @@ touching it must know:
 things a session touching it must know, and two of them contradict the docs that
 came before:
 
-- **⚠⚠ GEMINI IS NOT THE ASSISTANT'S PROVIDER ANY MORE.** Its free tier is
+- **CRITICAL: GEMINI IS NOT THE ASSISTANT'S PROVIDER ANY MORE.** Its free tier is
   **20 requests per DAY** — read straight off the quota error
   (`"quotaValue": "20"`), against the 250 `docs/03-RESOURCES.md` recorded. One
   eval run is 15 requests. The assistant runs on Groq
   `llama-3.3-70b-versatile` (1,000/day); summaries stay on
   `llama-3.1-8b-instant` so the two cannot exhaust each other. ADR-003 amended
   in `packages/ai/src/assistant-provider.ts`.
-- **⚠⚠ THE SIMILARITY FLOOR DOES NOT WORK. READ ADR-016.** ADR-007 specified
+- **CRITICAL: THE SIMILARITY FLOOR DOES NOT WORK. READ ADR-016.** ADR-007 specified
   refusal as a retrieval threshold. Measured on the real corpus, the lowest
   *answerable* score (0.8487) sits **below** the highest *unanswerable* one
   (0.8563) — "recipe for adobo" out-scored "what failed in CI?". e5's normalised
@@ -675,7 +676,7 @@ came before:
 `[embed] model ready in 5.6s`, ingress external, `POST /embed` answering from
 the public internet with 401 on a missing or wrong token.
 
-⚠ **It crashlooped first — exit code 137, OOM.** The worker was sized
+CAUTION: **It crashlooped first — exit code 137, OOM.** The worker was sized
 **0.25 vCPU / 0.5 GiB** and a 129 MB quantised ONNX model needs far more than
 its own size once the runtime and Node's heap are counted. Now **0.5 vCPU /
 1.0 GiB**. Two things to carry forward:
@@ -683,20 +684,20 @@ its own size once the runtime and Node's heap are counted. Now **0.5 vCPU /
 - **Running cost roughly doubles, to ~$20–30/month** (ADR-011 amended). Over
   four months that approaches the whole $100 credit — the "meaningful headroom"
   `docs/03-RESOURCES.md` §1 predicted is now spent.
-- **⚠ Graceful degradation cannot survive OOM.** `warmEmbedder()` is
+- **CAUTION: Graceful degradation cannot survive OOM.** `warmEmbedder()` is
   deliberately non-fatal so a bad image degrades instead of crashlooping, and it
   did not help at all: the kernel SIGKILLs the process, so no handler runs and
   nothing is logged. **Size memory before loading a model** — an error handler
   is not a substitute.
 
-✅ **`/assistant` ANSWERS IN PRODUCTION.** Confirmed by Yuri on 2026-08-03:
+**`/assistant` ANSWERS IN PRODUCTION.** Confirmed by Yuri on 2026-08-03:
 `EMBED_API_URL`, `EMBED_API_SECRET` and `GROQ_API_KEY` are set on Vercel and the
 deployment was recreated, so the whole path — question → worker `/embed` →
 `match_chunks` under the user's own session → Groq → cited answer — runs live.
 Verified end to end against a real question, with the citation resolving to the
 right message. *(Earlier docs said this was still outstanding; it is not.)*
 
-**⚠ CI does not repoint the Container App.** `worker-image.yml` pushes a new
+**CAUTION: CI does not repoint the Container App.** `worker-image.yml` pushes a new
 image to ghcr; the app runs one pinned by **digest**. Until
 `az containerapp update --image <digest>` is run, the deployed worker keeps
 running old code while the commit looks deployed — the same shape as the BOM
@@ -727,7 +728,7 @@ all 16 messages, and `hiraimumu1616@gmail.com` (`f5131cd5-…`), which owns
 nothing. This file claimed there was only one until 2026-07-28; corrected after
 querying `auth.users`.
 
-⚠ **That matters for Phase 2.** A WhatsApp number is assigned to a specific
+CAUTION: **That matters for Phase 2.** A WhatsApp number is assigned to a specific
 `owner_id`, and only that tenant will ever see its messages — RLS is doing
 exactly what it should. Provision against `ec7645a6-…` unless you mean
 otherwise. The second account is also the first real chance to *see* tenant
@@ -738,7 +739,7 @@ isolation working rather than only testing it.
 - Node 25+ unbundled corepack, so `pnpm` must be installed globally:
   **`npm i -g pnpm@11.17.0`** (match `packageManager` in the root
   `package.json` — a different major writes a lockfile CI will reject).
-  ⚠ **It goes missing after a Node upgrade**, and when it is missing the
+  CAUTION: **It goes missing after a Node upgrade**, and when it is missing the
   temptation is to run `vitest`/`tsc` directly and call it green. That is
   exactly how CI stayed red for five days without anyone noticing — see the
   warning above. Reinstall it rather than working around it.
@@ -770,7 +771,7 @@ are all settled — see the resolved list in `docs/06-OPEN-QUESTIONS.md`.
   Stays warm because it holds ONNX embedding weights in memory.
 - **Database:** Postgres + pgvector + Realtime + Auth + RLS → **Supabase**
 - **Object storage:** attachments → **Azure Blob Storage**
-- **Assistant Q&A:** **Groq `llama-3.3-70b-versatile`** — ⚠ **not Gemini.**
+- **Assistant Q&A:** **Groq `llama-3.3-70b-versatile`** — CAUTION: **not Gemini.**
   ADR-003 said Gemini 2.5 Flash on the strength of 250 requests/day; measured
   2026-08-02 that free tier is **20 per day**. Groq gives 1,000/day, though the
   binding limit is ~100K tokens/day ≈ **30 questions/day**. Amended in
@@ -819,7 +820,7 @@ scope entirely** — see ADR-008 before anyone suggests adding them.
 4. **Most traffic is `statuses`, not messages.** Delivery receipts arrive on the
    same field. Queue them and every message the business sent appears twice.
 
-**⚠ Never use `whatsapp-web.js` or Baileys.** They impersonate WhatsApp Web,
+**CAUTION: Never use `whatsapp-web.js` or Baileys.** They impersonate WhatsApp Web,
 violate Meta's terms, and get numbers banned. The Cloud API only receives
 messages sent *to a business number you control* — it cannot read existing
 personal conversations, and no library changes that legitimately.
@@ -830,17 +831,20 @@ personal conversations, and no library changes that legitimately.
 
 ## 7. Where this is, right now — read this and you know what to do
 
-**Date of this block: 2026-08-02.**
+**Date of this block: 2026-08-02**, with the verified-live numbers below
+refreshed on **2026-08-09**. CAUTION: the prose in this section still describes
+the state as of early August — where it disagrees with §5 or with
+`correspondence/2026-08-09-design-revisions.md`, those are newer and correct.
 
 | | State |
 |---|---|
-| **Phase 0** | ✅ complete |
-| **Phase 1 — Gmail** | ✅ complete and **live**. 49 real messages, watch renewing itself in production |
-| **Phase 2 — WhatsApp** | 🟡 **code complete, pushed, deployed.** Dormant until Meta credentials exist |
-| **Phase 3 — console** | 🟡 **search + filters shipped and deployed.** Migration 0007, `/search`. Remaining: contacts, identity merge, attachments, virtualization |
-| **Phase 4A — summaries** | ✅ **shipped, deployed, running.** Migration 0008, Groq 8b. **66/66 eligible messages summarised**, and new mail is summarised automatically on ingest |
-| **Phase 4B — assistant** | ✅ **shipped and deployed.** Migrations 0009, local embeddings, `/assistant`. **75/75 messages embedded (397 chunks)**, worker serving `/embed`. ⚠ Prompt owes one tuning pass — see below |
-| **Phase 5** | ✅ **shipped 2026-08-03.** Extraction pass (migration 0011), `/attention` (US-9), and calendar write-back on `/messages/[id]` (US-7b, ADR-010). Remaining Phase 5 items are polish: daily digest, error audit, README from a clean clone, diagram, demo rehearsal |
+| **Phase 0** | complete |
+| **Phase 1 — Gmail** | complete and **live**. 49 real messages, watch renewing itself in production |
+| **Phase 2 — WhatsApp** | **code complete, pushed, deployed.** Dormant until Meta credentials exist |
+| **Phase 3 — console** | **search + filters shipped and deployed.** Migration 0007, `/search`. Remaining: contacts, identity merge, attachments, virtualization |
+| **Phase 4A — summaries** | **shipped, deployed, running.** Migration 0008, Groq 8b. **66/66 eligible messages summarised**, and new mail is summarised automatically on ingest |
+| **Phase 4B — assistant** | **shipped and deployed.** Migrations 0009, local embeddings, `/assistant`. **75/75 messages embedded (397 chunks)**, worker serving `/embed`. CAUTION: Prompt owes one tuning pass — see below |
+| **Phase 5** | **shipped 2026-08-03.** Extraction pass (migration 0011), `/attention` (US-9), and calendar write-back on `/messages/[id]` (US-7b, ADR-010). Remaining Phase 5 items are polish: daily digest, error audit, README from a clean clone, diagram, demo rehearsal |
 
 ### Verified live on 2026-08-03 (late), by querying — not by inference
 
@@ -848,17 +852,17 @@ personal conversations, and no library changes that legitimately.
 |---|---|
 | Messages | **85** · 22 contacts · 2 users |
 | Summaries | **71** |
-| Embeddings | **83 / 85 messages**. ⚠ The gaps are bodies that are nothing but `\r\n` — correctly skipped, not a defect |
+| Embeddings | **83 / 85 messages**. CAUTION: The gaps are bodies that are nothing but `\r\n` — correctly skipped, not a defect |
 | **Extraction** | **83 runs, 0 outstanding.** Most wrote 0 rows, which is the ORDINARY result |
 | Queue | **0 not done** |
-| Channels | 1 Gmail, **0 in error**. ⚠ See the watch/token note below — they are different dates |
+| Channels | 1 Gmail, **0 in error**. CAUTION: See the watch/token note below — they are different dates |
 | Console | `/attention`, `/contacts`, `/messages/[id]` all gated correctly |
 | Tests | **541** on 2026-08-09 (was 496) · typecheck and `next build` green; all 11 tables verified `rowsecurity` + `forcerowsecurity` + a policy with USING **and** WITH CHECK after 0012 |
 | Migrations | **0013** is the latest. 0012 (`extractions.status`, `status_changed_at`) 2026-08-06; 0013 (`extractions.archived_at`) 2026-08-09. Both additive with no new table, so `assert-rls.ts` needed no change |
 | Attention board | 10 cards live, 0 archived, verified by querying 2026-08-09 |
-| Blob storage | ✅ **provisioned** — `swbattachments` / container `attachments`, malaysiawest |
+| Blob storage | **provisioned** — `swbattachments` / container `attachments`, malaysiawest |
 
-### ✅ THE ASSISTANT EVAL HAS A COMPLETE SCORE, FOR THE FIRST TIME
+### THE ASSISTANT EVAL HAS A COMPLETE SCORE, FOR THE FIRST TIME
 
 ```
 answerable: 6/6   must-refuse: 7/7   provider errors: 3
@@ -867,7 +871,7 @@ answerable: 6/6   must-refuse: 7/7   provider errors: 3
 **Zero logic failures.** 13 of the 15 scoreable cases measured, all passed. Two
 sessions had failed to get here.
 
-⚠ **Only ONE of the three provider errors was the daily cap** — and it was the
+CAUTION: **Only ONE of the three provider errors was the daily cap** — and it was the
 known-gap case, which is not scored. The other two were the **per-minute**
 window, with 4,031 and 5,509 tokens still left in it, and they were the eval's
 own fault:
@@ -880,16 +884,16 @@ own fault:
 > the run immediately). **Costs no extra tokens** — a 429 is a rejection, not a
 > completion.
 
-⚠ **The ~30 questions/day figure looks optimistic.** The daily cap tripped after
+CAUTION: **The ~30 questions/day figure looks optimistic.** The daily cap tripped after
 roughly **13** completions, not 30. `docs/03-RESOURCES.md` §4a always derived
 ~100K/day from observed 429s rather than anything Groq publishes. One
 observation is not a refutation — but do not plan a demo day around 30.
 
-⚠ **Groq's buckets replenish continuously.** A short targeted run succeeded
+CAUTION: **Groq's buckets replenish continuously.** A short targeted run succeeded
 about half an hour after the daily rejection. Never write "resets at midnight"
 in UI copy; it is false.
 
-### ⚠ Two dates, and conflating them is why mail stops
+### Two dates, and conflating them is why mail stops
 
 `sync_state.expires_at` is the **Gmail watch**. It read **2026-08-10 07:39 UTC**
 on 2026-08-03 — the worker's sweep had already renewed it. Earlier docs said
@@ -912,7 +916,7 @@ into Vercel, redeploy, subscribe the `messages` webhook field, run
 `pnpm --filter @switchboard/db provision-whatsapp`, send a test message.
 Checklist with the traps: `docs/03-RESOURCES.md` §6.
 
-⚠ **Two things in that sentence were wrong until 2026-08-03, and both were at
+CAUTION: **Two things in that sentence were wrong until 2026-08-03, and both were at
 the end of the sequence where a mistake costs the most.** It said *four* values
 (only two are ever read) and it gave a `node …provision-whatsapp.ts` command
 that **has never been able to run** — `ERR_MODULE_NOT_FOUND` on
@@ -924,17 +928,17 @@ extensionless imports. Neither had been executed. Both are fixed above.
 1. **Reconnect Gmail every 7 days** and on the morning of any demo. Last
    reconnect 2026-08-01; next lapse **2026-08-08**.
 2. ~~Ask Ms. Maria for her recommendations / the BRD.~~ **Withdrawn by Yuri
-   2026-08-03 — stop chasing it (R22).** ⚠ Note what that does *not* mean:
+   2026-08-03 — stop chasing it (R22).** CAUTION: Note what that does *not* mean:
    `docs/00-CONTEXT.md` §7's open-scope risk is now **accepted**, not resolved.
    Do not read the absence of the question as scope having been signed off.
-3. **⚠ Rotate the Groq and Gemini keys before this repo is shown to iOzera** —
+3. **CAUTION: Rotate the Groq and Gemini keys before this repo is shown to iOzera** —
    both were pasted into a chat transcript on 2026-08-02, at Yuri's explicit
    instruction. Nothing was committed; `.env` is gitignored.
-4. **⚠ Run the full unfiltered eval before quoting any assistant score.** The
+4. **CAUTION: Run the full unfiltered eval before quoting any assistant score.** The
    last session's run was cut short by the daily token cap after measuring 1/1
    answerable and 2/2 must-refuse. A full run costs ~half a day's tokens, so do
    it first thing, not after burning budget on something else.
-5. **⚠ Keep a genuinely future-dated meeting in the mailbox.** *"Do I have any
+5. **CAUTION: Keep a genuinely future-dated meeting in the mailbox.** *"Do I have any
    upcoming meetings?"* is Ms. Maria's own example question, and it can only be
    answered from a mail whose date is still ahead. Yuri sent one on 2026-08-03
    (*"Project sync with Ms. Maria"*, Fri 7 Aug 3:00 pm) and the assistant answers
@@ -943,23 +947,23 @@ extensionless imports. Neither had been executed. Both are fixed above.
    not mistaken for a prompt regression again. **Phase 5 extraction is the
    permanent fix** (US-7, R14).
 
-**⚠ The assistant is capped at roughly 30 questions per day.** Measured: Groq's
+**CAUTION: The assistant is capped at roughly 30 questions per day.** Measured: Groq's
 70B allows 12,000 tokens/min and ~100,000 tokens/day, and one question costs
 ~3,000–3,500 tokens. Requests/day (1,000) never binds — the token cap does.
 **Do not burn the day's budget the morning of a demo.** Search, embeddings,
 summaries and ingest have no such limit.
 
-**⚠⚠ That ~30/day is SHARED BY EVERY TENANT, not granted per user.** Groq's
+**CRITICAL: That ~30/day is SHARED BY EVERY TENANT, not granted per user.** Groq's
 limits are scoped to the **organization** — its own 429 says
 `in organization org_01kz09ajk…` — and this deployment holds one Groq key. Five
 users get ~30 questions *between them*, not 150, and **there is no per-user
 throttle in the code**: one person can exhaust the assistant for everyone before
 lunch, leaving the rest with "daily allowance used up" having asked nothing.
 Not urgent at 2 accounts; real the moment iOzera adds a second person. **Q11.**
-⚠ Do not confuse this with Gmail's limits, which genuinely *are* per user (the
+CAUTION: Do not confuse this with Gmail's limits, which genuinely *are* per user (the
 7-day token expiry and the 100-user lifetime cap). The two fail differently.
 
-**⚠ The assistant's "over-refusal" was a MISDIAGNOSIS — read ADR-017.**
+**CAUTION: The assistant's "over-refusal" was a MISDIAGNOSIS — read ADR-017.**
 This file used to say the prompt over-refuses two answerable questions and owes
 one tuning pass. Measured on 2026-08-02 with the new zero-quota instrument
 `apps/worker/scripts/probe-context.ts`, **both refusals were correct** and the
@@ -973,7 +977,7 @@ eval was scoring them as failures:
   27–28 July** and three of five had bodies reading only "YURI". The one naming
   a time ("9pm tonight") was sent 19:59 on 2 Aug; the eval ran at 22:40. The
   case's verdict **depended on the wall clock**.
-  ✅ **Resolved 2026-08-03** — Yuri sent a mail naming a real future date and the
+  **Resolved 2026-08-03** — Yuri sent a mail naming a real future date and the
   assistant now answers it correctly in production, citing the right message. The
   case is back to `answer`, **with a `staleAfter` guard**: it expires again on
   8 August, and the eval says so out loud rather than quietly turning red.
@@ -989,7 +993,7 @@ What did change: the prompt's decision is **three-way** — "nothing here is abo
 this" (refuse) versus "several things are, none decisive" (synthesise, citing
 each). Verified on a synthesis question retrieval can serve; refusals held.
 
-⚠ **Reach for `probe-context.ts` before `eval-assistant.ts`.** It costs nothing
+CAUTION: **Reach for `probe-context.ts` before `eval-assistant.ts`.** It costs nothing
 and it separates "the model judged wrongly" from "the model never saw it" —
 opposite fixes, and the answer-level eval cannot tell them apart at any price.
 Scores are reported as **two numbers, never one**: a combined figure reads
@@ -1000,7 +1004,7 @@ identically for a prompt that refuses everything and one that answers everything
 Everything it needs already exists: Groq is wired, `extractions` takes new
 kinds, and the OAuth consent already carries `calendar.events`.
 
-⭐ **Phase 5 is also what closes the assistant's two known gaps**, and that is
+**Phase 5 is also what closes the assistant's two known gaps**, and that is
 not a coincidence — ADR-017 traced both of them here. *"Summarise what needs my
 attention"* is US-9 reading `extractions`, not a retrieval question; *"do I have
 any upcoming meetings?"* is US-7 plus R14, which already settled that meetings
@@ -1016,23 +1020,23 @@ measured and ruled out.
 The worker now pulls **commitments, meetings, action items and questions** out
 of every message into `extractions`. Five things a session touching it must know:
 
-- **⚠ It must NEVER fail an event**, the same contract as summaries and
+- **CAUTION: It must NEVER fail an event**, the same contract as summaries and
   embeddings, and it runs **last of the three** on purpose: if the shared
   6,000 tokens/minute window runs out mid-batch, the step that should lose is
   the one whose output is read hours later on another screen.
-- **⚠ `llama-3.1-8b-instant`, never the 70B.** Re-verified from live headers on
+- **CAUTION: `llama-3.1-8b-instant`, never the 70B.** Re-verified from live headers on
   2026-08-03: 14,400 req/day against the assistant's 1,000.
-- **⚠ Idempotency needed migration 0011 — `message_extraction_runs`.**
+- **CAUTION: Idempotency needed migration 0011 — `message_extraction_runs`.**
   `extractions` has no unique key for these kinds (many-per-message by design)
   and a message that legitimately yields **nothing** — most of a real mailbox —
   is indistinguishable from one never processed. Without it every redelivery and
   every backfill re-pays for work already done. **It is an ELEVENTH table, and
   `assert-rls.ts` fails on any table it does not list.** Negative-controlled.
-- **⚠ The quote check is the hallucination guard.** Every item carries the
+- **CAUTION: The quote check is the hallucination guard.** Every item carries the
   verbatim sentence it came from, and a row whose quote is not in the body is
   **dropped**. A fabricated meeting has to fabricate a sentence. Whitespace and
   smart quotes are normalised; different *words* are not.
-- **⚠ Relative dates resolve against the message's SEND time**, never today.
+- **CAUTION: Relative dates resolve against the message's SEND time**, never today.
   Measured correct against the live model: *"Meeting at 9pm tonight"* sent
   2 Aug 19:59 → `2026-08-02T21:00+08:00`. Against the current clock it would be
   a well-formed row on the wrong day, with no error anywhere.
@@ -1051,39 +1055,39 @@ diagnosable because the validator reports *"ended mid-structure"* separately fro
 **`/attention` (US-9)** reads `extractions` directly — an ordinary RLS-scoped
 table query through the user's session, no RPC and no `service_role`.
 
-- **⚠ The ordering IS the feature.** Overdue first (soonest-missed), then
+- **CAUTION: The ordering IS the feature.** Overdue first (soonest-missed), then
   upcoming (soonest), then undated by newest message. Ordered by *when the
   message arrived*, a meeting starting in an hour sits under six newsletters —
   the same failure ADR-017 measured for the assistant, arriving through the UI.
-- **⚠ Confidence is a tiebreak, never a rank and never a filter.** Self-reported,
+- **CAUTION: Confidence is a tiebreak, never a rank and never a filter.** Self-reported,
   not calibrated. Filtering on it would be ADR-016's mistake in a new costume.
-- **⚠ Every row shows its verbatim quote**, and `docs/02-ARCHITECTURE.md` §6 is
+- **CAUTION: Every row shows its verbatim quote**, and `docs/02-ARCHITECTURE.md` §6 is
   **amended** to list this as the third place message content renders.
 
 **Calendar write-back (US-7b)** lives on `/messages/[id]`, above the body.
 
-- **⚠ ADR-010 holds: nothing is created without a form submission.** The worker
+- **CAUTION: ADR-010 holds: nothing is created without a form submission.** The worker
   writes proposals and stops.
-- **⚠ `calendar_event_id` is checked before every insert — and a DETERMINISTIC
+- **CAUTION: `calendar_event_id` is checked before every insert — and a DETERMINISTIC
   event id backs it up.** The documented guard has a real gap: the window
   between a successful insert and the write recording it. A crash there leaves
   an event with nothing pointing at it, so the next Confirm sees null and
   creates a **twin**. A client-supplied id (base32hex, from the extraction uuid)
   makes Google answer `409 duplicate`, which is adopted. Rules read from the
   API reference, not assumed.
-- **⚠ Attendees are NOT sent.** Adding one makes Google email an invitation
+- **CAUTION: Attendees are NOT sent.** Adding one makes Google email an invitation
   *from the user* — a far louder assertion than a calendar entry, off the back
   of a model reading somebody's mail.
-- **⚠ Times carry an explicit `+08:00`.** Without it Google uses the calendar's
+- **CAUTION: Times carry an explicit `+08:00`.** Without it Google uses the calendar's
   own timezone, invisible to this code, and every event lands eight hours out.
 
-⚠ **Measuring this console's contrast needs `lab()` handling.** Computed colours
+CAUTION: **Measuring this console's contrast needs `lab()` handling.** Computed colours
 come back as CIE `lab()`; an `rgb()` regex reads L,a,b as R,G,B and reports
 ~1.2:1 for **everything**. Same shape of false failure as the transitions one.
 WCAG luminance is the Y channel and L\*→Y needs no colour-space adaptation.
 Measured properly: 46/46 pass AA in both schemes, lowest 6.88 dark / 5.27 light.
 
-**✅ ASSISTANT GROUNDING — DECIDED 2026-08-03. ADR-020 accepted in the NARROW
+**ASSISTANT GROUNDING — DECIDED 2026-08-03. ADR-020 accepted in the NARROW
 form, built, and shipped OFF behind `ASSISTANT_GROUND_EXTRACTIONS`.**
 
 Yuri accepted a date-window lookup for questions explicitly about scheduled
@@ -1093,7 +1097,7 @@ that is the decision**: ADR-020 requires both numbers re-measured, the daily cap
 allows about one full run, and today's 6/6 · 7/7 is the baseline. To close it,
 run the full eval with the flag on, on a day the assistant is otherwise unused.
 
-**⚠⚠ EXTRACTION WAS SILENTLY LOSING LIVE MAIL, AND THE FIX IS A NEW LOOP.**
+**CRITICAL: EXTRACTION WAS SILENTLY LOSING LIVE MAIL, AND THE FIX IS A NEW LOOP.**
 Found by counting, not reading: 84 messages, 78 extraction runs, and four of the
 six gaps were ordinary mail from the previous day — summarised and embedded,
 never extracted. Extraction runs **last** of the three AI steps, meets an
@@ -1104,7 +1108,7 @@ never returns through the worker.
 
 `apps/worker/src/extract-catchup.ts` sweeps every 15 minutes, 5 messages at a
 time, **only when the queue is empty** so it cannot starve live ingest of the
-window they share. ⚠ Do not "simplify" it into an inline retry inside
+window they share. CAUTION: Do not "simplify" it into an inline retry inside
 `extractBatch` — that blocks `markDone` and the ingest loop behind it, trading a
 lost proposal for delayed mail, which is the trade this phase already decided
 the other way.
@@ -1112,11 +1116,11 @@ the other way.
 ### Shipped 2026-08-02 (late) — assistant loose ends closed
 
 - **Citations link** to `/messages/[id]`, a new signed-in RLS-scoped route
-  rendering one message in full (ADR-018). ⚠ **Not** the timeline jump
+  rendering one message in full (ADR-018). CAUTION: **Not** the timeline jump
   `docs/02-ARCHITECTURE.md` §4 specified — the timeline holds only the newest 50,
   so a chip citing anything older resolves to nothing, which reads as an invented
   source. This route is also the source-message view Phase 5 needs (ADR-010).
-- **Search results carry summaries** — migration **0010**. ⚠ Two traps in it, both
+- **Search results carry summaries** — migration **0010**. CAUTION: Two traps in it, both
   of which fail by *hiding messages* rather than erroring: `create or replace`
   cannot change a `RETURNS TABLE`, so the function is dropped and recreated —
   **and DROP takes the grants with it**; and the `kind` filter must sit in the
@@ -1125,7 +1129,7 @@ the other way.
   second account still 0.
 - **The rate-limit message now distinguishes the two caps.** "Try again in a
   moment" was correct for the per-minute window and **wrong for the daily
-  allowance**, which is the one that actually binds. ⚠ Groq publishes **no
+  allowance**, which is the one that actually binds. CAUTION: Groq publishes **no
   tokens-per-day header at all**, and a daily rejection arrives with a *full*
   per-minute budget — so the limit type is read from the 429 body's
   `(RPM|RPD|TPM|TPD)` code. That is a deliberate, bounded exception to §6's
@@ -1135,11 +1139,21 @@ the other way.
 
 ---
 
-*Last updated: 2026-08-02 (late) · Phase 3 search + filters, Phase 4A summaries
-and Phase 4B assistant all shipped and deployed; the assistant's loose ends
-(citation links, search summaries, rate-limit wording) closed. **Five** docs now
-corrected against measurement: Gemini's free tier is 20/day not 250 (ADR-003
-amended), the similarity floor cannot carry the refusal (ADR-016), the worker
-needs 1 GiB not 0.5 (ADR-011 amended), CI had been red since 2026-07-28 on a
-stale lockfile — and the assistant was never over-refusing; the eval was scoring
-two correct refusals as failures (ADR-017).*
+*Last updated: **2026-08-09** · Two rounds of design work on top of Phase 5.
+Ms. Maria's 2026-08-05 review is built (landing page, the attention board,
+timeline channel filter, light-mode rebuild, both typefaces replaced,
+auto-sync — migration 0012), and so is the round after it (split timeline,
+animated auth screens, a real date-time picker, the flowing-line backdrop, and
+archive — migration 0013, ADR-021 and ADR-022). Migrations are at **0013**;
+541 tests, typecheck and `next build` green.*
+
+*Earlier, and still true: **five** docs corrected against measurement — Gemini's
+free tier is 20/day not 250 (ADR-003 amended), the similarity floor cannot carry
+the refusal (ADR-016), the worker needs 1 GiB not 0.5 (ADR-011 amended), CI had
+been red since 2026-07-28 on a stale lockfile, and the assistant was never
+over-refusing; the eval was scoring two correct refusals as failures (ADR-017).*
+
+*The markers that used to prefix warnings in these files were words-only from
+2026-08-09 — `CAUTION:` and `CRITICAL:` rather than symbols — at Yuri's request.
+The one exception is the Mermaid node icons in `docs/07-DIAGRAMS.md`, which are
+diagram labels rather than prose.*

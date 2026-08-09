@@ -160,12 +160,12 @@ Still needed: Meta app, free test business number (5 recipients, no business
 verification), webhook registration, `packages/adapters/whatsapp` with
 `parseWebhook`/`normalize`, fixtures, and media download.
 
-⚠ **WhatsApp channels are admin-provisioned, not self-serve.** Numbers belong to
+CAUTION: **WhatsApp channels are admin-provisioned, not self-serve.** Numbers belong to
 the business, so unlike Gmail a user cannot connect their own — a number is
 registered to the WABA, then assigned an `owner_id`. `channels` already has the
 unique constraint to support that.
 
-⚠ **Never use `whatsapp-web.js` or Baileys.** They impersonate WhatsApp Web,
+CAUTION: **Never use `whatsapp-web.js` or Baileys.** They impersonate WhatsApp Web,
 violate Meta's terms, and get numbers banned. The Cloud API only receives
 messages sent *to a business number you control* — it cannot read existing
 personal conversations, and no amount of code changes that.

@@ -22,7 +22,7 @@ The figure is `aria-hidden` and every state it expresses is also a real string
 beside it in the mono voice — which is the only arrangement that makes an
 animated illustration acceptable on the screen this product is judged on.
 
-⚠ **The refusal was the design constraint, not the animation.** `docs/01-PRODUCT-SPEC.md`
+CAUTION: **The refusal was the design constraint, not the animation.** `docs/01-PRODUCT-SPEC.md`
 §7 makes "refuse rather than guess" a success criterion and ADR-016 records what
 it cost to keep honest. A character that beams through a refusal quietly undoes
 that. The status line names the *reason* — "Nothing to cite" — and does not take
@@ -33,7 +33,7 @@ On a phone, a dock along the bottom edge: every entry shows its icon, the
 current one also shows its label with a rule underneath sized to the word. It
 replaces the horizontally scrolling strip that sat under the wordmark.
 
-⚠ **Amended the same day.** This shipped mobile-only first, on the reasoning
+CAUTION: **Amended the same day.** This shipped mobile-only first, on the reasoning
 that a horizontal icon dock is not a thing a 240px rail wants to be. That was
 true and beside the point: Yuri asked for it in the nav bar, works on a desktop,
 and so saw **no change at all** — the one outcome worse than a debatable design.
@@ -48,11 +48,11 @@ sits under the *label* rather than the entry — otherwise it floats in the empt
 space to the right of a short word like "Search". It needs no measurement there;
 the text element is already exactly as wide as its text.
 
-⚠ The rail's `className` must be `md:flex`, **not** `md:block`. The entries are
+CAUTION: The rail's `className` must be `md:flex`, **not** `md:block`. The entries are
 flex children, and `display: block` strands them into six full-width rows with
 the icons detached from their labels.
 
-⚠ The old sidebar's left rail marker — the 2px line borrowed from the timeline —
+CAUTION: The old sidebar's left rail marker — the 2px line borrowed from the timeline —
 is **gone**, replaced by the filled pill. Two markers on one entry is noise. If
 it is wanted back, it belongs in `.menu--vertical .menu__item.active::before`,
 not in `app-shell`.
@@ -94,7 +94,7 @@ shader runs its own rAF loop. `speed={0}` stops the shader's loop outright.
 carrying an `href` are `Link`s, and which one is active comes from the route.
 `pending` covers only the gap until the navigation resolves.
 
-⚠ **The CSS for the dock did not exist.** The snippet shipped the custom
+CAUTION: **The CSS for the dock did not exist.** The snippet shipped the custom
 properties and the `iconBounce` keyframe and **no `.menu`, `.menu__item`,
 `.menu__icon` or `.menu__text` rule at all** — as given it renders six unstyled
 buttons in a row. Those rules were written here against this console's tokens.
@@ -103,7 +103,7 @@ themselves were dropped.
 
 ---
 
-## ⚠ Two bugs found by measuring, both invisible in the code
+## Two bugs found by measuring, both invisible in the code
 
 **Unlayered CSS outranks every cascade layer, so `md:hidden` did nothing.**
 Tailwind v4 emits utilities into `@layer utilities`. `.menu { display: flex }`
@@ -135,7 +135,7 @@ wrong fix:
   `width: 77px !important`.** The pseudo-element's used width needs layout this
   tab is not performing. Height reports correctly, which makes it look credible.
 
-⚠ **The figure's actual appearance is therefore UNVERIFIED.** A CSS gradient is
+CAUTION: **The figure's actual appearance is therefore UNVERIFIED.** A CSS gradient is
 painted under the canvas so a WebGL failure degrades to a gradient rather than a
 hole, but nobody has looked at it. `localhost:3100/preview?screen=assistant` is
 where to.
@@ -167,7 +167,7 @@ never reaches Groq, `/embed` or the database.
   WebGL canvas on every screen including the timeline, and pull ~410KB into
   every page's bundle instead of one.
 - **`/preview` still does not exist in production**, by design — it answers 307.
-  ⚠ Worth stating because it was handed over as a way to *review the deploy* and
+  CAUTION: Worth stating because it was handed over as a way to *review the deploy* and
   is not one. On the live console the figure is on `/assistant`, behind the
   login, and the rail is the sidebar.
 

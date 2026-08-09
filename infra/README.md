@@ -18,7 +18,7 @@ Status: **Running**, `minReplicas: 1`, one replica, internal ingress only.
 az deployment group create -g rg-switchboard -f infra/main.bicep
 ```
 
-## ⚠ The region is not a preference — it is policy
+## The region is not a preference — it is policy
 
 The student subscription carries an **"Allowed resource deployment regions"**
 policy permitting exactly:

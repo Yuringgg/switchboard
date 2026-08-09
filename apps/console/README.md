@@ -34,7 +34,7 @@ variables, and there is no CLI login on this machine.
    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | from `apps/console/.env.local` |
    | `CRON_SECRET` | any long random string — the keepalive refuses to run in production without it |
 
-   ⚠ If these are missing the build **fails**, and Next reports it as
+   CAUTION: If these are missing the build **fails**, and Next reports it as
    `Failed to collect page data for /login`. The real reason is on the
    `[cause]` line. That failure is intentional — better than deploying an app
    that 500s on every request.
@@ -61,7 +61,7 @@ and a change of voice does that faster than a change of colour.
 for the job rather than the size. Eight ad-hoc values had accumulated one
 screen at a time, which is how a UI ends up looking *almost* right.
 
-> ⚠ **Adding a step means editing two files.** tailwind-merge only knows stock
+> CAUTION: **Adding a step means editing two files.** tailwind-merge only knows stock
 > Tailwind's groups, so it reads `text-subject` as a *colour* and drops it when
 > `cn()` also sees `text-muted-foreground`. `lib/utils.ts` extends the
 > `font-size` group to fix that, and a step missing from that list renders at
@@ -90,7 +90,7 @@ moves real DOM **focus** rather than tracking a selection of its own — so Tab
 still works, a screen reader announces the row it lands on, and there is no
 second notion of "where you are" to drift out of sync with the browser's.
 
-> ⚠ Never query rows with a bare `document.querySelectorAll`. React streams
+> CAUTION: Never query rows with a bare `document.querySelectorAll`. React streams
 > suspended content into a hidden `<div id="S:n">` at the end of `<body>`, so
 > while the timeline sits behind `<Suspense>` the document holds a **second,
 > invisible copy of every row** — 12 matches for 6 messages, measured. Scope to
@@ -139,21 +139,21 @@ heading over one row, then another over one row. Each row carries its own date
 instead (`showDate`). The channel label still follows `channelChangePoints`, so
 one connected channel yields one label rather than fifty saying "Gmail".
 
-> ⚠ **A snippet must never repeat the headline.** A message with no subject
+> CAUTION: **A snippet must never repeat the headline.** A message with no subject
 > takes its headline from its opening line, and `ts_headline` fragments that
 > same body — so a short chat message rendered the identical sentence twice,
 > once large and once grey. `snippetRepeatsHeadline` catches it and the headline
 > carries the marks instead. Found by measuring the preview harness; it is
 > invisible in any fixture that happens to have a subject.
 
-> ⚠ **Highlighting is elements, never HTML.** `ts_headline` defaults to `<b>`
+> CAUTION: **Highlighting is elements, never HTML.** `ts_headline` defaults to `<b>`
 > tags, and rendering those means putting a message body — written by somebody
 > else — through `dangerouslySetInnerHTML`. The SQL delimits with STX/ETX
 > instead, `highlightSegments` splits on them, and React escapes the text. A
 > test pins it with an `<img onerror>` body.
 
 Search results carry their **AI summary** since migration `0010`, so the same
-message shows the same thing whichever screen you found it on. ⚠ That migration
+message shows the same thing whichever screen you found it on. CAUTION: That migration
 has two traps and **both fail by hiding messages rather than erroring** —
 `create or replace` cannot change a `RETURNS TABLE` so the function is dropped
 and recreated (**and DROP takes the grants with it**), and the `kind` filter must
@@ -166,16 +166,16 @@ it an inner join in effect.
 target (ADR-018) and the record view Phase 5's meeting proposals need beside
 every extraction.
 
-> ⚠ **This is the second place message bodies render**, and the enumerated list
+> CAUTION: **This is the second place message bodies render**, and the enumerated list
 > lives in `docs/02-ARCHITECTURE.md` §6. A third needs an amendment there, not a
 > judgement call at the call site.
 
-> ⚠ **It renders the WHOLE body, not `BODY_LIMIT`.** The 4,000-character ceiling
+> CAUTION: **It renders the WHOLE body, not `BODY_LIMIT`.** The 4,000-character ceiling
 > bounds the *list* — every body in the timeline is serialised into the page
 > whether or not its row is open — not the record. Truncating here would make a
 > citation resolve to a partial quote, which is the opposite of the point.
 
-> ⚠ **A message that is not yours and one that does not exist are the same
+> CAUTION: **A message that is not yours and one that does not exist are the same
 > `notFound()`.** RLS makes them indistinguishable, and that is correct rather
 > than a limitation: confirming which ids exist in another tenant's mailbox is a
 > leak even without the content.
@@ -188,18 +188,18 @@ every extraction.
 phone number in one app and an email address in another, with no link between
 them."*
 
-> ⚠ **Identities are listed, never collapsed into the contact row.** The plural
+> CAUTION: **Identities are listed, never collapsed into the contact row.** The plural
 > is the feature. With only Gmail connected every contact has one handle and the
 > merge is invisible — that is the state of the data, not of the screen, and
 > `/preview?screen=contacts` shows the merged version.
 
-> ⚠ **The detail view is CONVERSATIONS, not "messages they sent".** `messages`
+> CAUTION: **The detail view is CONVERSATIONS, not "messages they sent".** `messages`
 > records a sender and no recipients, so filtering to their own messages shows
 > one side of every thread and drops your replies — a monologue. Their
 > identities resolve to conversations, and every message in those is rendered
 > through the same `MessageRow` the timeline and search use.
 
-> ⚠ A `display_name` that **is** a phone number is not a name. WhatsApp supplies
+> CAUTION: A `display_name` that **is** a phone number is not a name. WhatsApp supplies
 > a profile name only when the sender set one, so the formatted number is
 > common — and it has spaces, so `initials()`'s first-and-last-word rule turned
 > every one of them into "+0". It now falls through to the last-two-digits rule.
@@ -210,23 +210,23 @@ them."*
 `/attention` is the Phase 5 queue (US-9) — meetings, commitments, requests and
 questions the worker pulled out of each message on the way in.
 
-⭐ **It is the answer to a question the assistant could not answer**, and that is
+**It is the answer to a question the assistant could not answer**, and that is
 not a coincidence. ADR-017 measured *"summarise what needs my attention"* and
 found the model was never shown a single one of the real problems: semantic
 search returns prose that *sounds* urgent, because importance is not a direction
 in embedding space. The fix was never a prompt.
 
-> ⚠ **The ordering is the feature, not presentation.** Overdue first
+> CAUTION: **The ordering is the feature, not presentation.** Overdue first
 > (soonest-missed), then upcoming (soonest), then undated by newest message. A
 > queue ordered by when the *message arrived* buries a meeting starting in an
 > hour under six newsletters. `sortForAttention` is pure and tested.
 
-> ⚠ **Confidence is a tiebreak, never a rank and never a filter.** It is the
+> CAUTION: **Confidence is a tiebreak, never a rank and never a filter.** It is the
 > model's self-report, not a calibrated probability. Ranking by it puts a
 > confidently-extracted newsletter above a hedged real meeting; filtering by it
 > would be ADR-016's mistake in a new costume.
 
-> ⚠ **Every row shows the verbatim sentence it came from**, on the row. ADR-010
+> CAUTION: **Every row shows the verbatim sentence it came from**, on the row. ADR-010
 > requires it, and `docs/02-ARCHITECTURE.md` §6 is amended to list this as the
 > third place message content renders. A proposal without its quote is a claim
 > the reader cannot check.
@@ -237,7 +237,7 @@ On `/messages/[id]`, above the body, a meeting extraction renders as an editable
 proposal (US-7b). **ADR-010 is absolute: never auto-create.** The worker writes
 rows and stops; only a form submission reaches Google.
 
-> ⚠ **`calendar_event_id` is checked before every insert** — and a
+> CAUTION: **`calendar_event_id` is checked before every insert** — and a
 > **deterministic event id** backs it up. The primary guard has a real gap: the
 > window between a successful `events.insert` and the database write recording
 > it. A crash there leaves an event with nothing pointing at it, so the next
@@ -245,10 +245,10 @@ rows and stops; only a form submission reaches Google.
 > extraction id turns that into Google's `409 duplicate`, which is adopted
 > rather than retried.
 
-> ⚠ **Attendees are deliberately not sent.** Adding one makes Google email an
+> CAUTION: **Attendees are deliberately not sent.** Adding one makes Google email an
 > invitation *from the user*. Participants go in the description instead.
 
-> ⚠ **A server action must `revalidatePath` or the card keeps its stale props.**
+> CAUTION: **A server action must `revalidatePath` or the card keeps its stale props.**
 > The proposal collapses to "On your calendar" when the row carries a
 > `calendar_event_id` — but an action returns a value without refetching
 > anything, so the first version left the form editable and the button live
@@ -258,7 +258,7 @@ rows and stops; only a form submission reaches Google.
 > `/preview?screen=proposal&state=confirmed` is how that state can be looked at
 > without confirming a real meeting onto a real calendar.
 
-> ⚠ **Times carry an explicit `+08:00`.** Without it Google uses the calendar's
+> CAUTION: **Times carry an explicit `+08:00`.** Without it Google uses the calendar's
 > own timezone — a setting on the user's Google account this code cannot see —
 > and every confirmed meeting lands eight hours out, silently. `lib/manila.ts`
 > holds both conversions together because they are inverses that must agree.
@@ -267,11 +267,11 @@ rows and stops; only a form submission reaches Google.
 
 `/assistant` asks one question at a time — single-turn, no history (Q2).
 
-> ⚠ **An answer that cites nothing renders as a refusal.** That is a success
+> CAUTION: **An answer that cites nothing renders as a refusal.** That is a success
 > criterion (`docs/01-PRODUCT-SPEC.md` §7), not a UI detail. Do not "improve" the
 > assistant by letting it answer without citations.
 
-> ⚠ **The suggestion chips must be questions the corpus can actually answer.** A
+> CAUTION: **The suggestion chips must be questions the corpus can actually answer.** A
 > suggestion that returns a refusal teaches a new user the feature is broken on
 > their first interaction. Two of them were exactly that until 2026-08-02 —
 > verify with `probe-context.ts` before changing the list, not by intuition.
@@ -288,7 +288,7 @@ also shadcn's convention, so `shadcn add` keeps working.
 `lib/theme.ts` owns all of it — the store, the `.dark` write, and the
 `THEME_INIT_SCRIPT` string that `app/layout.tsx` inlines.
 
-> ⚠ **The init script must stay synchronous and stay in `<head>`.** It applies
+> CAUTION: **The init script must stay synchronous and stay in `<head>`.** It applies
 > the stored preference before first paint; deferred or moved below `<body>`,
 > the page renders light and then flips. It also sets `style.color-scheme`,
 > which is what makes the browser paint its *own* surfaces dark — most visibly
@@ -352,7 +352,7 @@ them also lets the password field carry the right `autocomplete` per context —
 `current-password` on sign-in, `new-password` on signup, which is what makes a
 password manager offer to *generate* one rather than fill an existing one.
 
-⚠ Both routes must stay in `PUBLIC_PATHS` in `src/proxy.ts`. Miss one and the
+CAUTION: Both routes must stay in `PUBLIC_PATHS` in `src/proxy.ts`. Miss one and the
 gate redirects it to `/login`, which for `/signup` is an infinite bounce.
 
 Since built: `/search`, `/assistant`, `/channels`, `/messages/[id]`,

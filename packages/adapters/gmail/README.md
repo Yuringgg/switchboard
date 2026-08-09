@@ -7,7 +7,7 @@ Hybrid push/pull: `users.watch` registers a Pub/Sub topic, Gmail pushes a
 notification carrying a `historyId`, then `users.history.list` fetches the delta
 from the stored cursor.
 
-⚠ **`watch` expires and must be renewed at least every 7 days**, or email
+CAUTION: **`watch` expires and must be renewed at least every 7 days**, or email
 ingestion stops *silently*. `sync_state.expires_at` plus a daily cron renewing at
 T-2 days, alerting on failure.
 

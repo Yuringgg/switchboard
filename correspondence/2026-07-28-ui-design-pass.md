@@ -69,7 +69,7 @@ named in the exclusion too so adding either later cannot reintroduce it.
 became seven tokens named for their job. This is most of the difference between
 a UI that looks *almost* right and one that looks deliberate.
 
-> ⚠ **This bit me and it will bite the next person.** tailwind-merge only knows
+> CAUTION: **This bit me and it will bite the next person.** tailwind-merge only knows
 > stock Tailwind's class groups, so it reads `text-subject` as a *colour* and
 > keeps only the last one when `cn()` also sees `text-muted-foreground`. Four
 > elements silently rendered at the browser default of 16px inside a 10px

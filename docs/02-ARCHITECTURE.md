@@ -69,7 +69,7 @@ serverless can't hold a model, and a cold-starting container drops webhooks.
 interface, so adding WhatsApp later is writing one file, not touching the
 pipeline.
 
-> ⚠ **AMENDED 2026-07-28 by ADR-014**, at Phase 2's refactor checkpoint. The
+> CAUTION: **AMENDED 2026-07-28 by ADR-014**, at Phase 2's refactor checkpoint. The
 > claim above held: WhatsApp is pure push where Gmail is hybrid push/pull, and
 > the canonical types absorbed it with no special case anywhere above the
 > adapter. **Three of `ChannelAdapter`'s five signatures did not** — they could
@@ -344,7 +344,7 @@ extractions (
 -- Has the Phase 5 extraction pass been over this message? (migration 0011,
 -- ADR-019.) Worker-only, like sync_state, and policed identically.
 --
--- ⚠ `extractions` cannot answer this. Phase 5's kinds are many-per-message by
+-- CAUTION: `extractions` cannot answer this. Phase 5's kinds are many-per-message by
 --   design, so there is no unique key to conflict on — and a message that
 --   legitimately yields NOTHING (most of a real mailbox) is indistinguishable
 --   from one never processed. Without this row every redelivery and every
@@ -395,7 +395,7 @@ create policy tenant_isolation on messages
 create index on messages (owner_id, sent_at desc);  -- policies hit this constantly
 ```
 
-⚠ **The `service_role` key bypasses RLS entirely.** The worker uses it, so the
+CAUTION: **The `service_role` key bypasses RLS entirely.** The worker uses it, so the
 worker is the one place where cross-tenant leakage is possible: if it sets
 `owner_id` wrong, one user's messages land in another's console and no policy
 will stop it. Derive `owner_id` from the channel being processed, never from
@@ -440,7 +440,7 @@ When a user asks a question:
 5. **Generate** — LLM answers *strictly from the provided context*, and must
    emit message IDs for every claim.
 6. **Render** — the console shows the answer with each citation as a clickable
-   chip. ⚠ **AMENDED 2026-08-02 by ADR-018:** the chip links to **`/messages/[id]`**,
+   chip. CAUTION: **AMENDED 2026-08-02 by ADR-018:** the chip links to **`/messages/[id]`**,
    not to a position in the timeline. The timeline holds only the newest 50
    messages, so a jump would silently resolve to nothing for anything older — and
    a citation that fails to resolve reads as an invented source, which is the
@@ -478,7 +478,7 @@ fail mid-demo.** If Groq degrades, search still works; only the assistant's
 answers are affected. Under a single combined provider, one outage takes out
 both.
 
-**⚠ Use a multilingual embedding model.** The corpus will be Taglish, and
+**CAUTION: Use a multilingual embedding model.** The corpus will be Taglish, and
 English-only defaults like `all-MiniLM-L6-v2` degrade badly on code-switched
 text. See `docs/03-RESOURCES.md` §4b and ADR-003.
 
@@ -583,7 +583,7 @@ just delete the line.
 **Logging.** Never log message bodies or credentials. Log message *IDs*. When
 debugging needs content, read it from the database directly.
 
-**⚠ One bounded exception, added 2026-08-02.** `packages/ai` reads a provider's
+**CAUTION: One bounded exception, added 2026-08-02.** `packages/ai` reads a provider's
 error body **only on HTTP 429**, and only to extract which limit was hit — Groq's
 `(RPM|RPD|TPM|TPD)` code, Gemini's `quotaId`. The body is never returned, stored
 or logged; it goes out of scope immediately. The exception is necessary because
@@ -594,7 +594,7 @@ cannot tell "busy for a moment" from "nothing more today", and it told users the
 wrong one. Every other error path stays status-and-headers-only, because a
 completion API's error body can echo the prompt and the prompt is a message body.
 
-**Where message bodies render (⚠ amended 2026-08-02 by ADR-018, and again
+**Where message bodies render (CAUTION: amended 2026-08-02 by ADR-018, and again
 2026-08-03 for Phase 5).** Three places, all signed-in and all RLS-scoped, and
 this list is exhaustive:
 
@@ -609,7 +609,7 @@ The rule was previously "the timeline and nowhere else". Its intent — private
 content is not scattered across the app — is unchanged; a further place needs an
 amendment here, not a judgement call at the call site.
 
-⚠ **The third entry is not an exception to the rule, it is required by
+CAUTION: **The third entry is not an exception to the rule, it is required by
 ADR-010.** *"Always show the source message next to the proposal — the user
 needs to see what the model read before agreeing with it."* A proposal without
 its quote is a claim the reader cannot check, which is the thing ADR-007 and
@@ -677,7 +677,7 @@ with a reason.
 | Blob storage | **@azure/storage-blob** | Official SDK |
 | Infra as code | **Bicep** | Native Azure, less ceremony than Terraform here |
 
-**✅ ACCEPTED 2026-07-26 — Drizzle Kit is not used for migrations. See ADR-012.**
+**ACCEPTED 2026-07-26 — Drizzle Kit is not used for migrations. See ADR-012.**
 
 This section originally specified Drizzle Kit. Running `drizzle-kit generate`
 against the live database on 2026-07-26 produced a migration that would have
@@ -717,7 +717,7 @@ type string`). `tsc --noEmit` works fine either way, so **the workspace can
 typecheck green and still fail to build.** Do not unpin this until the ecosystem
 catches up.
 
-**⚠ CI must run `next build`. Added 2026-07-27, after it cost two days.**
+**CAUTION: CI must run `next build`. Added 2026-07-27, after it cost two days.**
 Typecheck and tests are not sufficient, and the gap is structural rather than
 bad luck: `next build` is the **only** step that resolves through package
 `exports` maps, and the only step Vercel actually runs. Both production

@@ -24,7 +24,7 @@ the live deployment, not read off a doc.
 the same timeline, distinguished by channel. That is the screenshot for Ms.
 Maria, and it exists today.
 
-⚠ **It is met on a temporary instrument.** That is the honest reading, and §2 is
+CAUTION: **It is met on a temporary instrument.** That is the honest reading, and §2 is
 why it is not the finish line.
 
 **One thing the first real payload settled.** `docs/03-RESOURCES.md` flagged as
@@ -48,7 +48,7 @@ Straight from 360dialog's own sandbox page:
   be forwarded to the webhook URL you set."* Yuri's number is the one linked, so
   **only Yuri's own messages ever reach Switchboard.** Ms. Maria messaging that
   number does not appear in the console — she gets her own sandbox key.
-  ⚠ **This is the one that matters.** The product is "messages I *received*,
+  CAUTION: **This is the one that matters.** The product is "messages I *received*,
   from other people, in one view". A demo where the operator talks to himself
   demonstrates the pipeline and not the product.
 - **No media.** Uploading and retrieving media by id is explicitly unsupported,
@@ -92,7 +92,7 @@ reads the contact points on your Facebook account. Several people on Meta's
 forums report the same fix: **re-confirm the number inside Accounts Center
 first, and the developer registration then skips its own check.**
 
-⚠ **The part that is specific to you:** that flow offers **SMS *or WhatsApp***
+CAUTION: **The part that is specific to you:** that flow offers **SMS *or WhatsApp***
 as the delivery channel. Your SMS path is the broken one — but WhatsApp on
 `+63 993 655 7241` demonstrably works, because you sent `"Test 3"` through it
 yesterday and it is sitting in the database. **Choose WhatsApp and the broken
@@ -111,7 +111,7 @@ Precisely:
    **even if the number is already listed.** Re-adding is the whole point: it
    forces a fresh confirmation.
 6. The code arrives in WhatsApp. Enter it.
-   ⚠ **Save the recovery codes it offers.** You are turning on 2FA for real, and
+   CAUTION: **Save the recovery codes it offers.** You are turning on 2FA for real, and
    losing this account later costs more than the SMS did.
 7. Now go to <https://developers.facebook.com> → **Get Started** and run the
    registration. The verify step should pass on the already-confirmed number
@@ -133,7 +133,7 @@ Facebook's own help page, *"How do I verify my developer account on Facebook?"*,
 lists **exactly two** ways: confirm your mobile number, **or add a credit card
 to your account** — and states plainly that adding the card is not a charge.
 
-⚠ **Honest caveat, because it changes what you should expect.** That page is
+CAUTION: **Honest caveat, because it changes what you should expect.** That page is
 about the *account verification* gate — the one that blocks "create an app". The
 *registration* doc describes a phone-and-email code. They are two different
 gates, and I could not confirm from outside that a card satisfies the second
@@ -193,14 +193,14 @@ number and the app with it.
 >    - Verify token: *(I'll send you a long random string — paste it exactly)*
 >    - Save. It should verify immediately.
 > 6. Still on Configuration, press **Manage** and tick the **`messages`** field.
->    ⚠ **This step is the one everyone misses.** Without it the dashboard looks
+>    CAUTION: **This step is the one everyone misses.** Without it the dashboard looks
 >    perfectly configured and Meta simply never sends anything.
 > 7. Send me the **temporary access token** from *API Setup*. It expires in 24
 >    hours, which is fine — I only need it once.
 >
 > That's everything. Thank you.
 
-⚠ **The App Secret is a password.** It arrives over chat, so rotate it in *App
+CAUTION: **The App Secret is a password.** It arrives over chat, so rotate it in *App
 settings → Basic* the moment the demo is over, or ask them to delete the app.
 
 ---
@@ -236,7 +236,7 @@ It also settles §7 of `docs/00-CONTEXT.md` in passing: asking for a real WABA
 *"Numbers already in use with WhatsApp cannot be registered unless they are
 deleted first."* Deleting is permanent — the chats on that phone go with it, and
 the number stops working in the WhatsApp app because a Cloud API number cannot
-also be a consumer account. ⚠ **The free test number exists precisely so you
+also be a consumer account. CAUTION: **The free test number exists precisely so you
 never have to do this.** If you eventually want a real number, buy a fresh SIM;
 do not feed it the number your family messages you on.
 
@@ -272,7 +272,7 @@ picks the strongest configured scheme, and Meta is first.
 5. Message the test number from a verified recipient. It should appear in the
    timeline within seconds.
 
-⚠⚠ **Setting `WHATSAPP_APP_SECRET` kills the sandbox the moment it deploys.**
+CRITICAL: **Setting `WHATSAPP_APP_SECRET` kills the sandbox the moment it deploys.**
 Strongest-first means exactly one scheme is live, so the shared-token path stops
 verifying and every 360dialog delivery 401s. That is correct behaviour and it is
 also a way to lose a working demo an hour before you need it. **Cut over
@@ -290,7 +290,7 @@ number arrives:
 - **Media/attachments** — deferred to Phase 3 with Gmail's.
   `attachments.blob_url` is `not null`, the Blob container does not exist, and
   every reference survives in `messages.payload_raw`, so it is a backfill.
-  ⚠ **Not indefinitely for WhatsApp**: media ids exchange for a *short-lived*
+  CAUTION: **Not indefinitely for WhatsApp**: media ids exchange for a *short-lived*
   URL, so anything not downloaded near arrival is gone.
 - **The fixtures are still written from documentation, not recorded from
   traffic** — the weak point flagged in the Phase 2 handoff. There is now **one

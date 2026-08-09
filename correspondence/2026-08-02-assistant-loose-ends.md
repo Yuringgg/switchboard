@@ -8,7 +8,7 @@ Everything below was measured against the live system, not inferred.
 
 ---
 
-> ## ⚠ Corrections, 2026-08-03 — read before §4 and §5
+> ## CAUTION: Corrections, 2026-08-03 — read before §4 and §5
 >
 > This file is left as written, because it is the record of what was true that
 > night. Three things changed the next morning:
@@ -19,7 +19,7 @@ Everything below was measured against the live system, not inferred.
 > 2. **The "upcoming meetings" known gap is closed for now.** Yuri sent the mail
 >    described in §4 — *"Project sync with Ms. Maria"*, Fri 7 Aug 2026 3:00 pm —
 >    and the assistant answers the question correctly, citing it. The eval case
->    is back to `answer`. ⚠ **It expires on 8 August**, when that date stops
+>    is back to `answer`. CAUTION: **It expires on 8 August**, when that date stops
 >    being upcoming; `staleAfter` in `eval-cases.ts` now makes the eval say so
 >    out loud instead of quietly turning red. Phase 5 extraction is the durable
 >    fix (US-7, R14).
@@ -129,7 +129,7 @@ whose answer *is* the synthesis.
 Eight sources, every claim cited. Refusals held in the same run (Jakarta and
 submarine both clean, 0 citations).
 
-⚠ **A full 15-case run has NOT been done** — the daily token cap hit partway
+CAUTION: **A full 15-case run has NOT been done** — the daily token cap hit partway
 through, with `x-ratelimit-remaining-tokens: 12000`, a *full* per-minute budget
 refused. Run `eval-assistant.ts` unfiltered tomorrow before claiming a score.
 
@@ -189,10 +189,10 @@ not the record — as `BODY_LIMIT`'s own note anticipated), and is what **Phase 
 needs anyway**: ADR-010 requires the source message beside every meeting
 proposal.
 
-⚠ **This amends the "bodies render in exactly one place" rule.** Amended in
+CAUTION: **This amends the "bodies render in exactly one place" rule.** Amended in
 `docs/02-ARCHITECTURE.md` §6 with both places enumerated, not quietly broken.
 
-⚠ A message that is not yours and one that does not exist are the **same**
+CAUTION: A message that is not yours and one that does not exist are the **same**
 `notFound()`. RLS makes them indistinguishable and that is correct — confirming
 which ids exist in another tenant's mailbox is a leak even without the content.
 
@@ -222,7 +222,7 @@ per-minute window, **wrong for the daily allowance**, which is the limit that
 actually binds this project at ~30 questions/day. "In a moment" sends someone
 clicking Ask at a wall for hours.
 
-**⚠ The two are genuinely hard to tell apart, and the headers cannot do it.**
+**CAUTION: The two are genuinely hard to tell apart, and the headers cannot do it.**
 Measured on the live API:
 
 - Groq publishes **no tokens-per-day header at all** — a 200 returns only
@@ -272,7 +272,7 @@ meeting in the mailbox is six days old. Send yourself one email:
 7. Ask the assistant *"do I have any upcoming meetings?"* — it should now answer
    with a citation.
 
-⚠ Use a date that is genuinely in the future when you demo. A past date is
+CAUTION: Use a date that is genuinely in the future when you demo. A past date is
 exactly the situation that produced the misdiagnosis above.
 
 **2 — Reconnect Gmail on the morning of any demo.** Next lapse **2026-08-08**.
@@ -295,12 +295,12 @@ before this repo is shown to iOzera**.
 | Corpus | 76 messages · 398 chunks · 76/76 embedded · 66/66 eligible summarised |
 | Queue | 0 stuck, 0 failed |
 
-⚠ **Not done, and deliberately so:** a full unfiltered `eval-assistant.ts` run.
+CAUTION: **Not done, and deliberately so:** a full unfiltered `eval-assistant.ts` run.
 The daily token cap hit during the targeted run. **Run it tomorrow before
 quoting any score.** The targeted run measured 1/1 answerable and 2/2
 must-refuse.
 
-⚠ **The Container App still runs an image pinned by digest, and CI does not
+CAUTION: **The Container App still runs an image pinned by digest, and CI does not
 repoint it.** Nothing in this session changed worker behaviour — the assistant
 runs in the console — so a repoint is not required for these changes to take
 effect. `EMBED_API_URL`, `EMBED_API_SECRET` and `GROQ_API_KEY` are **still unset

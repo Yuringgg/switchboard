@@ -3,7 +3,7 @@
 Schema, migrations, and typed clients.
 
 - **Migrations:** hand-written SQL, checked into git so the schema is reviewable.
-  ⚠ **Not** Drizzle Kit — see the section below, and note the first line of this
+  CAUTION: **Not** Drizzle Kit — see the section below, and note the first line of this
   file used to say otherwise.
 - **Worker client:** Drizzle on `service_role` — typed SQL, good `SKIP LOCKED`
   and pgvector support.
@@ -17,7 +17,7 @@ Every table carries `owner_id`, `enable row level security` **and**
 `force row level security`, with one policy shape:
 `using (owner_id = auth.uid()) with check (owner_id = auth.uid())`.
 
-## ⚠ Do not run `drizzle-kit generate` or `drizzle-kit migrate`
+## Do not run `drizzle-kit generate` or `drizzle-kit migrate`
 
 Run against the live database on 2026-07-26, `generate` produced a migration
 that would have **disabled row level security on all ten tables, dropped all ten
@@ -62,7 +62,7 @@ src/supabase-types.ts                generated types, kept in step by hand
 All eleven migrations are applied to project `ytrkpcryztwgflmbhfdu`
 (`ap-southeast-1`), verified by introspection rather than assumed.
 
-⚠ **Adding a table to `public` makes CI red until `EXPECTED_TABLES` in
+CAUTION: **Adding a table to `public` makes CI red until `EXPECTED_TABLES` in
 `scripts/assert-rls.ts` lists it.** That is deliberate (ADR-012): the script
 rejects any table it does not recognise, so a new tenant-data table cannot slip
 past the boundary check unnoticed. Update it in the same commit as the
@@ -74,7 +74,7 @@ rolls back, leaving nothing behind. It has been checked against a negative
 control: with RLS disabled it fails, which is the only reason a pass means
 anything.
 
-⚠ **`src/supabase-types.ts` is generated but is edited by hand when a migration
+CAUTION: **`src/supabase-types.ts` is generated but is edited by hand when a migration
 lands**, because regenerating needs the Supabase CLI. It drifts silently — a
 missing column typechecks fine everywhere until something selects it.
 

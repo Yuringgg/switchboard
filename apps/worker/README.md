@@ -11,7 +11,7 @@ reloading them on every cold start would blow the "visible in under 10 seconds"
 target. This is the one component that genuinely needs always-on compute, and it
 is what the Azure credit pays for (~$10–15/mo, ADR-011).
 
-⚠ **This is the one place a cross-tenant leak is possible.** The worker uses
+CAUTION: **This is the one place a cross-tenant leak is possible.** The worker uses
 `service_role`, which bypasses RLS entirely. Derive `owner_id` from the channel
 being processed, **never** from anything in the provider payload — no policy will
 catch a mistake here.

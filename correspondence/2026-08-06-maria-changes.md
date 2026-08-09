@@ -19,7 +19,7 @@ RLS boundary check all green.
 | *"for landing page, you can be as creative as you want"* | `/welcome`, public, with an animated patch field |
 | *"yung WhatsApp huwag muna masyadong pakialaman"* | Not touched |
 
-⚠ **One instruction was NOT followed and Yuri needs to know.** She asked that the
+CAUTION: **One instruction was NOT followed and Yuri needs to know.** She asked that the
 landing page be **prototyped in Figma first**, explicitly so there is a design
 artefact for the defence: *"mas okay if gawin mo siya via Figma rather than
 generating from scratch… para ma-document yun for your defense."* This session
@@ -29,7 +29,7 @@ was the reason she gave for asking.
 
 ---
 
-## ⚠ She was right about the fonts, and it was literally measurable
+## She was right about the fonts, and it was literally measurable
 
 *"Halatang ginawa mo siya sa AI"* is the most useful note this project has had
 on its UI, and the reason is not taste. The console was set in **Instrument Sans
@@ -54,7 +54,7 @@ nothing saying so.
 
 ---
 
-## ⚠ "Squint ka muna" was a defect, not a preference
+## "Squint ka muna" was a defect, not a preference
 
 Light mode's background was `oklch(0.994)` and its panel `oklch(0.972)`. **2.2%
 of lightness apart.** The entire frame-versus-record idea this console is built
@@ -70,7 +70,7 @@ Measured in the live DOM, light scheme:
 | background vs panel | 1.07:1 | **1.11:1** |
 | hairline vs background | 1.31:1 | **1.39:1** |
 
-⚠ Those numbers look small and they are the right size. A surface step past
+CAUTION: Those numbers look small and they are the right size. A surface step past
 about 1.15 stripes the console into panels, which is harder to read rather than
 easier. What was wrong was not that the step was subtle; it was that it was
 absent.
@@ -82,7 +82,7 @@ both schemes, and every one clears AA:
 light: worst 7.30:1   ·   dark: worst 7.45:1   ·   0 failing
 ```
 
-⚠ **Measuring this console still needs `lab()` handling.** Computed colours come
+CAUTION: **Measuring this console still needs `lab()` handling.** Computed colours come
 back as CIE `lab()` and, on some elements, `oklab()`. An `rgb()` regex reads
 L,a,b as R,G,B and reports ~1.2:1 for *everything*. WCAG luminance is the Y
 channel; L\*→Y needs no colour-space adaptation.
@@ -103,7 +103,7 @@ a landing page that names its own limits (never sends, never books a calendar
 without you, never answers without a citation, never shows another tenant's
 mail) is making the product's actual argument.
 
-### ⚠ The patch field, and why none of it is JavaScript
+### The patch field, and why none of it is JavaScript
 
 The one moving thing. Two lines come in on the left, five signals travel down
 five cords, each is patched through a jack in the middle with a lamp that lights
@@ -130,7 +130,7 @@ is exactly what a reader with `prefers-reduced-motion` sees: all five rows at
 opacity 1 with no transform, all five lamps lit, both channel names visible, all
 ten cord paths drawn. A finished picture, not a blank one.
 
-⚠ **The dash arithmetic is not obvious and it fails by showing too much.** Every
+CAUTION: **The dash arithmetic is not obvious and it fails by showing too much.** Every
 cord carries `pathLength="100"` so one set of keyframes drives paths of
 different real lengths at the same speed. The pattern is `14 200` — a 14-unit
 dash and a **200**-unit gap. The obvious `14 100` does not work: its period is
@@ -139,7 +139,7 @@ repeat of the pattern is sitting in plain view at position 14. Full derivation
 is on `@keyframes cord-signal` in `globals.css`; do not change the dasharray
 without reading it.
 
-⚠ `r: 2.4` in the lamp keyframes would have been discarded silently — `r` is a
+CAUTION: `r: 2.4` in the lamp keyframes would have been discarded silently — `r` is a
 CSS *length* and unitless is legal only for `0`. The identical mistake `ry: 30`
 made in `@keyframes blink` on 2026-08-04. It is `2.4px`.
 
@@ -155,32 +155,32 @@ summary rows carry a value no screen reads. **All 11 tables still report
 
 Four decisions in it that had a plausible wrong answer:
 
-- **⚠ `confirmed_at` is NOT read as "done".** Putting a meeting on a calendar is
+- **CAUTION: `confirmed_at` is NOT read as "done".** Putting a meeting on a calendar is
   the moment it becomes *real*, not the moment it stops needing attention — a
   meeting confirmed for Friday is squarely in progress all week. The two facts
   are independent and a confirmed card says so wherever it sits. There is a
   fixture on `/preview?screen=attention` that makes this visible rather than
   leaving it in a comment.
-- **⚠ Done sorts by `status_changed_at`, not by deadline.** Everything finished
+- **CAUTION: Done sorts by `status_changed_at`, not by deadline.** Everything finished
   is eventually overdue, so reusing `sortForAttention` there fills the column a
   person just cleared with red-flagged items ordered by how badly they were
   missed — for work that was completed. A test pins this.
-- **⚠ The overdue count on the page header excludes Done**, for the same reason:
+- **CAUTION: The overdue count on the page header excludes Done**, for the same reason:
   otherwise the number climbs as the person clears work.
-- **⚠ No drag and drop.** Trello's columns are the idea; its drag handle is not.
+- **CAUTION: No drag and drop.** Trello's columns are the idea; its drag handle is not.
   HTML5 DnD needs a parallel keyboard control built anyway, it depends on
   pointer events this environment cannot test, and it fails silently on touch.
   Two arrows per card, 28×28, operable by mouse, keyboard, touch and screen
   reader, each naming its destination out loud: *"Move 'Project sync with Ms.
   Maria' to In progress"*.
 
-**⚠ The move controls are a client component, and that is not gold-plating.** A
+**CAUTION: The move controls are a client component, and that is not gold-plating.** A
 bare `<form action={serverAction}>` discards the return value, so a card that
 fails to move simply does not move — "it worked and nothing changed" and "it
 failed" would be pixel-identical. That collapse is the defect this console's
 notes forbid by name twice. `useActionState` is what puts the reason on screen.
 
-**⚠ `MoveResult` and `NO_MOVE_YET` live in `lib/attention.ts`, not in
+**CAUTION: `MoveResult` and `NO_MOVE_YET` live in `lib/attention.ts`, not in
 `lib/attention-actions.ts`.** A `'use server'` module may export only async
 functions; a plain `const` in one is a build error. `lib/auth-constants.ts`
 exists for exactly the same reason.
@@ -192,7 +192,7 @@ exists for exactly the same reason.
 `?channel=gmail`, repeatable, on the timeline. Server-rendered, shareable,
 survives a reload, works before hydration.
 
-**⚠ The URL carries channel TYPES and the query takes channel IDS**, and the two
+**CAUTION: The URL carries channel TYPES and the query takes channel IDS**, and the two
 are different on purpose. A person filters by "Gmail"; `messages` only knows
 `channel_id`. Putting ids in the URL — which is what `/search` does — makes a
 shared link meaningless to anybody else and breaks on a reconnect, since
@@ -200,14 +200,14 @@ migration 0003 permits a second row for the same mailbox. The page resolves
 types to the ids the reader actually owns, which also means a forged id in the
 URL cannot widen the result. It can only narrow it to nothing.
 
-**⚠ A test caught a real bug in this, and it was mine.** `parseChannelFilter`
+**CAUTION: A test caught a real bug in this, and it was mine.** `parseChannelFilter`
 collapsed "every line selected" back to "no filter" by comparing the raw
 parameter list's length against the number of known types — so
 `?channel=gmail&channel=gmail` counted as two, matched two, and **showed both
 lines**. Exactly the opposite of what the URL asks for, silently. De-duplication
 now happens first and a test pins the order.
 
-**⚠ Both channels are always offered, including the unconnected one.** `/search`
+**CAUTION: Both channels are always offered, including the unconnected one.** `/search`
 hides its filter below two connected channels, reasoning that a filter which can
 only return nothing makes a working feature look broken. That is right there and
 wrong here for a reason outside the code: **WhatsApp is not connected** — it is
@@ -234,30 +234,30 @@ asked to be rid of, dressed up as a status indicator.
 Three things now stand behind the socket:
 
 1. **Reconnection.** A dropped channel is torn down and re-subscribed on capped
-   exponential backoff (1s → 30s), indefinitely. ⚠ The old channel is removed
+   exponential backoff (1s → 30s), indefinitely. CAUTION: The old channel is removed
    before each retry: re-subscribing an errored channel does not recover it, and
    leaving it attached leaks a socket per attempt.
 2. **A poll** — every 20s while the socket is down, every 60s while it is up.
    The slow one is a safety net against the failure a socket cannot report:
    subscribed, and silently delivering nothing.
 3. **Refresh on returning to the tab** (`visibilitychange` *and* `focus`, which
-   are not the same event). ⚠ **This is the one that actually answers the
+   are not the same event). CAUTION: **This is the one that actually answers the
    complaint.** Every browser throttles timers in hidden tabs, so no interval
    can fix "I switched to the console and it was stale" — which is the exact
    moment somebody reaches for reload.
 
-**⚠ Every path respects the at-the-top rule**, and none of them touches the
+**CAUTION: Every path respects the at-the-top rule**, and none of them touches the
 new-message pill. Refreshing while somebody is reading further down inserts rows
 above their eyes, which is why the pill exists; and a poll has no idea whether
 anything arrived, so incrementing the count would put "1 new message" over an
 unchanged list. The pill's whole value is being believed.
 
-**⚠ Reconnecting also refreshes.** Anything that arrived while the socket was
+**CAUTION: Reconnecting also refreshes.** Anything that arrived while the socket was
 down was never announced to anyone — a subscription cannot replay it. Without
 that, reconnecting restores the "Live" lamp over a list silently missing
 messages, which is worse than the outage: it says up to date and is not.
 
-**⚠ `offline` is gone and this overturns a decision recorded in `live.tsx`.**
+**CAUTION: `offline` is gone and this overturns a decision recorded in `live.tsx`.**
 The third state was red and said *"Reload the page to reconnect."* Both halves
 stopped being true: the console **is** still receiving updates, and reloading is
 the thing this change exists to make unnecessary. It is now `Syncing` — and it
@@ -283,14 +283,14 @@ and a lamp that does not blink.
 | Navigations in the a11y tree | exactly **one** at every width |
 | Elements actually overflowing | **zero**, at both widths |
 
-**⚠ Not verified: what any of it looks like.** This environment still has no
+**CAUTION: Not verified: what any of it looks like.** This environment still has no
 screenshot capability — the browser pane does not composite, and the attempt
 fails outright rather than returning a blank image. Everything above is
 measurement. **Somebody has to look at the landing page and the board before
 this is shown to Ms. Maria**, and `localhost:3100/preview?screen=attention` and
 `/welcome` are where.
 
-**⚠ Also not verified: the move action against the real database.** The board
+**CAUTION: Also not verified: the move action against the real database.** The board
 was exercised over `/preview` fixtures, which never reach Supabase. The action's
 RLS behaviour is the same shape as `confirmMeeting`'s and the policy is
 unchanged, but *"click an arrow on the deployed console and see the card move"*

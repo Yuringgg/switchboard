@@ -110,7 +110,7 @@ as a fact.
 ## Accessibility & Inclusion
 
 - **WCAG 2.2 AA**, verified by measuring computed colours in the live DOM rather
-  than by eye. ⚠ This console's computed colours come back as CIE `lab()`; an
+  than by eye. CAUTION: This console's computed colours come back as CIE `lab()`; an
   `rgb()` regex reads L,a,b as R,G,B and reports ~1.2:1 for *everything*.
 - **Red/green colour blindness is a first-class constraint**, per principle 1.
 - **`prefers-reduced-motion` is honoured globally** and every animation has a

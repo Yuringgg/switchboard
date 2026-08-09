@@ -19,7 +19,7 @@ was scrubbed away once and a bug shipped behind the gap.
 **Scrub before committing.** Replace real addresses, phone numbers, names, and
 message bodies. A fixture is a shape to test against, not a message to keep.
 
-⚠ **Scrub the content, keep the ENVELOPE.** Replacing a subject is right;
+CAUTION: **Scrub the content, keep the ENVELOPE.** Replacing a subject is right;
 replacing its `=?UTF-8?B?…?=` wrapper, a part's `charset`, a `wamid.` prefix or
 a timestamp's format is not — those *are* the thing under test. Gmail shipped
 two real bugs behind fixtures scrubbed to clean ASCII.

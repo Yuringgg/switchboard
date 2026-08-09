@@ -11,11 +11,11 @@ I re-verified rather than taking it on trust:
 
 | Your claim | Verified |
 |---|---|
-| Watch registered, `sync_state` populated | ✅ cursor set, expires **2026-08-02 20:08:03 UTC** |
-| BOM was the whole blocker | ✅ reproduced locally, fixed in `908dc87` |
-| `raw_events` had no unique constraint | ✅ **0** constraints vs 1 on `messages` — real gap, now fixed |
-| Channel lookup in the webhook is required, not a violation | ✅ agreed, and implemented that way |
-| Aug 2 renewal deadline | ✅ **already covered** — see below |
+| Watch registered, `sync_state` populated | cursor set, expires **2026-08-02 20:08:03 UTC** |
+| BOM was the whole blocker | reproduced locally, fixed in `908dc87` |
+| `raw_events` had no unique constraint | **0** constraints vs 1 on `messages` — real gap, now fixed |
+| Channel lookup in the webhook is required, not a violation | agreed, and implemented that way |
+| Aug 2 renewal deadline | **already covered** — see below |
 
 **The Aug 2 risk is closed.** The Azure worker (revision `0000004`, running) has
 all four renewal variables: `DATABASE_URL`, `CHANNEL_CREDENTIALS_KEY`,
@@ -39,7 +39,7 @@ reason, `cursor` untouched, then was cleaned up.
 
 ---
 
-## ⚠ One decision needs you: docs/02-ARCHITECTURE.md §6
+## One decision needs you: docs/02-ARCHITECTURE.md §6
 
 §6 says `service_role` "lives only in the worker's server-side environment."
 ADR-011 puts ingest webhooks in the console. **Both cannot hold.** A Pub/Sub push

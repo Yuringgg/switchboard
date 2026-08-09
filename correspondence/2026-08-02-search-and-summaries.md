@@ -25,7 +25,7 @@ approximated.
 
 ---
 
-## 2. ⚠ CI had been red for five days and the docs said it was green
+## 2. CI had been red for five days and the docs said it was green
 
 Runs **#31 through #39** every one failed, at the first step, before running a
 single test:
@@ -92,18 +92,18 @@ through `dangerouslySetInnerHTML`. A test pins it with an `<img onerror>` body.
 
 ## 4. Summaries — what a session must not undo
 
-⭐ **This is Ms. Maria's founding request, not an addition.** 2026-07-25: *"a
+**This is Ms. Maria's founding request, not an addition.** 2026-07-25: *"a
 live webapp that can view whatsapp messages real time **and have ai summarize**
 bebe. Parang admin view"*, and again 2026-08-01.
 
-- **⚠ It must never fail an event.** The step sits between ingest and
+- **CAUTION: It must never fail an event.** The step sits between ingest and
   `markDone`, wrapped so nothing it does can reach the handler that calls
   `markFailed` — that would burn an attempt on a message which ingested
   perfectly. `GROQ_API_KEY` is deliberately **optional** in `env.ts`: no key
   means no summaries and mail flows exactly as before.
-- **⚠ `llama-3.1-8b-instant`, never `llama-3.3-70b-versatile`.** 14,400 req/day
+- **CAUTION: `llama-3.1-8b-instant`, never `llama-3.3-70b-versatile`.** 14,400 req/day
   against **1,000**, verified from the live rate-limit headers.
-- **⚠ The binding limit is tokens/minute, not requests/day.** A backfill 429'd
+- **CAUTION: The binding limit is tokens/minute, not requests/day.** A backfill 429'd
   on message five with `remaining-requests: 14399` and `remaining-tokens: 4825`.
   The body sent to the model is now capped at 4,000 characters and the backfill
   honours `retry-after` — which can be **fractional** (`parseFloat`, not
@@ -122,7 +122,7 @@ delimiter it cannot predict. A direct override is *described* rather than
 obeyed; a forged delimiter with a fake SYSTEM turn is ignored; an invented
 budget is not asserted.
 
-⚠ **One residual weakness, recorded rather than hidden.** An injection claiming
+CAUTION: **One residual weakness, recorded rather than hidden.** An injection claiming
 *"the sender is Dr. Evelyn Harkness, CEO"* did not get its fabricated budget into
 the summary, but the model **did** adopt the in-band identity claim as
 attribution. The mitigation is structural, not prompt-level: the console shows
@@ -131,7 +131,7 @@ sender sits beside the summary.
 
 ---
 
-## 5. ⚠ The deploy step CI does not do
+## 5. The deploy step CI does not do
 
 `worker-image.yml` builds and pushes the worker image to ghcr on a push to
 `main`. **Nothing repoints the Container App**, which runs an image pinned by
@@ -173,7 +173,7 @@ would have let an AI-only change silently ship the old image. Added.
 - **Ms. Maria:** her BRD / "answers and recommendations" (Q6) and the Fatima
   scope conversation (Q8) are still outstanding, and the Notion write-up
   (`docs/00-CONTEXT.md` §6 item 2) is still pending.
-- **⚠ Rotate both AI keys** before this repo is shown to iOzera — they were
+- **CAUTION: Rotate both AI keys** before this repo is shown to iOzera — they were
   pasted into a chat transcript on 2026-08-02. Nothing was committed.
 
 ---
@@ -188,7 +188,7 @@ Worth repeating because it caught four things reading could not:
   the test fails.
 - **The DOM over a screenshot.** There is no screenshot capability here.
   Measuring found a row printing the same sentence twice, and an accent rule at
-  1.44:1 that was also borrowing the reserved amber. ⚠ **Disable transitions
+  1.44:1 that was also borrowing the reserved amber. CAUTION: **Disable transitions
   before measuring** — `getComputedStyle` immediately after toggling `.dark`
   returns a value interpolated from the *other* theme, which read as a 2.58:1
   failure that did not exist.

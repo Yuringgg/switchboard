@@ -32,7 +32,7 @@ backfilled.
 
 ---
 
-## 2. ⚠ Two documented decisions that measurement disproved
+## 2. Two documented decisions that measurement disproved
 
 This is the part worth reading. Both docs were right when written and quietly
 stopped being right.
@@ -79,7 +79,7 @@ ADR-003's isolation argument, satisfied inside one vendor.
 
 ---
 
-## 3. ⚠ The assistant is capped at ~30 questions/day
+## 3. The assistant is capped at ~30 questions/day
 
 Measured, not documented. One question costs **3,000–3,500 tokens** (system
 prompt + 8 retrieved messages). Groq's 70B allows 12,000 tokens/min and
@@ -101,7 +101,7 @@ doubles the questions, costs quality on broad ones), or move to the 8B model
 
 ---
 
-## 4. ⚠ The prompt owes one tuning pass
+## 4. The prompt owes one tuning pass
 
 Stated plainly because it is the one loose end.
 
@@ -122,21 +122,21 @@ re-run the next day rather than chasing it.
 
 ## 5. Things that will bite a future session
 
-- **⚠ Graceful degradation cannot survive OOM.** `warmEmbedder()` is deliberately
+- **CAUTION: Graceful degradation cannot survive OOM.** `warmEmbedder()` is deliberately
   non-fatal so an image missing native ONNX binaries degrades to "no semantic
   search" instead of crashlooping. It did not help: the worker was sized
   0.25 vCPU / 0.5 GiB and the kernel SIGKILLed it (exit 137) with nothing logged.
   Now 0.5 / 1.0 GiB. **Size memory before loading a model** — an error handler
   is not a substitute. Cost roughly doubled to ~$20–30/month.
-- **⚠ tsup's `noExternal` WINS over `external`.** While `noExternal` matched
+- **CAUTION: tsup's `noExternal` WINS over `external`.** While `noExternal` matched
   everything, the `external` list was silently ignored: the build inlined
   Transformers, emitted five native `.node` files, **reported success**, then
   failed at runtime with `(0, backend_2.listSupportedBackends) is not a
   function`. It now excludes them with a negative lookahead.
-- **⚠ CI does not repoint the Container App.** It pushes an image to ghcr; the
+- **CAUTION: CI does not repoint the Container App.** It pushes an image to ghcr; the
   app runs one pinned by digest. Repoint by hand or the deployed worker runs old
   code while the commit looks deployed.
-- **⚠ Changing any `package.json` means running `pnpm install` and committing
+- **CAUTION: Changing any `package.json` means running `pnpm install` and committing
   `pnpm-lock.yaml` in the same commit.** A missing lockfile update kept CI red
   from 2026-07-28 to 2026-08-02 — every push failed at
   `pnpm install --frozen-lockfile` before running a single test, including four
@@ -157,7 +157,7 @@ needs already exists: Groq is wired, `extractions` already takes new `kind`s
 (migration 0008 widened the constraint), and the OAuth consent already carries
 `calendar.events`, so no second consent screen is needed.
 
-⚠ **ADR-010 is absolute: never auto-create a calendar event.** Propose, show the
+CAUTION: **ADR-010 is absolute: never auto-create a calendar event.** Propose, show the
 source message beside it, let the user edit and confirm. `calendar_event_id` is
 checked before every insert so re-running extraction cannot duplicate an event.
 
@@ -171,7 +171,7 @@ Also outstanding:
 - **Ms. Maria** — her BRD / "answers and recommendations" (Q6) and the Fatima
   scope conversation (Q8) are still outstanding. The Notion write-up
   (`docs/00-CONTEXT.md` §6 item 2) is still pending.
-- **⚠ Rotate the Groq and Gemini keys** before this repo is shown to iOzera. Both
+- **CAUTION: Rotate the Groq and Gemini keys** before this repo is shown to iOzera. Both
   were pasted into a chat transcript on 2026-08-02 at Yuri's explicit
   instruction. Nothing was committed; `.env` is gitignored.
 
@@ -197,6 +197,6 @@ What caught them:
   tsup bundling failure and the OOM were all found by execution. None would have
   survived a code review either.
 - **Measuring the DOM** instead of eyeballing, since there is no screenshot
-  capability here. ⚠ Disable CSS transitions first — `getComputedStyle`
+  capability here. CAUTION: Disable CSS transitions first — `getComputedStyle`
   immediately after toggling `.dark` returns a value interpolated from the
   *other* theme, which reads as a contrast failure that does not exist.
