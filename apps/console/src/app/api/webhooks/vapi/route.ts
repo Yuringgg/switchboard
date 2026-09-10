@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { createServiceClient } from '@/lib/supabase/service';
 import { isPlausibleCallId } from '@/lib/voice/call-session';
+import { toolArgsOf, toolNameOf, type VapiToolCall } from '@/lib/voice/payload';
 import { verifyVapiSignature } from '@/lib/voice/signature';
 import {
   getAttentionItems,
@@ -60,12 +61,6 @@ export const dynamic = 'force-dynamic';
  */
 const SIGNATURE_HEADER = 'x-signature';
 const TIMESTAMP_HEADER = 'x-timestamp';
-
-interface VapiToolCall {
-  id: string;
-  name: string;
-  arguments?: Record<string, unknown>;
-}
 
 /**
  * Vapi's payload, narrowed to the parts this route reads.
@@ -218,7 +213,7 @@ export async function POST(request: Request) {
     .from('voice_call_sessions')
     .update({
       last_tool_at: new Date().toISOString(),
-      last_tool_name: toolCalls.map((call) => call.name).join(', ').slice(0, 200),
+      last_tool_name: toolCalls.map(toolNameOf).join(', ').slice(0, 200),
     })
     .eq('vapi_call_id', callId);
 
@@ -273,14 +268,24 @@ async function runTool(
   ownerId: string,
   call: VapiToolCall,
 ): Promise<ToolResult | string> {
-  if (!isVoiceTool(call.name)) {
-    // The agent asked for a tool that does not exist here. Naming it is right:
-    // it usually means the Vapi assistant and this route have drifted apart.
-    console.warn(`[vapi] unknown tool: ${call.name}`);
-    return `TOOL_ERROR: ${call.name} is not a tool this assistant has.`;
+  const name = toolNameOf(call);
+
+  if (!isVoiceTool(name)) {
+    /*
+     * The agent asked for a tool that does not exist here — usually the Vapi
+     * assistant and this route drifting apart.
+     *
+     * ⚠ An EMPTY name here means the payload shape changed again, not that
+     * somebody misconfigured a tool. Said out loud so the next person reads it
+     * as a parsing problem rather than hunting the dashboard for a typo.
+     */
+    console.warn(`[vapi] unknown tool: ${name || '(no name in payload)'}`);
+    return name
+      ? `TOOL_ERROR: ${name} is not a tool this assistant has.`
+      : 'TOOL_ERROR: the tool call arrived with no name this route could read.';
   }
 
-  const args = call.arguments ?? {};
+  const args = toolArgsOf(call);
 
   /*
    * ⚠ Every argument is untrusted. It was produced by a language model from
@@ -291,7 +296,7 @@ async function runTool(
     typeof value === 'string' ? value.slice(0, 200) : '';
 
   try {
-    switch (call.name) {
+    switch (name) {
       case 'resolve_person':
         return await resolvePerson(supabase, ownerId, asString(args.name));
 
@@ -316,7 +321,7 @@ async function runTool(
      * somebody's message — which this route would then read aloud.
      */
     console.error(
-      `[vapi] tool ${call.name} failed:`,
+      `[vapi] tool ${name} failed:`,
       cause instanceof Error ? cause.message : 'unknown',
     );
     return 'TOOL_ERROR: that lookup failed. Tell the caller to try again in a moment.';
