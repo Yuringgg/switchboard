@@ -152,9 +152,20 @@ const frag = /* glsl */ `
     return vec4(colorIn.rgb / (a + 1e-5), a);
   }
 
-  const vec3 baseColor1 = vec3(0.611765, 0.262745, 0.996078);
-  const vec3 baseColor2 = vec3(0.298039, 0.760784, 0.913725);
-  const vec3 baseColor3 = vec3(0.062745, 0.078431, 0.600000);
+  // ── Uriel's palette ────────────────────────────────────────────────────
+  //
+  // Gold, from the reference Yuri chose: a white-hot centre, gold radiating
+  // out of it, deep bronze behind, and a thin cool green at the rim where the
+  // light runs out. The archangel Uriel is the one associated with light, so
+  // the name and the colour agree, which is worth more than either alone.
+  //
+  // ⚠ These are the ONLY colours in the shader. Everything else is a mix of
+  // them, so changing one shifts the whole orb — do not tune them one at a
+  // time expecting local effects.
+  const vec3 goldColor = vec3(1.000, 0.722, 0.204);   // the body of the light
+  const vec3 hotColor  = vec3(1.000, 0.953, 0.804);   // the core, near white
+  const vec3 deepColor = vec3(0.216, 0.106, 0.020);   // bronze, behind it
+  const vec3 rimColor  = vec3(0.129, 0.549, 0.478);   // the green at the edge
   const float innerRadius = 0.6;
   const float noiseScale = 0.65;
 
@@ -167,33 +178,57 @@ const frag = /* glsl */ `
   }
 
   vec4 draw(vec2 uv) {
-    vec3 color1 = adjustHue(baseColor1, hue);
-    vec3 color2 = adjustHue(baseColor2, hue);
-    vec3 color3 = adjustHue(baseColor3, hue);
+    vec3 gold = adjustHue(goldColor, hue);
+    vec3 hot  = adjustHue(hotColor, hue);
+    vec3 deep = adjustHue(deepColor, hue);
+    vec3 rim  = adjustHue(rimColor, hue);
 
     float ang = atan(uv.y, uv.x);
     float len = length(uv);
     float invLen = len > 0.0 ? 1.0 / len : 0.0;
 
+    // The turbulent edge — a noisy radius, so the rim churns rather than
+    // sitting still like a drawn circle.
     float n0 = snoise3(vec3(uv * noiseScale, iTime * 0.5)) * 0.5 + 0.5;
     float r0 = mix(mix(innerRadius, 1.0, 0.4), mix(innerRadius, 1.0, 0.6), n0);
     float d0 = distance(uv, (r0 * invLen) * uv);
     float v0 = light1(1.0, 10.0, d0);
     v0 *= smoothstep(r0 * 1.05, r0, len);
+
     float cl = cos(ang + iTime * 2.0) * 0.5 + 0.5;
 
+    // One brighter point orbiting the rim, so the light has a direction.
     float a = iTime * -1.0;
     vec2 pos = vec2(cos(a), sin(a)) * r0;
     float d = distance(uv, pos);
     float v1 = light2(1.5, 5.0, d);
     v1 *= light1(1.0, 50.0, d0);
 
-    float v2 = smoothstep(1.0, mix(innerRadius, 1.0, n0 * 0.5), len);
-    float v3 = smoothstep(innerRadius, mix(innerRadius, 1.0, 0.5), len);
+    /*
+     * ⚠ THE CORE. The original shader multiplied by a mask that DARKENED the
+     * middle — it drew a ring, not a sun. The reference is lit from the centre
+     * out, so that mask is gone and this replaces it. Removing it is the single
+     * change that makes this read as the reference rather than as a donut in a
+     * different colour.
+     */
+    float core = light2(1.0, 14.0, len);
 
-    vec3 col = mix(color1, color2, cl);
-    col = mix(color3, col, v0);
-    col = (col + v1) * v2 * v3;
+    /*
+     * The rays. sin(ang * N) gives N spokes around the circle; the high power
+     * sharpens them from a wave into thin spikes. They fade out before the
+     * centre so they read as light LEAVING the core rather than as a wheel
+     * drawn over it, and they turn slowly against the rim's own rotation.
+     */
+    float rays = pow(abs(sin(ang * 14.0 - iTime * 0.35)), 10.0);
+    rays *= smoothstep(0.05, 0.4, len) * smoothstep(1.05, 0.45, len);
+
+    float v2 = smoothstep(1.0, mix(innerRadius, 1.0, n0 * 0.5), len);
+
+    vec3 col = mix(gold, rim, cl * 0.35);   // gold, leaning green where it cools
+    col = mix(deep, col, v0);               // bronze behind the churning rim
+    col += hot * core * 1.5;                // the white-hot centre
+    col += gold * rays * 0.45;              // spokes out of it
+    col = (col + v1) * v2;
     col = clamp(col, 0.0, 1.0);
 
     return extractAlpha(col);
