@@ -6,6 +6,7 @@ import { verifyVapiSignature } from '@/lib/voice/signature';
 import {
   getAttentionItems,
   getPersonActivity,
+  getRecentMessages,
   isVoiceTool,
   resolvePerson,
   searchMessagesForVoice,
@@ -260,6 +261,11 @@ async function runTool(
 
       case 'get_attention_items':
         return await getAttentionItems(supabase, ownerId);
+
+      case 'get_recent_messages':
+        return await getRecentMessages(supabase, ownerId, {
+          channel: asString(args.channel),
+        });
 
       case 'search_messages':
         return await searchMessagesForVoice(supabase, ownerId, asString(args.query));

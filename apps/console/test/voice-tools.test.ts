@@ -4,6 +4,7 @@ import { isPlausibleCallId, CALL_SESSION_TTL_MS } from '../src/lib/voice/call-se
 import {
   getAttentionItems,
   getPersonActivity,
+  getRecentMessages,
   isVoiceTool,
   resolvePerson,
   searchMessagesForVoice,
@@ -88,6 +89,37 @@ describe('the tenant filter — the property that matters', () => {
     const { client, calls } = fakeClient([]);
     await resolvePerson(client, OWNER, 'Maria');
     expect(ownerFilters(calls)).toContain(OWNER);
+  });
+
+  it('getRecentMessages constrains owner_id', async () => {
+    const { client, calls } = fakeClient([]);
+    await getRecentMessages(client, OWNER);
+    expect(ownerFilters(calls)).toContain(OWNER);
+  });
+
+  it('getRecentMessages constrains owner_id on the CHANNEL lookup too', async () => {
+    const { client, calls } = fakeClient([]);
+    await getRecentMessages(client, OWNER, { channel: 'gmail' });
+
+    /*
+     * ⚠ Two queries, two filters. Resolving channel ids without an owner filter
+     * would hand this tenant another tenant's channel id, and the message query
+     * would then happily read messages that are not theirs.
+     */
+    expect(ownerFilters(calls).filter((id) => id === OWNER).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('returns nothing — not everything — when a channel filter matches none', async () => {
+    const { client } = fakeClient([]);
+    const result = await getRecentMessages(client, OWNER, { channel: 'whatsapp' });
+
+    /*
+     * ⚠ The dangerous shape is falling through to an unfiltered query when the
+     * filter matched no channel. That would read Gmail aloud to somebody who
+     * asked for WhatsApp.
+     */
+    expect(result.messages).toEqual([]);
+    expect(result.summary).toMatch(/no whatsapp account is connected/i);
   });
 
   it('getPersonActivity constrains owner_id before trusting a person id', async () => {
@@ -188,10 +220,11 @@ describe('counts are computed here, not by the model', () => {
 });
 
 describe('the tool allowlist', () => {
-  it('matches the four tools the prompt declares', () => {
+  it('matches the five tools the prompt declares', () => {
     expect([...VOICE_TOOLS]).toEqual([
       'resolve_person',
       'get_attention_items',
+      'get_recent_messages',
       'search_messages',
       'get_person_activity',
     ]);

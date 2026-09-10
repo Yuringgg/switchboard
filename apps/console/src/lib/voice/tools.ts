@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
- * The four tools the Vapi agent can call.
+ * The five tools the Vapi agent can call.
  *
  * ── ⚠⚠ EVERY QUERY IN THIS FILE FILTERS ON `owner_id` BY HAND ───────────────
  *
@@ -407,10 +407,104 @@ export async function getPersonActivity(
   };
 }
 
+
+/* ─── get_recent_messages ─────────────────────────────────────────────────── */
+
+/**
+ * The latest messages, newest first.
+ *
+ * ── ⚠ Why this exists, added after the first real call ──────────────────────
+ *
+ * The first four tools were `resolve_person`, `get_attention_items`,
+ * `search_messages` and `get_person_activity`. Between them they could not
+ * answer **"what's in my inbox?"** — `search_messages` needs a keyword, and
+ * "my emails" is not one.
+ *
+ * That is the single most natural question to ask a unified inbox, and the
+ * agent had no way to serve it. It was found the only way it could be: by
+ * somebody talking to the thing and asking.
+ */
+export async function getRecentMessages(
+  supabase: SupabaseClient,
+  ownerId: string,
+  { channel, limit = 5 }: { channel?: string; limit?: number } = {},
+): Promise<ToolResult> {
+  /*
+   * "gmail" and "whatsapp" are the only channels that exist (CHANNEL_TYPES).
+   * Anything else is treated as no filter rather than as an error — the model
+   * heard a word out loud, and refusing on "email" when it meant Gmail would be
+   * pedantry the caller cannot see or correct.
+   */
+  const wanted = channel?.toLowerCase().trim();
+  const type = wanted === 'gmail' || wanted === 'email' ? 'gmail'
+    : wanted === 'whatsapp' ? 'whatsapp'
+    : null;
+
+  let channelIds: string[] | null = null;
+  if (type) {
+    const { data: channelRows } = await supabase
+      .from('channels')
+      .select('id')
+      // ⚠ THE TENANT FILTER — on the channel lookup too, not just the messages.
+      .eq('owner_id', ownerId)
+      .eq('type', type);
+
+    channelIds = ((channelRows ?? []) as { id: string }[]).map((row) => row.id);
+
+    // A filter that matched no channel must return nothing, NOT everything.
+    // Falling through to an unfiltered query here would read WhatsApp messages
+    // aloud to somebody who asked for Gmail.
+    if (channelIds.length === 0) {
+      return { summary: `No ${type} account is connected.`, messages: [] };
+    }
+  }
+
+  let query = supabase
+    .from('messages')
+    .select(
+      'subject, body_text, sent_at, ' +
+        'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id)',
+    )
+    // ⚠ THE TENANT FILTER.
+    .eq('owner_id', ownerId)
+    .order('sent_at', { ascending: false })
+    .limit(limit);
+
+  if (channelIds) query = query.in('channel_id', channelIds);
+
+  const { data, error } = await query;
+
+  if (error) {
+    return { summary: 'TOOL_ERROR: could not read the messages.', messages: [] };
+  }
+
+  type Row = {
+    subject: string | null;
+    body_text: string;
+    sent_at: string;
+    sender: { display_name: string | null; external_id: string } | null;
+  };
+
+  const messages = ((data ?? []) as unknown as Row[]).map((row) => ({
+    from: row.sender?.display_name ?? row.sender?.external_id ?? 'unknown sender',
+    subject: row.subject ?? null,
+    when: spokenWhen(row.sent_at),
+    excerpt: speakable(row.body_text),
+  }));
+
+  if (messages.length === 0) {
+    return { summary: 'There are no messages yet.', messages: [] };
+  }
+
+  const label = type === 'gmail' ? 'Gmail message' : type === 'whatsapp' ? 'WhatsApp message' : 'message';
+  return { summary: `The ${count(messages.length, label)}, newest first.`, messages };
+}
+
 /** Exported for the route's dispatch table and for tests. */
 export const VOICE_TOOLS = [
   'resolve_person',
   'get_attention_items',
+  'get_recent_messages',
   'search_messages',
   'get_person_activity',
 ] as const;

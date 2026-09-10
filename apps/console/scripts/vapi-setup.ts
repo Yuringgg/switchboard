@@ -42,7 +42,7 @@ const CREDENTIAL_NAME = process.env.VAPI_CREDENTIAL_NAME ?? 'switchboard-webhook
 const ASSISTANT_NAME = process.env.VAPI_ASSISTANT_NAME ?? 'Switchboard';
 
 /**
- * The four tools, and nothing else.
+ * The five tools, and nothing else.
  *
  * ⚠ These names are the contract. `apps/console/src/lib/voice/tools.ts` has the
  * same four in `VOICE_TOOLS` and the webhook refuses anything not on that list,
@@ -68,6 +68,19 @@ const TOOLS = [
     description:
       "What needs the user's attention today: meetings, commitments, action items and questions pulled out of their messages.",
     properties: {},
+    required: [],
+  },
+  {
+    name: 'get_recent_messages',
+    description:
+      "The latest messages in the user's inbox, newest first. Use this for \"what's in my inbox\", \"any new emails\", \"what did I get today\" — anything asking what has arrived rather than searching for a specific thing.",
+    properties: {
+      channel: {
+        type: 'string',
+        description:
+          "Optional. \"gmail\" or \"whatsapp\" to narrow it. Leave empty for both.",
+      },
+    },
     required: [],
   },
   {
