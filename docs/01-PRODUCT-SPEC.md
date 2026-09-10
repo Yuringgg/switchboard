@@ -81,6 +81,15 @@ Ordered by build priority. Each maps to a roadmap phase.
 
 - **US-10** — Facebook Messenger as a third channel, if iOzera's clients use it.
 - **US-11** — Voice notes transcribed and made searchable alongside text.
+  *Still open.* CAUTION: not to be confused with **US-13**, which shipped.
+- **US-13** — As a user, I **call** Switchboard and ask about my messages out
+  loud, and it answers from the same store with the same refusal contract.
+  **Shipped 2026-09-11** (Phase 6, ADR-023). Ms. Maria asked for this after the
+  spec was written: a circular interface, chat and voice in one room, detailed
+  answers when typed and short ones when spoken, English only for now.
+  CAUTION: `/api/voice/transcribe` — built for the browser path and kept as the free
+  fallback — is most of what US-11 needs. WhatsApp voice notes are media
+  attachments, so the worker can call the same endpoint on ingest.
 - **US-12** — Reply outbound to a message from inside Switchboard.
 
 ---
@@ -96,6 +105,7 @@ Ordered by build priority. Each maps to a roadmap phase.
 | **Being a WhatsApp/email *client*** | Switchboard is read-and-understand, not send-and-manage. Outbound is US-12, a stretch goal, and deliberately last. |
 | **Real-time chat UI** | It's a console over a message store, not a chat app. No typing indicators, no read receipts. |
 | **Mobile app** | Responsive web is enough. A native app is a separate project. |
+| **Storing what was said on a call** | Audio and transcripts are never persisted — no table, no blob, no retention question. The transcript lives on screen for the length of the page. This is a stated security property (ADR-024), not an oversight. |
 | **Training or fine-tuning a model** | We call an existing LLM API. Nothing about this problem needs custom weights. |
 | **Handling real iOzera client data before consent** | See `docs/02-ARCHITECTURE.md` §Security. Dogfood on Yuri's own accounts. |
 

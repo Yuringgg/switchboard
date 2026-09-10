@@ -65,6 +65,17 @@ its surfaces are actually distinguishable, auto-sync so a dropped connection
 recovers itself, and an animated backdrop across the console. See
 [`correspondence/2026-08-09-design-revisions.md`](./correspondence/2026-08-09-design-revisions.md).
 
+**Phase 6 — voice. Shipped 2026-09-11.** You can **call** Switchboard and ask it
+things out loud. It answers from your real messages, in about **1,900ms** end to
+end, with a live transcript and an orb that moves for whoever is speaking.
+
+The call is hosted by **Vapi**; when the agent needs your data it calls back into
+`/api/webhooks/vapi`, which has **no cookie and no user** — so it runs as
+`service_role` and takes the tenant from a row this app wrote when the call
+started, never from the request. Unknown call id, no answer. See
+[ADR-023](./docs/05-DECISIONS.md) and ADR-024, and
+[`correspondence/2026-09-10-voice-integration-plan.md`](./correspondence/2026-09-10-voice-integration-plan.md).
+
 Remaining Phase 5 polish: an error-handling audit, timeline virtualization, and
 a demo rehearsal on the deployed infrastructure. *(The daily digest was **cut** —
 `/attention` already is it, and there is no delivery channel, so "daily" would
@@ -104,6 +115,8 @@ channels → ingest (verify, queue, ack fast) → worker (normalize, embed, extr
 | Summaries · extraction | **Groq `llama-3.1-8b-instant`** — a different model on purpose | — |
 | Embeddings | Transformers.js, local in-worker, multilingual | — |
 | Calendar | Google Calendar (write, confirmed only) | — |
+| **Voice call** | **Vapi** — hosts mic, STT, model, TTS, interruption | ~$0.09/min |
+| **Voice tools** | Five read-only tools over the same store, HMAC-signed | Vercel |
 
 CAUTION: **The assistant does not run on Gemini**, though several older notes say so.
 Gemini 2.5 Flash's free tier was measured at **20 requests per day** on

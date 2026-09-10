@@ -40,6 +40,14 @@
    ║  timeline · search · contacts · assistant ║
    ╚═══════════════════════════════════════════╝
 
+   ╔═══════════════════════════════════════════╗
+   ║       VOICE  (Phase 6, ADR-023)           ║   Vapi hosts the call
+   ║  browser ──► Vapi ──► tool call ──►       ║   microphone · STT · model
+   ║  /api/webhooks/vapi ──► the five tools    ║   · TTS · interruption
+   ╚═══════════════════════════════════════════╝
+   ⚠ NO COOKIE, NO USER. Runs as service_role, so the tenant comes from
+     `voice_call_sessions` and never from the payload. ADR-024.
+
    Attachments ──► Azure Blob Storage
    Assistant   ──► Gemini 2.5 Flash  (long RAG prompts — 250K TPM, 1M ctx)
    Extraction  ──► Groq / Llama      (many small prompts — 14.4K req/day)
@@ -357,6 +365,28 @@ message_extraction_runs (
   created_at    timestamptz default now()
 )
 
+-- Which tenant is on the phone (Phase 6, migration 0014, ADR-024).
+--
+-- ⚠ The ONLY sanctioned way `/api/webhooks/vapi` learns whose messages to read.
+--   That route arrives with no cookie and no user, so it runs as service_role
+--   and every policy below is inert for it. Vapi's call id is a CLAIM, matched
+--   against a row this application wrote while a real session existed — exactly
+--   the rule §2 sets for adapters and migration 0006 implements for WhatsApp.
+--   Unknown or expired id fails CLOSED.
+voice_call_sessions (
+  vapi_call_id   text pk,             -- Vapi's own id, from message.call.id
+  owner_id       uuid not null references auth.users(id),
+  expires_at     timestamptz not null,   -- a call id is a bearer token by
+                                          -- another name; the grant is bounded
+  created_at     timestamptz default now(),
+  last_tool_at   timestamptz,
+  -- Migration 0015. Which tool was asked for, INCLUDING one the route does not
+  -- recognise — the case that is otherwise invisible, because a rejected tool
+  -- and a broken tool sound identical to the caller. Name only: never the
+  -- arguments (what somebody said aloud), never the result (message content).
+  last_tool_name text
+)
+
 -- Ingestion queue + cursor tracking
 raw_events (
   id            uuid pk,
@@ -615,6 +645,27 @@ needs to see what the model read before agreeing with it."* A proposal without
 its quote is a claim the reader cannot check, which is the thing ADR-007 and
 ADR-010 both exist to prevent. The quote is also what `validateExtractions`
 verifies against the body, so it is the same text either way.
+
+**Voice (Phase 6).** Three properties, and each is load-bearing:
+
+- **The webhook is HMAC-signed over `{timestamp}.{body}`** — Vapi's own default,
+  kept rather than switched off. Signing the body alone leaves a captured
+  request valid forever, so anyone who records one can replay it and re-run its
+  tool calls. Anything more than five minutes out of step is refused.
+- **The tenant never comes from the request.** ADR-024. `service_role` bypasses
+  every policy on this path, so the owner is read from `voice_call_sessions` by
+  call id and from nowhere else.
+- **Nothing spoken is stored.** No audio, no recording, no transcript. The
+  browser path posts a clip to Groq and lets it go; the Vapi path keeps the
+  transcript in React state for the length of the page. No new table, no blob
+  container, and no new retention question under RA 10173.
+
+CAUTION: **This is dictation, not call recording.** ADR-008 rules the latter out on
+three independent grounds, one of which is **RA 4200** — recording a private
+communication without all-party consent is a criminal offence in the
+Philippines, including by a participant. A person asking their own assistant a
+question is on the right side of that line, and the 30-second cap on the browser
+recorder plus storing nothing are what keep it obviously so.
 
 **Data handling and consent.** iOzera is a Philippine company, so client
 communications fall under the **Data Privacy Act of 2012 (RA 10173)**. Before any

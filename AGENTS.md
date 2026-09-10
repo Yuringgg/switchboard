@@ -93,7 +93,9 @@ temporary upstream, awaiting a durable number ·
 Phase 3 search + message route + timeline channel filter shipped ·
 Phase 4A shipped · Phase 4B shipped and its loose ends closed ·
 Phase 5 shipped (extraction, the `/attention` **board**, calendar
-write-back) · **Ms. Maria's 2026-08-05 review built** — polish remains.**
+write-back) · **Ms. Maria's 2026-08-05 review built** ·
+**Phase 6 — VOICE SHIPPED 2026-09-11**: you can call Switchboard and ask it
+things out loud, ~1,900ms, hosted by Vapi. Polish remains.**
 
 ### Ms. Maria's review landed 2026-08-06 — six things a console session must know
 
@@ -142,6 +144,43 @@ taste.
 for it explicitly and gave the reason — *"para ma-document yun for your
 defense"*. The page was designed and built in code. **Yuri took this on himself
 on 2026-08-09**; do not spend session time on it.
+
+### Voice shipped 2026-09-11 — five things a session must know before touching it
+
+Full note: `correspondence/2026-09-10-voice-integration-plan.md` §11, and the
+agent prompt is `correspondence/2026-09-10-vapi-agent-prompt.md`.
+
+1. **CAUTION: `/api/webhooks/vapi` HAS NO SESSION AND RUNS AS `service_role`.** Every
+   policy in migration 0002 is inert for it. The tenant comes from
+   `voice_call_sessions` by call id — a row this app wrote while a real session
+   existed — and **never** from the payload. Unknown or expired id fails CLOSED.
+   ADR-024, migration 0014.
+2. **CAUTION: THE TOOLS IN `lib/voice/tools.ts` ARE NOT `fetchAttention` AND FRIENDS.**
+   Those take no owner argument and rely entirely on RLS; each carries a comment
+   saying an owner filter would imply the policy is not doing its job. That is
+   true there and the **exact opposite** of true on the voice path. Calling them
+   with a service client returns every tenant's rows. Every query in that file
+   carries `.eq('owner_id', ownerId)` by hand and eleven tests check it.
+3. **CAUTION: VAPI'S DOCS AND VAPI'S API DISAGREE ABOUT THE TOOL PAYLOAD.** The docs
+   show `{ id, name, arguments }`; the API sends OpenAI's
+   `{ id, function: { name, arguments: "<json string>" } }`. Reading the
+   documented shape made the name `undefined` and rejected **every** tool
+   identically — indistinguishable from a database outage. `lib/voice/payload.ts`
+   accepts both, with 11 tests.
+4. **The webhook is HMAC-signed over `{timestamp}.{body}`**, not the body alone —
+   Vapi's own default, kept because a body-only signature is replayable forever.
+   Header names are their defaults (`x-signature`, `x-timestamp`) so the
+   dashboard needs only a name and a secret typed in.
+5. **CAUTION: THE BROWSER-MICROPHONE ORB WAS REMOVED**, and the server-side voice path
+   was **not**. `mode: 'voice'`, `VOICE_BREVITY_NOTE` and `GROQ_VOICE_MODEL` are
+   all still live and tested — the free fallback if Vapi credits run out. Do not
+   "clean up" what looks like dead code there without reading ADR-023.
+
+CAUTION: **Check WHICH BUILD is in the address bar before diagnosing what is on it.**
+Three rounds of "still not fixed" on 2026-09-10 were three different frozen
+per-deployment Vercel URLs (`switchboard-console-<hash>-yuringgg.vercel.app`).
+Production is `switchboard-console-beryl.vercel.app` and it had the fix
+throughout.
 
 ### A second round of design work landed 2026-08-09 — six more things to know
 

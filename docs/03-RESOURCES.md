@@ -530,6 +530,67 @@ separately and linked back to the parent message. See `docs/02-ARCHITECTURE.md` 
 
 ---
 
+## 4d. Voice — Vapi, and Groq Whisper (verified 2026-09-10)
+
+### Vapi — hosts the call (ADR-023)
+
+| | |
+|---|---|
+| Vapi hosting | **$0.05/min** |
+| Transcriber, model, voice | **at cost**, passed through — or $0 from Vapi if you supply your own provider key |
+| Telephony | charged by the provider, not Vapi |
+| Concurrency | 10 lines included, $10/line/month after |
+
+CAUTION: **"$0 with your own API key" means $0 FROM VAPI, not free.** The provider
+bills you directly instead. It also applies per component: supplying a Groq key
+replaces only the **model**, and leaves the transcriber and the voice exactly
+where they are.
+
+Measured on this deployment, 2026-09-11:
+
+```
+Vapi hosting              $0.05  /min
+GPT-5.6 Sol   (model)     $0.019 /min
+Vapi Savannah (voice)     $0.02  /min
+Sonix STT RT v5 (STT)     $0.004 /min
+                          ────────────
+                          ~$0.09 /min      · latency ~1,900ms
+```
+
+CAUTION: **Do not move the model to Groq's 70B.** It is the same bucket the console
+assistant uses — roughly 30 questions a day, shared by every tenant — and a
+voice agent on it would exhaust the thing it is meant to complement. The saving
+is under two cents a minute. If the model is ever moved, `llama-3.1-8b-instant`
+is the only sane target.
+
+### Groq Whisper — speech to text (ADR-025)
+
+`whisper-large-v3-turbo`, free tier, read from Groq's own documentation:
+
+| | |
+|---|---|
+| Rate | 20 req/min · **2,000 req/day** |
+| Audio | 7,200 seconds/hour · **28,800 seconds/day** (8 hours of speech) |
+| Speed | 216x realtime — a 5-second clip is ~23ms of compute |
+| Word error rate | 12% |
+| Max upload | 25 MB free tier · 100 MB dev tier |
+| Formats | flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, **webm** |
+
+CAUTION: **Turbo transcribes only.** Translation is on the non-turbo
+`whisper-large-v3`, at a different endpoint. That matters the day Tagalog output
+needs translating, and not before.
+
+CAUTION: **Gemini's free-tier limits can no longer be verified.** Google's rate-limit
+page defers to per-account values in AI Studio. This project's own measurement —
+**20 requests/day** for 2.5 Flash, 2026-08-02 — is the best evidence available
+and is the third time a Gemini quota has moved under this project. See ADR-025.
+
+*Sources: Groq speech-to-text and rate-limit documentation; Vapi pricing, custom
+tools, server authentication and server events documentation; MDN
+`SpeechRecognition`. All read 2026-09-10.*
+
+---
+
 ## 5. Hosting
 
 | Layer | Service | Cost |

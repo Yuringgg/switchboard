@@ -1397,6 +1397,130 @@ does for free.
 ## Template for new ADRs
 
 ```markdown
+## ADR-023 — Voice runs on Vapi, and the browser microphone was removed
+
+**Date:** 2026-09-11 · **Status:** Accepted
+
+**Context.** Ms. Maria asked for voice on the switchboard: a circular interface,
+chat and voice in one room, detailed answers when typed and short ones when
+spoken, English only for now.
+
+Two things were built, a day apart. First a browser-native version: record with
+`MediaRecorder`, transcribe through Groq Whisper, answer aloud through the
+browser's own `speechSynthesis`. It was free, private, and shipped nothing to a
+new vendor. Then Yuri found **Vapi**, which hosts the whole call.
+
+**Decision.** Vapi carries the voice layer. The browser microphone was removed
+from `/assistant` entirely.
+
+**Why.** Measured, not preferred:
+
+| | Browser | Vapi |
+|---|---|---|
+| End to end | ~2.1–3.4s estimated | **~1,900ms measured** |
+| Interruption | none — record, stop, wait | real barge-in |
+| Transcript | none | live, both speakers |
+| Cost | free | ~$0.09/min |
+
+Two microphones on one screen is not two options — it is a question the reader
+has to answer before they can start. And the one that lost was losing on the
+requirement Ms. Maria actually stated, which was responsiveness.
+
+**What was deliberately kept.** The *server-side* voice path is untouched and
+still tested: `askAssistant` takes `mode: 'voice'`, `VOICE_BREVITY_NOTE` shortens
+a spoken answer, `GROQ_VOICE_MODEL` routes one to a separate quota bucket. Vapi
+bills per minute and this project has no budget; if credits run out before a
+demo, the free path is a component away rather than a rewrite.
+
+**What this costs.** A vendor now sits in the middle of a voice conversation
+about private messages. That is a real change to the trust boundary and it is
+the reason ADR-024 exists.
+
+---
+
+## ADR-024 — A caller has no session, so the tenant comes from a row we wrote
+
+**Date:** 2026-09-11 · **Status:** Accepted
+
+**Context.** Every read in the console knows whose data it is looking at,
+because a session cookie arrives and RLS does the rest. **A Vapi tool webhook
+arrives with no cookie and no user.** It is a machine caller, like Pub/Sub and
+Meta.
+
+So it runs as `service_role`, where every policy in migration 0002 is inert —
+making it the third place in this system where a cross-tenant leak is possible
+by application bug. `docs/04-ROADMAP.md`'s risk register rates that **Critical**,
+and correctly: one tenant's private mail read aloud down a phone line to another
+is not a bug you recover from.
+
+**Decision.** Never take an owner from the payload. Match a claim against a row
+this application wrote.
+
+1. Starting a call writes `voice_call_sessions` — `(vapi_call_id, owner_id,
+   expires_at)` — from a page where a real session exists.
+2. The webhook reads `message.call.id` and looks it up **there**.
+3. No row, or expired → every tool in the batch is refused.
+
+**Why this shape.** It is not new. `docs/02-ARCHITECTURE.md` §2 already says an
+adapter never resolves a tenant — it reports what the provider *claimed*, and
+ingest matches that against `channels`. Migration 0006 added
+`external_account_id` to make that lookup possible for WhatsApp. Migration 0014
+is the same idea for a phone call.
+
+**Consequences.**
+
+- The tools in `lib/voice/tools.ts` are **separate functions**, not reuses of
+  `fetchAttention`, `searchMessages` or `fetchContactDetail`. Those take no owner
+  argument and rely entirely on RLS; calling them with a service client returns
+  every tenant's rows. The duplication is deliberate — two paths with opposite
+  security models must not share code, because sharing is how one inherits the
+  other's assumptions.
+- `searchMessagesForVoice` does not use the `search_messages` RPC, which is
+  `SECURITY INVOKER` and takes no owner argument. An owner-filtered `ilike` is
+  less clever and correct.
+- A refused call says *"this call is not linked to an account"*, never *"you have
+  no messages"*. The second is a lie that sounds like an answer, and the caller
+  acts on it with no screen to check.
+
+**Rejected:** passing `owner_id` in the tool arguments. The model composes those
+from speech. It would have made a spoken sentence into an authorisation.
+
+---
+
+## ADR-025 — Transcription runs on Groq Whisper, not Gemini
+
+**Date:** 2026-09-10 · **Status:** Accepted
+
+**Context.** The meeting note records *"Yuri is utilizing Gemini for
+audio-to-text transcription"*, and an earlier log entry found Gemini 3.8 better
+than 3.5 chirp on Taglish audio. That comparison was between two Gemini models
+and did not include Groq.
+
+**Decision.** `whisper-large-v3-turbo` on Groq.
+
+**Why.** Verified from published documentation on 2026-09-10:
+
+| | Groq Whisper | Gemini 2.5 Flash |
+|---|---|---|
+| Free tier | 20 req/min · **2,000/day** · 28,800 audio-seconds/day | **~20 requests/day** (measured 2026-08-02) |
+| Published? | yes | **no longer** — deferred to per-account values in AI Studio |
+
+Twenty spoken sentences would exhaust Gemini. The Groq key already exists in
+this project, and Whisper is a **different model bucket** from the assistant's
+`llama-3.3-70b-versatile`, so transcription can never starve the answers — the
+same failure-isolation argument ADR-003 makes, applied again.
+
+**⚠ This is the third time a Gemini quota has moved under this project.** ADR-003
+routed the assistant to Gemini on 250 requests/day and was amended when the real
+number turned out to be 20. Google no longer publishes free-tier limits at all.
+Treat any Gemini number in these docs as unverifiable until re-measured.
+
+**Note.** The Vapi call does not use this. Vapi runs its own transcriber
+(Sonix). Groq Whisper serves `/api/voice/transcribe`, which is the browser path
+kept as the free fallback under ADR-023, and `/voice-lab`.
+
+---
+
 ## ADR-00N — <decision in one line>
 
 **Status:** Proposed | Accepted | Superseded by ADR-00M · YYYY-MM-DD

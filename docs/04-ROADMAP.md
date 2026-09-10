@@ -1030,6 +1030,67 @@ actions work against real rows.
 
 ---
 
+## Phase 6 — Voice SHIPPED (2026-09-11)
+
+Ms. Maria's voice brief, from the meeting recorded in
+`correspondence/2026-09-10-voice-integration-plan.md`. Six requirements, all met:
+
+| | Asked for | Built |
+|---|---|---|
+| V1 | Voice applied and **tested** on the switchboard | A working call on `/assistant` |
+| V2 | **7/10 responsiveness** | **~1,900ms** measured, end of speech to first word |
+| V3 | A **circular interface** | The orb, reacting to both voices |
+| V4 | Chat and voice in **one room** | `/assistant` — Call button and text box, one page |
+| V5 | **Chat detailed, voice short** | `mode: 'voice'` appends a brevity note; typed answers unchanged |
+| V6 | **English only**, Tagalog deferred | `language: 'en'` pinned, with the reason recorded |
+
+### What it runs on
+
+Vapi hosts the call — microphone, transcriber, model, voice, interruption. It
+calls back into `/api/webhooks/vapi` when the agent uses a tool. **ADR-023.**
+
+The five tools are `resolve_person`, `get_attention_items`,
+`get_recent_messages`, `search_messages` and `get_person_activity`. There is no
+meeting brief and no transcript search, because neither feature exists — and the
+agent's prompt says so out loud rather than failing mid-sentence.
+
+### The part that took the care
+
+A tool webhook arrives with **no cookie and no user**, so it runs as
+`service_role` and every RLS policy is inert. Migration 0014 is the answer:
+starting a call writes `(vapi_call_id, owner_id, expires_at)` from a page where a
+real session exists, and the webhook takes the owner from that row and nowhere
+else. Unknown or expired id fails closed. **ADR-024.**
+
+Requests are HMAC-signed over `{timestamp}.{body}` — Vapi's own default, kept
+rather than switched off, because signing the body alone leaves a captured
+request replayable forever.
+
+### What it cost to find
+
+Vapi's documentation shows a flat tool-call payload; their API sends OpenAI's
+nested shape with arguments as a JSON string. The route read the documented one,
+so the tool name was `undefined` and **every tool was rejected identically** —
+indistinguishable from a database outage, from the outside.
+
+Found by adding `voice_call_sessions.last_tool_name` (migration 0015) and seeing
+an empty string where a name should be. The lesson is the same one
+`docs/03-RESOURCES.md` records about the invisible token limit: **when two very
+different causes present identically, build the instrument rather than guess
+again.**
+
+### Remaining
+
+- Create the call server-side through Vapi's REST API, so the session row always
+  exists before the call does. Currently a tool fired in the first moments is
+  refused — it fails safe, and a retry works.
+- Decide whether `components/ui/shader-svg.tsx` stays; nothing imports it since
+  the ghost was removed.
+- Nobody has run the assistant eval against `GROQ_VOICE_MODEL`. Do that before
+  making it the default.
+
+---
+
 ## Stretch — only after Phase 5 is solid
 
 | Item | Notes |
