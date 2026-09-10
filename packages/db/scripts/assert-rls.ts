@@ -36,6 +36,14 @@ const EXPECTED_TABLES = [
   'messages',
   'raw_events',
   'sync_state',
+  // Voice, migration 0014. Maps a Vapi call id to the tenant who started it.
+  //
+  // ⚠ Its policies are inert on the path that matters — the tool webhook runs
+  // as `service_role`, exactly like the ingest webhooks. It is listed here for
+  // the same reason `sync_state` is: every table has the same shape, and the
+  // console does write these rows through a real session. The isolation that
+  // protects the webhook is the call-id lookup itself, not a policy.
+  'voice_call_sessions',
 ] as const;
 
 interface Row {
