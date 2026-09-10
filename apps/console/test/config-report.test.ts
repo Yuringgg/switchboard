@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   EXPECTED_VARS,
   FEATURE_VARS,
+  VOICE_VARS,
   buildConfigReport,
   inspectVar,
 } from '../src/lib/config-report';
@@ -63,8 +64,55 @@ describe('buildConfigReport', () => {
   it('covers exactly the variables the app reads', () => {
     const report = buildConfigReport({}, ORIGIN);
     expect(Object.keys(report.detail).sort()).toEqual(
-      [...EXPECTED_VARS, ...FEATURE_VARS].sort(),
+      [...EXPECTED_VARS, ...FEATURE_VARS, ...VOICE_VARS].sort(),
     );
+  });
+
+  /*
+   * ── Voice is reported separately from `features`, on purpose ───────────────
+   *
+   * `features.ready` answers exactly one question — will the WhatsApp webhook
+   * stop answering 503? Folding an unrelated feature into it makes one boolean
+   * answer two questions, and a health check that gives a confident wrong
+   * answer is worse than none.
+   */
+  it('reports voice separately, and neither group drags the other', () => {
+    const withVoice = buildConfigReport(
+      { ...good(), VAPI_WEBHOOK_SECRET: 'f'.repeat(64) },
+      ORIGIN,
+    );
+
+    expect(withVoice.voice.ready).toBe(true);
+    // WhatsApp is still unconfigured, and voice being ready must not say
+    // otherwise.
+    expect(withVoice.features.ready).toBe(false);
+    expect(withVoice.ok).toBe(true);
+  });
+
+  it('says plainly when the voice secret is missing', () => {
+    const report = buildConfigReport(good(), ORIGIN);
+
+    /*
+     * ⚠ The symptom this exists to disambiguate: an unset secret makes
+     * `/api/webhooks/vapi` answer 404 BY DESIGN — an unconfigured endpoint is
+     * disabled, never open. So "the variable never reached this deployment"
+     * and "the route is broken" look identical from outside, and Vercel binds
+     * variables when a deployment is created.
+     */
+    expect(report.voice.ready).toBe(false);
+    expect(report.voice.missing).toEqual(['VAPI_WEBHOOK_SECRET']);
+    // An unconfigured optional feature is not a broken deployment.
+    expect(report.ok).toBe(true);
+  });
+
+  it('flags a voice secret short enough to brute-force', () => {
+    const report = buildConfigReport({ ...good(), VAPI_WEBHOOK_SECRET: 'hunter2' }, ORIGIN);
+
+    // It is the only thing between the internet and a route that runs as
+    // service_role and reads private mail aloud.
+    expect(report.voice.ready).toBe(false);
+    expect(report.voice.malformed).toEqual(['VAPI_WEBHOOK_SECRET']);
+    expect(report.detail.VAPI_WEBHOOK_SECRET?.issues.join(' ')).toMatch(/32 random bytes/);
   });
 
   /*

@@ -54,6 +54,25 @@ export const FEATURE_VARS = [
 ] as const;
 
 /**
+ * What the Vapi voice agent needs.
+ *
+ * ⚠ Reported in its own block rather than added to `FEATURE_VARS`, and that is
+ * the point rather than tidiness. `features.ready` answers exactly one
+ * question — *will the WhatsApp webhook stop answering 503?* Folding a second,
+ * unrelated feature into it makes one boolean answer two questions, and this
+ * file already argues that a health check giving a confident wrong answer is
+ * worse than no health check at all.
+ *
+ * ⚠ This variable has the same Vercel trap as every other one here, and voice
+ * hits it harder: **an unset secret makes `/api/webhooks/vapi` answer 404 by
+ * design** — an unconfigured endpoint is disabled, never open. So "did the
+ * variable actually reach this deployment?" and "is the route broken?" produce
+ * an identical symptom, and Vercel binds variables when a deployment is
+ * CREATED. This is how to tell those apart without guessing.
+ */
+export const VOICE_VARS = ['VAPI_WEBHOOK_SECRET'] as const;
+
+/**
  * The two signing secrets are ALTERNATIVES, not a pair.
  *
  * `resolveSigningScheme` takes Meta's App Secret when it is present and the
@@ -84,6 +103,7 @@ export type SigningSchemeName = 'meta' | '360dialog-hmac' | '360dialog-token';
 
 export type ExpectedVar = (typeof EXPECTED_VARS)[number];
 export type FeatureVar = (typeof FEATURE_VARS)[number];
+export type VoiceVar = (typeof VOICE_VARS)[number];
 
 export interface VarReport {
   present: boolean;
@@ -109,6 +129,16 @@ export interface ConfigReport {
   features: {
     ready: boolean;
     signingScheme: SigningSchemeName | null;
+    missing: string[];
+    malformed: string[];
+  };
+  /**
+   * The Vapi voice agent, kept separate from `features` on purpose — see
+   * `VOICE_VARS`. `ready` answers one question: will `/api/webhooks/vapi` stop
+   * answering 404 on this deployment?
+   */
+  voice: {
+    ready: boolean;
     missing: string[];
     malformed: string[];
   };
@@ -209,6 +239,26 @@ export function inspectVar(name: string, raw: string | undefined, origin: string
       break;
     }
 
+    case 'VAPI_WEBHOOK_SECRET': {
+      /*
+       * ⚠ A short HMAC key is a real weakness, not a style note. This secret is
+       * the only thing standing between the public internet and a route that
+       * runs as `service_role` and reads private mail aloud, and a short one is
+       * brute-forceable offline against a single captured request.
+       *
+       * 32 characters, because the documented way to generate it produces 64
+       * hex characters — anything much shorter means somebody typed a password
+       * instead of running the command.
+       */
+      if (value.length > 0 && value.length < 32) {
+        issues.push(
+          `is only ${value.length} characters — it should be 32 random bytes as hex, ` +
+            'generated with crypto.randomBytes, not typed by hand',
+        );
+      }
+      break;
+    }
+
     case 'GOOGLE_PUBSUB_SERVICE_ACCOUNT': {
       if (value.length > 0 && !value.includes('@')) {
         issues.push('should be a service account email address');
@@ -268,7 +318,7 @@ export function buildConfigReport(
 ): ConfigReport {
   const detail: Record<string, VarReport> = {};
 
-  for (const name of [...EXPECTED_VARS, ...FEATURE_VARS]) {
+  for (const name of [...EXPECTED_VARS, ...FEATURE_VARS, ...VOICE_VARS]) {
     detail[name] = inspectVar(name, env[name], origin);
   }
 
@@ -278,6 +328,7 @@ export function buildConfigReport(
   });
 
   const core = faulty(EXPECTED_VARS);
+  const voice = faulty(VOICE_VARS);
 
   /*
    * Exactly one signing secret is required, so the missing one is not a fault.
@@ -310,6 +361,10 @@ export function buildConfigReport(
       signingScheme: scheme,
       missing: featureMissing,
       malformed: featureMalformed,
+    },
+    voice: {
+      ready: voice.missing.length === 0 && voice.malformed.length === 0,
+      ...voice,
     },
     detail,
   };
