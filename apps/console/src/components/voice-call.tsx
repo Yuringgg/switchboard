@@ -5,6 +5,7 @@ import { Loader2, Phone, PhoneOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Callout } from '@/components/callout';
+import { VoicePoweredOrb } from '@/components/ui/voice-powered-orb';
 import { buttonClass, LABEL } from '@/lib/ui';
 
 /**
@@ -43,9 +44,30 @@ const ASSISTANT_ID = process.env.NEXT_PUBLIC_VAPI_ASSISTANT_ID;
 
 type CallState = 'idle' | 'connecting' | 'live' | 'ending';
 
+/**
+ * Who is talking, and how loudly.
+ *
+ * ⚠ Both come from the Vapi SDK, and NEITHER opens a microphone of its own.
+ * The SDK already holds the mic for the call, and its own observer starts
+ * automatically:
+ *
+ *   volume-level        the ASSISTANT's output
+ *   local-volume-level  the USER's microphone
+ *
+ * Reading them here rather than measuring in the orb is what lets the orb move
+ * when she speaks as well as when you do — a component listening to the
+ * microphone can only ever see one side of the conversation, and would hear
+ * her only as feedback through the laptop speakers.
+ */
+const HUE_USER = 0;
+/** Shifted while she talks, so it is visible at a glance who has the floor. */
+const HUE_ASSISTANT = 200;
+
 export function VoiceCall() {
   const [state, setState] = useState<CallState>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [level, setLevel] = useState(0);
+  const [assistantSpeaking, setAssistantSpeaking] = useState(false);
 
   /*
    * ⚠ Constructed lazily, in a ref, and never during render.
@@ -83,11 +105,40 @@ export function VoiceCall() {
     setState('connecting');
 
     try {
-      vapi.on('call-end', () => setState('idle'));
+      vapi.on('call-end', () => {
+        setState('idle');
+        setLevel(0);
+        setAssistantSpeaking(false);
+      });
       vapi.on('error', () => {
         setError('The call dropped. Try again.');
         setState('idle');
+        setLevel(0);
       });
+
+      /*
+       * ⚠ Her voice and yours drive the same orb.
+       *
+       * `volume-level` is the assistant's output; `local-volume-level` is the
+       * microphone. Whoever is louder wins the orb, which is what makes a
+       * conversation read as a conversation rather than as a level meter for
+       * one participant.
+       */
+      vapi.on('speech-start', () => setAssistantSpeaking(true));
+      vapi.on('speech-end', () => {
+        setAssistantSpeaking(false);
+        setLevel(0);
+      });
+
+      vapi.on('volume-level', (volume: number) => setLevel(volume));
+      vapi.on('local-volume-level', (volume: number) =>
+        // ⚠ Only when she is NOT talking. Otherwise the microphone picking her
+        // up through the speakers fights her own level and the orb stutters.
+        setAssistantSpeaking((speaking) => {
+          if (!speaking) setLevel(volume);
+          return speaking;
+        }),
+      );
 
       const call = await vapi.start(ASSISTANT_ID);
 
@@ -145,13 +196,40 @@ export function VoiceCall() {
 
   return (
     <div className="rounded-lg border border-border bg-panel p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-4">
+        {/*
+          Only while a call is live. An orb spinning at an idle screen is
+          decoration; an orb that appears when the line opens is a status light.
+        */}
+        {(live || state === 'connecting') && (
+          <div className="size-20 shrink-0">
+            <VoicePoweredOrb
+              level={level}
+              hue={assistantSpeaking ? HUE_ASSISTANT : HUE_USER}
+              fallback={
+                // WebGL is genuinely absent in some renderers. A ring that
+                // scales with the same number keeps the signal.
+                <span
+                  aria-hidden
+                  className="size-12 rounded-full border-2 border-primary/60"
+                  style={{
+                    transform: `scale(${1 + Math.min(level, 1) * 0.35})`,
+                    transition: 'transform 90ms linear',
+                  }}
+                />
+              }
+            />
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1">
           <p className={LABEL} aria-live="polite">
             {state === 'connecting'
               ? 'Connecting'
               : live
-                ? 'On a call'
+                ? assistantSpeaking
+                  ? 'Speaking'
+                  : 'Listening'
                 : state === 'ending'
                   ? 'Hanging up'
                   : 'Voice call'}
