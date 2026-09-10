@@ -1,10 +1,8 @@
-import { createHmac } from 'node:crypto';
-
-import { safeEqual } from '@switchboard/core';
 import { NextResponse } from 'next/server';
 
 import { createServiceClient } from '@/lib/supabase/service';
 import { isPlausibleCallId } from '@/lib/voice/call-session';
+import { verifyVapiSignature } from '@/lib/voice/signature';
 import {
   getAttentionItems,
   getPersonActivity,
@@ -47,18 +45,20 @@ export const dynamic = 'force-dynamic';
  */
 
 /**
- * HMAC-SHA256 over the raw body, hex, in a header we choose.
+ * The two headers Vapi's HMAC credential sends.
+ *
+ * ⚠ These are Vapi's own DEFAULTS, kept deliberately so the dashboard needs no
+ * extra fields typed into it — the only two the credential form requires are a
+ * name and the secret. Changing either here means changing it there too, and a
+ * mismatch reads as a wrong secret rather than as a wrong header name.
  *
  * ⚠ Vapi offers Bearer, `X-Vapi-Secret`, OAuth and HMAC. HMAC is the only one
  * that proves the **body** was not altered — the others prove only that the
  * caller holds a token, so anyone who obtains it can send any payload they
  * like. On a route that decides whose mail to read, that difference matters.
- *
- * Same shape as the WhatsApp route's check, and for the same reasons: the
- * digest is computed over the exact bytes received, and the comparison is
- * timing-safe.
  */
-const SIGNATURE_HEADER = 'x-vapi-signature';
+const SIGNATURE_HEADER = 'x-signature';
+const TIMESTAMP_HEADER = 'x-timestamp';
 
 interface VapiToolCall {
   id: string;
@@ -103,15 +103,30 @@ export async function POST(request: Request) {
    * A `JSON.parse` → `JSON.stringify` round trip reorders keys and drops
    * whitespace, and the digest would never match. Read as text, verify, then
    * parse — the rule `verifyHubSignature` spells out for Meta.
+   *
+   * ⚠ Vapi signs `{timestamp}.{body}`, not the body alone. See
+   * `lib/voice/signature.ts` — signing the body only would have rejected every
+   * genuine delivery, and turning their timestamp OFF to make it simpler would
+   * have thrown away replay protection on the one route that reads private mail
+   * aloud.
    */
   const rawBody = await request.text();
-  const provided = request.headers.get(SIGNATURE_HEADER);
 
-  const digest = createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
-  if (!provided || !safeEqual(provided, digest)) {
-    // No detail. An unverified body is attacker-controlled input, and saying
-    // which part failed helps only the attacker.
-    console.warn('[vapi] rejected: bad signature');
+  const check = verifyVapiSignature({
+    rawBody,
+    signature: request.headers.get(SIGNATURE_HEADER),
+    timestamp: request.headers.get(TIMESTAMP_HEADER),
+    secret,
+  });
+
+  if (!check.ok) {
+    /*
+     * The reason is LOGGED, never returned. It is genuinely useful while
+     * wiring the dashboard up — "stale-timestamp" and "bad-signature" have
+     * completely different fixes — and telling the caller which part failed
+     * helps only somebody probing the endpoint.
+     */
+    console.warn(`[vapi] rejected: ${check.reason}`);
     return new NextResponse('Unauthorized', { status: 401 });
   }
 
