@@ -230,11 +230,35 @@ export async function POST(request: Request) {
   const results = await Promise.all(
     toolCalls.map(async (call) => ({
       toolCallId: call.id,
-      result: await runTool(supabase, ownerId, call),
+      /*
+       * ⚠ ALWAYS A STRING.
+       *
+       * Vapi's docs describe `result` as "string, object, or array", but every
+       * example they publish returns a string — and an object returned here
+       * produced a call where the route ran correctly (session resolved, tool
+       * dispatched, data present) and the agent still told the caller it could
+       * not reach their messages.
+       *
+       * A JSON string satisfies both readings and costs the model nothing: it
+       * reads the fields either way. Under an ambiguity in someone else's API,
+       * the shape that works under BOTH interpretations is the right one — the
+       * same reasoning `verifySignature` uses for accepting hex and base64.
+       */
+      result: asToolString(await runTool(supabase, ownerId, call)),
     })),
   );
 
   return NextResponse.json({ results });
+}
+
+/**
+ * Whatever a tool returned, as something Vapi will definitely accept.
+ *
+ * Errors are already strings and pass through untouched, so the `TOOL_ERROR`
+ * prefix the prompt keys on survives.
+ */
+function asToolString(value: ToolResult | string): string {
+  return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
 /**
