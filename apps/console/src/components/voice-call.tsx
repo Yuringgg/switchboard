@@ -6,7 +6,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Callout } from '@/components/callout';
 import { VoicePoweredOrb } from '@/components/ui/voice-powered-orb';
+import { VoiceTranscript } from '@/components/voice-transcript';
 import { buttonClass, LABEL } from '@/lib/ui';
+import { foldTranscript, type TranscriptTurn } from '@/lib/voice/transcript';
 
 /**
  * Start a call with the Vapi voice agent (voice V2).
@@ -68,6 +70,7 @@ export function VoiceCall() {
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
   const [assistantSpeaking, setAssistantSpeaking] = useState(false);
+  const [turns, setTurns] = useState<TranscriptTurn[]>([]);
 
   /*
    * ⚠ Constructed lazily, in a ref, and never during render.
@@ -95,6 +98,9 @@ export function VoiceCall() {
 
   const start = useCallback(async () => {
     setError(null);
+    // A new call starts a new transcript. The previous one stayed on screen so
+    // it could be read after hanging up, but it is not this conversation.
+    setTurns([]);
 
     const vapi = getVapi();
     if (!vapi || !ASSISTANT_ID) {
@@ -128,6 +134,36 @@ export function VoiceCall() {
       vapi.on('speech-end', () => {
         setAssistantSpeaking(false);
         setLevel(0);
+      });
+
+      /*
+       * The live transcript.
+       *
+       * ⚠ Partials REPLACE rather than append — see `foldTranscript`. They
+       * arrive many times a second and each one is a fresh revision of the same
+       * utterance, so appending produces "what what's what's in my" and reads
+       * as a defect in the product rather than in the transcriber.
+       *
+       * ⚠ Nothing is stored. These turns live in state for the length of the
+       * page and go nowhere — the same rule the audio itself follows.
+       */
+      vapi.on('message', (message: unknown) => {
+        const m = message as {
+          type?: string;
+          role?: 'user' | 'assistant';
+          transcript?: string;
+          transcriptType?: 'partial' | 'final';
+        };
+
+        if (m.type !== 'transcript' || !m.transcript || !m.role) return;
+
+        setTurns((current) =>
+          foldTranscript(current, {
+            role: m.role === 'assistant' ? 'assistant' : 'user',
+            text: m.transcript ?? '',
+            final: m.transcriptType === 'final',
+          }),
+        );
       });
 
       vapi.on('volume-level', (volume: number) => setLevel(volume));
@@ -270,6 +306,12 @@ export function VoiceCall() {
           </Callout>
         </div>
       )}
+
+      {/*
+        Kept after the call ends on purpose — reading back what was said is most
+        useful once you have stopped talking.
+      */}
+      <VoiceTranscript turns={turns} />
     </div>
   );
 }
