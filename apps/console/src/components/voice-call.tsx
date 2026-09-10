@@ -82,17 +82,102 @@ export function VoiceCall() {
    */
   const vapiRef = useRef<Vapi | null>(null);
 
-  const getVapi = useCallback((): Vapi | null => {
-    if (!PUBLIC_KEY) return null;
-    if (!vapiRef.current) vapiRef.current = new Vapi(PUBLIC_KEY);
-    return vapiRef.current;
-  }, []);
-
-  // Hang up if the page goes away mid-call. A call nobody is on still bills by
-  // the minute, and a forgotten open call is the only real way to waste money.
+  /*
+   * ⚠ THE INSTANCE AND ITS LISTENERS ARE SET UP ONCE, HERE — NOT IN `start`.
+   *
+   * They used to be registered inside `start()`, which meant every press of
+   * Call added ANOTHER full set to the same instance. Two calls, two message
+   * handlers, and each transcript message folded twice. Three calls, three
+   * times. The SDK never complains; the transcript just quietly turns to
+   * nonsense, and only after a second call, which is why it survives a first
+   * test.
+   */
   useEffect(() => {
+    if (!PUBLIC_KEY) return;
+
+    const vapi = new Vapi(PUBLIC_KEY);
+    vapiRef.current = vapi;
+
+    const onCallEnd = () => {
+      setState('idle');
+      setLevel(0);
+      setAssistantSpeaking(false);
+    };
+
+    const onError = () => {
+      setError('The call dropped. Try again.');
+      setState('idle');
+      setLevel(0);
+    };
+
+    const onSpeechStart = () => setAssistantSpeaking(true);
+    const onSpeechEnd = () => {
+      setAssistantSpeaking(false);
+      setLevel(0);
+    };
+
+    /*
+     * ⚠ Her voice and yours drive the same orb.
+     *
+     * `volume-level` is the assistant's output; `local-volume-level` is the
+     * microphone. Reading both is what lets the orb move when she speaks as
+     * well as when you do — a component listening to the microphone alone can
+     * only ever see one side of a conversation.
+     */
+    const onVolume = (volume: number) => setLevel(volume);
+    const onLocalVolume = (volume: number) =>
+      // Only while she is NOT talking, or the microphone picking her up through
+      // the speakers fights her own level and the orb stutters.
+      setAssistantSpeaking((speaking) => {
+        if (!speaking) setLevel(volume);
+        return speaking;
+      });
+
+    /*
+     * The live transcript.
+     *
+     * ⚠ Partials REPLACE rather than append — see `foldTranscript`. Each one is
+     * a fresh revision of the same utterance, so appending gives "what what's
+     * what's in my" and reads as a defect in the product rather than in the
+     * transcriber.
+     *
+     * ⚠ Nothing is stored. These turns live in state for the length of the page
+     * and go nowhere — the same rule the audio itself follows.
+     */
+    const onMessage = (message: unknown) => {
+      const m = message as {
+        type?: string;
+        role?: string;
+        transcript?: string;
+        transcriptType?: string;
+      };
+
+      if (m.type !== 'transcript' || !m.transcript || !m.role) return;
+
+      setTurns((current) =>
+        foldTranscript(current, {
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          text: m.transcript ?? '',
+          final: m.transcriptType === 'final',
+        }),
+      );
+    };
+
+    vapi.on('call-end', onCallEnd);
+    vapi.on('error', onError);
+    vapi.on('speech-start', onSpeechStart);
+    vapi.on('speech-end', onSpeechEnd);
+    vapi.on('volume-level', onVolume);
+    vapi.on('local-volume-level', onLocalVolume);
+    vapi.on('message', onMessage);
+
     return () => {
-      vapiRef.current?.stop();
+      // Hang up if the page goes away mid-call. A call nobody is on still bills
+      // by the minute, and a forgotten open call is the only real way to waste
+      // money here.
+      vapi.stop();
+      vapi.removeAllListeners();
+      vapiRef.current = null;
     };
   }, []);
 
@@ -102,7 +187,7 @@ export function VoiceCall() {
     // it could be read after hanging up, but it is not this conversation.
     setTurns([]);
 
-    const vapi = getVapi();
+    const vapi = vapiRef.current;
     if (!vapi || !ASSISTANT_ID) {
       setError('Voice calling is not configured on this deployment.');
       return;
@@ -111,71 +196,6 @@ export function VoiceCall() {
     setState('connecting');
 
     try {
-      vapi.on('call-end', () => {
-        setState('idle');
-        setLevel(0);
-        setAssistantSpeaking(false);
-      });
-      vapi.on('error', () => {
-        setError('The call dropped. Try again.');
-        setState('idle');
-        setLevel(0);
-      });
-
-      /*
-       * ⚠ Her voice and yours drive the same orb.
-       *
-       * `volume-level` is the assistant's output; `local-volume-level` is the
-       * microphone. Whoever is louder wins the orb, which is what makes a
-       * conversation read as a conversation rather than as a level meter for
-       * one participant.
-       */
-      vapi.on('speech-start', () => setAssistantSpeaking(true));
-      vapi.on('speech-end', () => {
-        setAssistantSpeaking(false);
-        setLevel(0);
-      });
-
-      /*
-       * The live transcript.
-       *
-       * ⚠ Partials REPLACE rather than append — see `foldTranscript`. They
-       * arrive many times a second and each one is a fresh revision of the same
-       * utterance, so appending produces "what what's what's in my" and reads
-       * as a defect in the product rather than in the transcriber.
-       *
-       * ⚠ Nothing is stored. These turns live in state for the length of the
-       * page and go nowhere — the same rule the audio itself follows.
-       */
-      vapi.on('message', (message: unknown) => {
-        const m = message as {
-          type?: string;
-          role?: 'user' | 'assistant';
-          transcript?: string;
-          transcriptType?: 'partial' | 'final';
-        };
-
-        if (m.type !== 'transcript' || !m.transcript || !m.role) return;
-
-        setTurns((current) =>
-          foldTranscript(current, {
-            role: m.role === 'assistant' ? 'assistant' : 'user',
-            text: m.transcript ?? '',
-            final: m.transcriptType === 'final',
-          }),
-        );
-      });
-
-      vapi.on('volume-level', (volume: number) => setLevel(volume));
-      vapi.on('local-volume-level', (volume: number) =>
-        // ⚠ Only when she is NOT talking. Otherwise the microphone picking her
-        // up through the speakers fights her own level and the orb stutters.
-        setAssistantSpeaking((speaking) => {
-          if (!speaking) setLevel(volume);
-          return speaking;
-        }),
-      );
-
       const call = await vapi.start(ASSISTANT_ID);
 
       /*
@@ -219,7 +239,7 @@ export function VoiceCall() {
       setError('Could not start the call. Check your microphone permission.');
       setState('idle');
     }
-  }, [getVapi]);
+  }, []);
 
   const stop = useCallback(() => {
     setState('ending');

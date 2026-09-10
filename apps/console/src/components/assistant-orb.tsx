@@ -109,10 +109,17 @@ export function AssistantOrb({
           aria-hidden
           className={cn(
             'pointer-events-none absolute inset-0 rounded-full border',
-            state === 'idle' && 'animate-ripple border-border',
+            /*
+             * ⚠ `animate-orb-breathe`, NOT `animate-ripple`. The latter
+             * translates by -50%,-50% because it was written for rings
+             * positioned by their centre; on this `inset-0` element it parks
+             * the circle half its width up and to the left of the button.
+             * Nothing errors — it just looks broken. See globals.css.
+             */
+            state === 'idle' && 'animate-orb-breathe border-border',
             listening && 'border-destructive/50',
-            speaking && 'animate-ripple border-primary/50',
-            thinking && 'animate-ripple border-border',
+            speaking && 'animate-orb-breathe border-primary/50',
+            thinking && 'animate-orb-breathe border-border',
             (state === 'answered' || state === 'refused' || state === 'error') &&
               'border-border',
           )}

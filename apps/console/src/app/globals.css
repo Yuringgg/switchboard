@@ -738,6 +738,41 @@
 }
 
 /*
+ * The assistant orb's breathing ring — `components/assistant-orb.tsx`.
+ *
+ * ⚠⚠ THIS EXISTS BECAUSE `animate-ripple` IS THE WRONG ANIMATION FOR IT, AND
+ *    THE WAY IT IS WRONG IS INVISIBLE UNTIL SOMEBODY LOOKS.
+ *
+ * `@keyframes ripple` above carries `translate(-50%, -50%)`, because the rings
+ * it was written for are positioned by their own centre — `left: 50%; top: 50%`
+ * on the auth screens. The orb's ring is `absolute inset-0` instead, already
+ * filling its parent, so that translate shifts it half its own width up and to
+ * the left. The result is a grey circle sitting off to one side of the
+ * microphone button, which reads as a rendering fault rather than a ring.
+ *
+ * Nothing errors. Both classes exist, both animate, and the resting frame is
+ * simply in the wrong place — precisely the defect AGENTS.md describes after a
+ * reveal left a solid rectangle parked beside every auth field: *"an
+ * animation's resting frame is something you have to look at."*
+ *
+ * So: the same breath, no translate. An element that positions itself by
+ * `inset` must not be animated by a keyframe that positions by its centre.
+ */
+@keyframes orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.94);
+  }
+}
+
+@utility animate-orb-breathe {
+  animation: orb-breathe 4.5s ease-in-out infinite;
+}
+
+/*
  * The assistant's blink — `components/ui/shader-svg.tsx`.
  *
  * ⚠ `ry` is a CSS *length*, so the value needs a unit. The source snippet this
