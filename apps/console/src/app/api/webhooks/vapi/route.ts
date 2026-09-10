@@ -204,10 +204,22 @@ export async function POST(request: Request) {
 
   const ownerId = session.owner_id;
 
-  // Bookkeeping only. Never gates anything — see migration 0014.
+  /*
+   * Bookkeeping only. Never gates anything — see migration 0014.
+   *
+   * ⚠ `last_tool_name` is the NAME the agent asked for, including one this
+   * route does not recognise. That case and a tool that simply failed sound
+   * identical to the caller, and without recording it the difference lives only
+   * in the provider's dashboard. Migration 0015.
+   *
+   * Name only. Never the arguments — those carry what somebody said out loud.
+   */
   await supabase
     .from('voice_call_sessions')
-    .update({ last_tool_at: new Date().toISOString() })
+    .update({
+      last_tool_at: new Date().toISOString(),
+      last_tool_name: toolCalls.map((call) => call.name).join(', ').slice(0, 200),
+    })
     .eq('vapi_call_id', callId);
 
   /*
