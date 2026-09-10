@@ -6,15 +6,15 @@ import { useEffect, useMemo, useRef, type FC } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Uriel — a constellation of triangles in the shape of a sphere.
+ * Uriel — a constellation of gold triangles in the shape of a sphere.
  *
  * ── What this is, and what it replaced ──────────────────────────────────────
  *
  * A fullscreen fragment shader painting one glowing ball, twice: purple, then
- * gold. Both read as gas. The reference Yuri chose is the opposite idea —
- * **thousands of tiny outlined triangles**, each its own colour, arranged into
- * a shape and floating on black. Knowledge as distributed points rather than
- * one lit mass.
+ * gold. Both read as gas. Yuri's references are the opposite idea —
+ * **thousands of tiny outlined triangles** arranged into a shape and floating
+ * on black, lit from a white-hot centre out through gold to a cooling rim.
+ * Light as distributed points rather than one lit mass.
  *
  * You cannot get that from a fragment shader. A shader colours pixels; it has
  * no notion of a particle, so "three thousand triangles" would mean testing
@@ -63,32 +63,63 @@ interface VoicePoweredOrbProps {
   fallback?: React.ReactNode;
 }
 
+/** Packed near the centre, so the sphere is lit from inside rather than hollow. */
+const CORE_COUNT = 520;
 /** On the shell. Enough to read as a surface, few enough to stay smooth. */
 const SHELL_COUNT = 2600;
 /** Drifting around it, so the sphere sits in a field rather than on a plate. */
 const AMBIENT_COUNT = 700;
 
 /**
- * The palette, straight from the reference.
+ * ⚠ COLOUR IS A FUNCTION OF RADIUS, NOT A RANDOM PICK.
  *
- * ⚠ Saturated and chromatic, never grey. The reference is explicit that the
- * particles carry all the colour and the canvas carries none — so these are the
- * only colours on screen, and a grey particle reads as a dead pixel.
+ * The first reference is lit from a white-hot centre outward — pale gold, then
+ * gold, then amber, then bronze at the edge where the light runs out. Assigning
+ * each particle a random colour from a palette throws that away and produces an
+ * evenly-speckled ball, which is what the Dala version was and why it read as a
+ * different image entirely.
+ *
+ * So the gradient below is the picture. A particle's distance from the centre
+ * decides its colour, and the constellation inherits the reference's structure
+ * rather than only its hues.
  */
-const PALETTE: [number, number, number][] = [
-  [0.502, 0.322, 1.0], //   electric iris  #8052ff
-  [1.0, 0.722, 0.161], //   saffron spark  #ffb829
-  [0.082, 0.518, 0.431], // deep verdant   #15846e
-  [0.851, 0.275, 0.937], // magenta        #d946ef
-  [0.231, 0.51, 0.965], //  blue           #3b82f6
-  [1.0, 1.0, 1.0], //       bone white — sparse, for sparkle
+const GRADIENT: { at: number; rgb: [number, number, number] }[] = [
+  { at: 0.0, rgb: [1.0, 0.98, 0.91] }, //  the core, near white
+  { at: 0.35, rgb: [1.0, 0.89, 0.53] }, // pale gold
+  { at: 0.7, rgb: [1.0, 0.75, 0.24] }, //  gold
+  { at: 1.0, rgb: [0.93, 0.52, 0.09] }, // amber, at the shell
+  { at: 1.6, rgb: [0.42, 0.22, 0.05] }, // bronze, fading out
 ];
 
-/** White is punctuation, not a colour. Roughly one particle in fourteen. */
-const WHITE_INDEX = PALETTE.length - 1;
+/**
+ * The green at the rim.
+ *
+ * ⚠ Sparse and outer-only. The reference has it at the edges where the gold
+ * cools, and nowhere near the middle — scattered evenly it stops reading as
+ * temperature and starts reading as a second brand colour.
+ */
+const RIM_TEAL: [number, number, number] = [0.18, 0.62, 0.54];
+
+function colorAtRadius(r: number): [number, number, number] {
+  if (r <= GRADIENT[0]!.at) return GRADIENT[0]!.rgb;
+
+  for (let i = 1; i < GRADIENT.length; i += 1) {
+    const hi = GRADIENT[i]!;
+    if (r > hi.at) continue;
+    const lo = GRADIENT[i - 1]!;
+    const t = (r - lo.at) / (hi.at - lo.at);
+    return [
+      lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t,
+      lo.rgb[1] + (hi.rgb[1] - lo.rgb[1]) * t,
+      lo.rgb[2] + (hi.rgb[2] - lo.rgb[2]) * t,
+    ];
+  }
+
+  return GRADIENT[GRADIENT.length - 1]!.rgb;
+}
 
 function buildParticles() {
-  const total = SHELL_COUNT + AMBIENT_COUNT;
+  const total = CORE_COUNT + SHELL_COUNT + AMBIENT_COUNT;
   const position = new Float32Array(total * 3);
   const color = new Float32Array(total * 3);
   const seed = new Float32Array(total);
@@ -99,16 +130,19 @@ function buildParticles() {
   const golden = Math.PI * (3 - Math.sqrt(5));
 
   for (let i = 0; i < total; i += 1) {
-    const ambient = i >= SHELL_COUNT;
+    const core = i < CORE_COUNT;
+    const shell = !core && i < CORE_COUNT + SHELL_COUNT;
+
     let x: number;
     let y: number;
     let z: number;
 
-    if (!ambient) {
-      const t = i / (SHELL_COUNT - 1);
+    if (shell) {
+      const index = i - CORE_COUNT;
+      const t = index / (SHELL_COUNT - 1);
       y = 1 - t * 2;
       const ring = Math.sqrt(Math.max(0, 1 - y * y));
-      const theta = golden * i;
+      const theta = golden * index;
       x = Math.cos(theta) * ring;
       z = Math.sin(theta) * ring;
 
@@ -118,11 +152,19 @@ function buildParticles() {
       y += (Math.random() - 0.5) * jitter;
       z += (Math.random() - 0.5) * jitter;
     } else {
-      // A loose halo: a direction, then a radius outside the shell.
+      // A direction, then a radius — inside for the core, outside for ambient.
       const u = Math.random() * 2 - 1;
       const phi = Math.random() * Math.PI * 2;
       const ring = Math.sqrt(Math.max(0, 1 - u * u));
-      const radius = 1.25 + Math.random() * 1.15;
+      /*
+       * ⚠ The cube root is not decoration. Picking a uniform radius crowds
+       * every point near the surface of the little sphere and leaves the middle
+       * empty — the opposite of a core. This distributes them through the
+       * volume so the centre is genuinely the densest part.
+       */
+      const radius = core
+        ? Math.cbrt(Math.random()) * 0.42
+        : 1.25 + Math.random() * 1.15;
       x = Math.cos(phi) * ring * radius;
       y = u * radius;
       z = Math.sin(phi) * ring * radius;
@@ -132,16 +174,27 @@ function buildParticles() {
     position[i * 3 + 1] = y;
     position[i * 3 + 2] = z;
 
-    const pick =
-      Math.random() > 0.93 ? WHITE_INDEX : Math.floor(Math.random() * WHITE_INDEX);
-    const rgb = PALETTE[pick]!;
+    const r = Math.sqrt(x * x + y * y + z * z);
+    let rgb = colorAtRadius(r);
+
+    // The rim's green, only out past the shell, and only sometimes.
+    if (r > 1.05 && Math.random() > 0.86) rgb = RIM_TEAL;
+    // A rare white spark anywhere, so the field has highlights rather than a
+    // perfectly smooth ramp.
+    else if (Math.random() > 0.975) rgb = [1.0, 0.99, 0.94];
+
     color[i * 3] = rgb[0];
     color[i * 3 + 1] = rgb[1];
     color[i * 3 + 2] = rgb[2];
 
     seed[i] = Math.random();
-    // Ambient particles are smaller, so the shell stays the subject.
-    scale[i] = (ambient ? 3.2 : 5.0) + Math.random() * (ambient ? 1.6 : 3.0);
+    // Core particles are small and dense; ambient ones small and sparse; the
+    // shell carries the readable triangles.
+    scale[i] = core
+      ? 3.0 + Math.random() * 2.0
+      : shell
+        ? 5.0 + Math.random() * 3.0
+        : 3.2 + Math.random() * 1.6;
   }
 
   return { position, color, seed, scale };

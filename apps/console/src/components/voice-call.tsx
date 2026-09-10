@@ -287,7 +287,9 @@ export function VoiceCall() {
           className={cn(
             'animate-orb-glow pointer-events-none absolute size-[24rem] rounded-full',
             'blur-3xl transition-colors duration-700 sm:size-[28rem]',
-            live ? 'bg-primary/12' : 'bg-primary/[0.06]',
+            // Warm, to sit under gold. A cool glow behind an amber
+            // constellation reads as two light sources disagreeing.
+            live ? 'bg-amber-400/12' : 'bg-amber-400/[0.06]',
           )}
         />
 
