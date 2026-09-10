@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { AppShell } from '@/components/app-shell';
 import { AssistantPanel } from '@/components/assistant-panel';
+import { VoiceCall } from '@/components/voice-call';
 import { askAssistant, type AssistantAnswer } from '@/lib/assistant';
 import { CHANNEL_META, fetchChannels } from '@/lib/channels';
 import { createClient } from '@/lib/supabase/server';
@@ -91,6 +92,23 @@ export default async function AssistantPage() {
       activeHref="/assistant"
       channels={channels}
     >
+      {/*
+        ⚠ Two ways to talk to this, deliberately, and they are not duplicates.
+
+        The panel below is voice IN THE PAGE: browser microphone, browser
+        speech, no vendor, no per-minute cost, and every answer still rendered
+        with its citations underneath.
+
+        This is a CALL — Vapi hosts it, and it is the one that works like a
+        phone. It costs about nine cents a minute and it is the better demo.
+
+        Whether both stay is Yuri's call. Keeping them side by side is what
+        makes that decidable by looking rather than by argument.
+      */}
+      <div className="mb-6">
+        <VoiceCall />
+      </div>
+
       <AssistantPanel action={ask} suggestions={SUGGESTIONS} />
     </AppShell>
   );
