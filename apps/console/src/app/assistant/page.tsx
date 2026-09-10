@@ -86,24 +86,20 @@ export default async function AssistantPage() {
   return (
     <AppShell
       title="Assistant"
-      description="Ask out loud or type. Every answer cites the messages it used."
+      description="Call it, or type. Every answer cites the messages it used."
       userEmail={user.email ?? 'Signed in'}
       userId={user.id}
       activeHref="/assistant"
       channels={channels}
     >
       {/*
-        ⚠ Two ways to talk to this, deliberately, and they are not duplicates.
+        The one way to talk to this. A browser-microphone orb sat below for a
+        day and was removed on 2026-09-11 — this does the same job at around
+        1,900ms, with interruption and a live transcript, and two microphones on
+        one screen is a question the reader has to answer before they can start.
 
-        The panel below is voice IN THE PAGE: browser microphone, browser
-        speech, no vendor, no per-minute cost, and every answer still rendered
-        with its citations underneath.
-
-        This is a CALL — Vapi hosts it, and it is the one that works like a
-        phone. It costs about nine cents a minute and it is the better demo.
-
-        Whether both stay is Yuri's call. Keeping them side by side is what
-        makes that decidable by looking rather than by argument.
+        Typing still works, below. Ms. Maria's split holds: detailed on the
+        page, short on the call.
       */}
       <div className="mb-6">
         <VoiceCall />

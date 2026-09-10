@@ -2,14 +2,11 @@
 
 import { ArrowUpRight, CornerDownLeft, Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import { useActionState, useCallback, useTransition } from 'react';
 
-import { AssistantOrb, type OrbState } from '@/components/assistant-orb';
 import { Callout } from '@/components/callout';
 import type { AssistantAnswer } from '@/lib/assistant';
-import { primeVoices, speak, speechSupported, stopSpeaking } from '@/lib/speak';
 import { buttonClass, LABEL } from '@/lib/ui';
-import { useVoiceCapture } from '@/lib/use-voice-capture';
 import { cn } from '@/lib/utils';
 
 /**
@@ -26,18 +23,23 @@ import { cn } from '@/lib/utils';
  * So the citations are not decoration under the answer. They are the evidence,
  * and the design puts them where they cannot be skipped.
  *
- * ── Voice V1, added 2026-09-10 ───────────────────────────────────────────────
+ * ── ⚠ Voice lives in the CALL now, not on this panel ────────────────────────
  *
- * One room, chat and voice together — Ms. Maria's V4. The orb asks out loud,
- * the box below types, and **both go through the same server action and the
- * same retrieval**. The only difference is a `mode` field, which appends a
- * brevity instruction to the prompt and nothing else.
+ * This screen briefly carried a second microphone: a browser-speech orb that
+ * recorded, transcribed through Whisper and answered aloud through
+ * `speechSynthesis`. It was removed on 2026-09-11, and the reason is worth
+ * keeping.
  *
- * ⚠ **The citation contract survives voice, unchanged.** What gets spoken is
- * the answer with its `[n]` markers stripped at the last moment; the full
- * answer and its chips still render below, exactly as they do for a typed
- * question. A refusal is spoken as the refusal. Voice does not get to skip the
- * evidence — it just does not read it aloud.
+ * `VoiceCall` above it does the same job properly — around 1,900ms end to end,
+ * a real conversation with interruption, and a live transcript so a misheard
+ * name is visible. Two microphones on one screen is not two options, it is a
+ * question the reader has to answer before they can start.
+ *
+ * ⚠ What was removed is UI only. `askAssistant` still takes `mode: 'voice'`,
+ * `VOICE_BREVITY_NOTE` still shortens a spoken answer, and `GROQ_VOICE_MODEL`
+ * still routes one to a separate quota bucket — all tested, all reachable. If
+ * Vapi credits run out before a demo, the free path is a component away rather
+ * than a rewrite.
  */
 export function AssistantPanel({
   action,
@@ -49,31 +51,13 @@ export function AssistantPanel({
   const [state, formAction, pending] = useActionState(action, null);
   const [isPending, startTransition] = useTransition();
 
-  const [speaking, setSpeaking] = useState(false);
-  const [canSpeak, setCanSpeak] = useState(false);
-
-  /*
-   * Which answer has already been read out.
-   *
-   * `useActionState` hands back a NEW object for every turn, so object identity
-   * is exactly the right key: it changes once per answer and never on a
-   * re-render. Without this the effect below speaks again on every render while
-   * the answer is on screen.
-   */
-  const spokenRef = useRef<AssistantAnswer | null>(null);
-
-  // Load the voice list early, so the FIRST spoken answer uses the chosen voice
-  // rather than the browser default. See `pickVoice`.
-  useEffect(() => {
-    setCanSpeak(speechSupported());
-    return primeVoices();
-  }, []);
-
   const ask = useCallback(
-    (question: string, mode: 'text' | 'voice') => {
+    (question: string) => {
       const formData = new FormData();
       formData.set('question', question);
-      formData.set('mode', mode);
+      // Typed questions get the DETAILED answer — Ms. Maria's split. The short
+      // spoken form belongs to the call, which does not come through here.
+      formData.set('mode', 'text');
       // `formAction` from `useActionState` has to be called inside a transition
       // when it is not a form's own submit.
       startTransition(() => formAction(formData));
@@ -81,98 +65,15 @@ export function AssistantPanel({
     [formAction],
   );
 
-  const capture = useVoiceCapture({
-    onTranscript: useCallback(
-      (result: { text: string }) => {
-        if (result.text.trim()) ask(result.text, 'voice');
-      },
-      [ask],
-    ),
-  });
-
-  /*
-   * Speak an answer that arrived from a spoken question.
-   *
-   * ⚠ Gated on `state.mode`, not on "did we last use the mic". `useActionState`
-   * replaces the whole state each turn, so without the check a typed follow-up
-   * after a spoken question would be read aloud too.
-   */
-  useEffect(() => {
-    if (!state || pending || isPending) return;
-    if (state.mode !== 'voice') return;
-    if (spokenRef.current === state) return;
-
-    spokenRef.current = state;
-
-    // An error is shown, never spoken. It is about the system, not the corpus,
-    // and reading a quota message aloud helps nobody.
-    if (state.error) return;
-
-    setSpeaking(true);
-    speak(state.answer, { onEnd: () => setSpeaking(false) });
-  }, [state, pending, isPending]);
-
-  // Stop mid-sentence if the component goes away.
-  useEffect(() => stopSpeaking, []);
-
   const working = pending || isPending;
-
-  /**
-   * The orb's state, derived rather than stored.
-   *
-   * `useActionState` and the capture hook already own every fact this needs,
-   * and a third copy in `useState` is how the orb ends up saying "thinking"
-   * beside an answer that has already arrived.
-   */
-  const orbState: OrbState =
-    capture.state === 'recording'
-      ? 'listening'
-      : capture.state === 'transcribing' || working
-        ? 'thinking'
-        : speaking
-          ? 'speaking'
-          : !state
-            ? 'idle'
-            : state.error
-              ? 'error'
-              : state.refused
-                ? 'refused'
-                : 'answered';
-
-  const onOrbPress = useCallback(() => {
-    // While it is talking, the button stops it. Interrupting a long answer is
-    // the single most-wanted control in any voice UI.
-    if (speaking) {
-      stopSpeaking();
-      setSpeaking(false);
-      return;
-    }
-    capture.toggle();
-  }, [speaking, capture]);
 
   return (
     <div>
-      <AssistantOrb
-        state={orbState}
-        level={capture.level}
-        onPress={onOrbPress}
-        disabled={working || capture.state === 'transcribing'}
-        supported={capture.supported && canSpeak}
-      />
-
-      {capture.error && (
-        <div className="mt-4">
-          <Callout tone="error" role="alert">
-            {capture.error}
-          </Callout>
-        </div>
-      )}
-
-      <form action={formAction} className="mt-6">
+      <form action={formAction}>
         {/*
           Mode travels with the form so the server action never has to guess.
-          A typed question is `text`, always — the orb sets `voice` by building
-          its own FormData in `ask`.
+          Everything from this panel is `text` — the detailed answer. The short
+          spoken form belongs to the call, which never comes through here.
         */}
         <input type="hidden" name="mode" value="text" />
 
@@ -227,7 +128,7 @@ export function AssistantPanel({
             <button
               key={suggestion}
               type="button"
-              onClick={() => ask(suggestion, 'text')}
+              onClick={() => ask(suggestion)}
               className={cn(
                 'focus-ring rounded-full border border-border bg-panel px-3 py-1',
                 'text-note text-muted-foreground transition-colors',
