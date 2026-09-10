@@ -2,12 +2,14 @@
 
 import { ArrowUpRight, CornerDownLeft, Sparkles } from 'lucide-react';
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 
-import { AssistantGhost, type GhostState } from '@/components/assistant-ghost';
+import { AssistantOrb, type OrbState } from '@/components/assistant-orb';
 import { Callout } from '@/components/callout';
 import type { AssistantAnswer } from '@/lib/assistant';
+import { primeVoices, speak, speechSupported, stopSpeaking } from '@/lib/speak';
 import { buttonClass, LABEL } from '@/lib/ui';
+import { useVoiceCapture } from '@/lib/use-voice-capture';
 import { cn } from '@/lib/utils';
 
 /**
@@ -23,6 +25,19 @@ import { cn } from '@/lib/utils';
  *
  * So the citations are not decoration under the answer. They are the evidence,
  * and the design puts them where they cannot be skipped.
+ *
+ * ── Voice V1, added 2026-09-10 ───────────────────────────────────────────────
+ *
+ * One room, chat and voice together — Ms. Maria's V4. The orb asks out loud,
+ * the box below types, and **both go through the same server action and the
+ * same retrieval**. The only difference is a `mode` field, which appends a
+ * brevity instruction to the prompt and nothing else.
+ *
+ * ⚠ **The citation contract survives voice, unchanged.** What gets spoken is
+ * the answer with its `[n]` markers stripped at the last moment; the full
+ * answer and its chips still render below, exactly as they do for a typed
+ * question. A refusal is spoken as the refusal. Voice does not get to skip the
+ * evidence — it just does not read it aloud.
  */
 export function AssistantPanel({
   action,
@@ -32,27 +47,135 @@ export function AssistantPanel({
   suggestions: string[];
 }) {
   const [state, formAction, pending] = useActionState(action, null);
+  const [isPending, startTransition] = useTransition();
+
+  const [speaking, setSpeaking] = useState(false);
+  const [canSpeak, setCanSpeak] = useState(false);
+
+  /*
+   * Which answer has already been read out.
+   *
+   * `useActionState` hands back a NEW object for every turn, so object identity
+   * is exactly the right key: it changes once per answer and never on a
+   * re-render. Without this the effect below speaks again on every render while
+   * the answer is on screen.
+   */
+  const spokenRef = useRef<AssistantAnswer | null>(null);
+
+  // Load the voice list early, so the FIRST spoken answer uses the chosen voice
+  // rather than the browser default. See `pickVoice`.
+  useEffect(() => {
+    setCanSpeak(speechSupported());
+    return primeVoices();
+  }, []);
+
+  const ask = useCallback(
+    (question: string, mode: 'text' | 'voice') => {
+      const formData = new FormData();
+      formData.set('question', question);
+      formData.set('mode', mode);
+      // `formAction` from `useActionState` has to be called inside a transition
+      // when it is not a form's own submit.
+      startTransition(() => formAction(formData));
+    },
+    [formAction],
+  );
+
+  const capture = useVoiceCapture({
+    onTranscript: useCallback(
+      (result: { text: string }) => {
+        if (result.text.trim()) ask(result.text, 'voice');
+      },
+      [ask],
+    ),
+  });
+
+  /*
+   * Speak an answer that arrived from a spoken question.
+   *
+   * ⚠ Gated on `state.mode`, not on "did we last use the mic". `useActionState`
+   * replaces the whole state each turn, so without the check a typed follow-up
+   * after a spoken question would be read aloud too.
+   */
+  useEffect(() => {
+    if (!state || pending || isPending) return;
+    if (state.mode !== 'voice') return;
+    if (spokenRef.current === state) return;
+
+    spokenRef.current = state;
+
+    // An error is shown, never spoken. It is about the system, not the corpus,
+    // and reading a quota message aloud helps nobody.
+    if (state.error) return;
+
+    setSpeaking(true);
+    speak(state.answer, { onEnd: () => setSpeaking(false) });
+  }, [state, pending, isPending]);
+
+  // Stop mid-sentence if the component goes away.
+  useEffect(() => stopSpeaking, []);
+
+  const working = pending || isPending;
 
   /**
-   * Derived, never stored. `useActionState` already owns every fact this needs,
-   * and a second copy in `useState` is how the figure ends up reading "thinking"
+   * The orb's state, derived rather than stored.
+   *
+   * `useActionState` and the capture hook already own every fact this needs,
+   * and a third copy in `useState` is how the orb ends up saying "thinking"
    * beside an answer that has already arrived.
    */
-  const ghostState: GhostState = pending
-    ? 'thinking'
-    : !state
-      ? 'idle'
-      : state.error
-        ? 'error'
-        : state.refused
-          ? 'refused'
-          : 'answered';
+  const orbState: OrbState =
+    capture.state === 'recording'
+      ? 'listening'
+      : capture.state === 'transcribing' || working
+        ? 'thinking'
+        : speaking
+          ? 'speaking'
+          : !state
+            ? 'idle'
+            : state.error
+              ? 'error'
+              : state.refused
+                ? 'refused'
+                : 'answered';
+
+  const onOrbPress = useCallback(() => {
+    // While it is talking, the button stops it. Interrupting a long answer is
+    // the single most-wanted control in any voice UI.
+    if (speaking) {
+      stopSpeaking();
+      setSpeaking(false);
+      return;
+    }
+    capture.toggle();
+  }, [speaking, capture]);
 
   return (
     <div>
-      <AssistantGhost state={ghostState} />
+      <AssistantOrb
+        state={orbState}
+        level={capture.level}
+        onPress={onOrbPress}
+        disabled={working || capture.state === 'transcribing'}
+        supported={capture.supported && canSpeak}
+      />
 
-      <form action={formAction}>
+      {capture.error && (
+        <div className="mt-4">
+          <Callout tone="error" role="alert">
+            {capture.error}
+          </Callout>
+        </div>
+      )}
+
+      <form action={formAction} className="mt-6">
+        {/*
+          Mode travels with the form so the server action never has to guess.
+          A typed question is `text`, always — the orb sets `voice` by building
+          its own FormData in `ask`.
+        */}
+        <input type="hidden" name="mode" value="text" />
+
         <label htmlFor="question" className="sr-only">
           Ask about your messages
         </label>
@@ -83,11 +206,11 @@ export function AssistantPanel({
 
           <button
             type="submit"
-            disabled={pending}
+            disabled={working}
             className={buttonClass({ size: 'sm', className: 'absolute right-2.5 bottom-2.5' })}
           >
-            {pending ? 'Thinking…' : 'Ask'}
-            {!pending && <CornerDownLeft className="size-3" aria-hidden />}
+            {working ? 'Thinking…' : 'Ask'}
+            {!working && <CornerDownLeft className="size-3" aria-hidden />}
           </button>
         </div>
       </form>
@@ -98,29 +221,28 @@ export function AssistantPanel({
         blank page — and a suggestion that returns nothing teaches the user the
         feature is broken.
       */}
-      {!state && !pending && (
+      {!state && !working && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {suggestions.map((suggestion) => (
-            <form action={formAction} key={suggestion}>
-              <input type="hidden" name="question" value={suggestion} />
-              <button
-                type="submit"
-                className={cn(
-                  'focus-ring rounded-full border border-border bg-panel px-3 py-1',
-                  'text-note text-muted-foreground transition-colors',
-                  'hover:border-input hover:text-foreground',
-                )}
-              >
-                {suggestion}
-              </button>
-            </form>
+            <button
+              key={suggestion}
+              type="button"
+              onClick={() => ask(suggestion, 'text')}
+              className={cn(
+                'focus-ring rounded-full border border-border bg-panel px-3 py-1',
+                'text-note text-muted-foreground transition-colors',
+                'hover:border-input hover:text-foreground',
+              )}
+            >
+              {suggestion}
+            </button>
           ))}
         </div>
       )}
 
-      {pending && <Thinking />}
+      {working && <Thinking />}
 
-      {state && !pending && (
+      {state && !working && (
         <div className="mt-6">
           {state.error ? (
             <Callout tone="error" role="alert">
@@ -138,6 +260,23 @@ export function AssistantPanel({
 function Answer({ answer }: { answer: AssistantAnswer }) {
   return (
     <div>
+      {/*
+        ⚠ What was HEARD, shown before what was answered.
+
+        Not a nicety. Whisper mishears names and this corpus is mostly names, so
+        a wrong answer to a misheard question is indistinguishable from a wrong
+        answer to the right one unless the reader can see what was actually
+        asked. It is the same "show your working" principle the citations serve.
+      */}
+      {answer.transcript && (
+        <div className="mb-5">
+          <p className={LABEL}>Heard</p>
+          <p className="mt-1.5 max-w-[68ch] text-row text-muted-foreground italic">
+            “{answer.transcript}”
+          </p>
+        </div>
+      )}
+
       <p className={cn(LABEL, 'mb-2 flex items-center gap-1.5')}>
         <Sparkles className="size-3" aria-hidden />
         {answer.refused ? 'No answer found' : 'Answer'}

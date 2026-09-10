@@ -9,6 +9,7 @@
     "./groq": "./src/groq.ts",
     "./summarize": "./src/summarize.ts",
     "./extract": "./src/extract.ts",
+    "./transcribe": "./src/transcribe.ts",
     "./provider": "./src/provider.ts"
   },
   "scripts": {

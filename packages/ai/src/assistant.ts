@@ -348,10 +348,50 @@ export const ASSISTANT_SYSTEM_PROMPT = [
  * below — so a wrong number is *detectable* where a wrong UUID would just fail
  * to resolve.
  */
+/**
+ * Which surface asked — the screen, or the microphone (voice V1).
+ *
+ * Ms. Maria set the requirement: *"Chat outputs should be highly detailed…
+ * Voice outputs must be concise."* One pipeline, two answer lengths.
+ */
+export type AssistantMode = 'text' | 'voice';
+
+/**
+ * The extra instruction a spoken answer gets.
+ *
+ * ── ⚠ Why the citation markers STAY, even though nobody hears them ───────────
+ *
+ * The obvious version of this note says "do not cite, you are being read
+ * aloud". That would break the product's central guarantee, and quietly.
+ * `parseAnswer` decides a refusal by counting citations — an answer citing
+ * nothing "has, by the contract the model was given, claimed nothing about the
+ * corpus". Tell the model to stop citing and **every voice answer parses as a
+ * refusal**, which would look like the assistant had gone mute rather than like
+ * a bug.
+ *
+ * So the markers stay in the text, exactly as rule 3 requires. The console
+ * removes them just before speaking (`lib/speak.ts`), and the screen still
+ * shows the full answer with its chips. Voice does not get to skip the
+ * evidence; it just does not read it out.
+ */
+export const VOICE_BREVITY_NOTE = [
+  'This answer will be READ ALOUD. Keep it to one or two short sentences, about',
+  '40 words at most. Lead with the answer. Use the names, dates and times that',
+  'matter and drop everything else — no lists, no preamble, no restating the',
+  'question, no "based on your messages".',
+  '',
+  'Keep the [n] citation markers exactly as rule 3 requires. They are stripped',
+  'out before the words are spoken, so they cost the listener nothing — and they',
+  'are still what proves the answer came from a real message.',
+  '',
+  'If rule 2 applies, refuse with the same sentence and nothing else.',
+].join('\n');
+
 export function buildAssistantPrompt(
   question: string,
   context: RetrievedMessage[],
   now: Date = new Date(),
+  mode: AssistantMode = 'text',
 ): string {
   const blocks = context.map((message, index) => {
     const source =
@@ -419,7 +459,7 @@ export function buildAssistantPrompt(
       ].join('\n')
     : '';
 
-  return [
+  const parts = [
     // The model has no clock. Without this, "upcoming" and "this week" are
     // unanswerable — and the demo question is literally "do I have upcoming
     // meetings?", which is a question about now.
@@ -433,7 +473,24 @@ export function buildAssistantPrompt(
     '---',
     '',
     `Question: ${question}`,
-  ].join('\n');
+  ];
+
+  /*
+   * ⚠ APPENDED, and only for voice. The text path must stay byte-identical.
+   *
+   * Same reasoning as `derivedNote` above, and it matters for the same reason:
+   * the assistant measured 6/6 answerable and 7/7 must-refuse on 2026-08-03,
+   * and a full eval costs most of a day's token allowance. A note added to the
+   * array unconditionally — even as an empty string — would insert a blank line
+   * into every text prompt and forfeit that score as a baseline.
+   *
+   * Pushing only in the voice branch means a typed question builds the exact
+   * array it built before this feature existed. That is what keeps the eval a
+   * control rather than a stale number.
+   */
+  if (mode === 'voice') parts.push('', VOICE_BREVITY_NOTE);
+
+  return parts.join('\n');
 }
 
 function formatStamp(iso: string): string {

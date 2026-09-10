@@ -3,10 +3,12 @@ import {
   buildAssistantPrompt,
   createAssistantProvider,
   EMPTY_CORPUS_ANSWER,
+  GROQ_VOICE_MODEL,
   isTimeQuestion,
   mergeDerivedContext,
   parseAnswer,
   selectContext,
+  type AssistantMode,
   type RetrievedMessage,
 } from '@switchboard/ai';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -46,6 +48,28 @@ export interface AssistantAnswer {
   refused: boolean;
   /** Set when the turn could not complete. The UI shows this, not `answer`. */
   error: string | null;
+  /**
+   * Which surface asked (voice V1).
+   *
+   * The client needs it to decide whether to speak the answer. It cannot infer
+   * it: `useActionState` replaces the whole state on every turn, so a typed
+   * follow-up after a spoken question would otherwise be read aloud too.
+   */
+  mode: AssistantMode;
+  /**
+   * What was heard, when the question arrived by microphone.
+   *
+   * Shown above the answer, and it is not a nicety. Whisper mishears names —
+   * and this corpus is mostly names. A wrong answer to a misheard question is
+   * indistinguishable from a wrong answer to the right one unless the person
+   * can see what was actually asked.
+   */
+  transcript: string | null;
+}
+
+/** The shape every early return uses. Keeps `mode` from being forgotten. */
+function emptyAnswer(mode: AssistantMode, error: string | null): AssistantAnswer {
+  return { answer: '', citations: [], refused: false, error, mode, transcript: null };
 }
 
 /** Ask the worker to embed the question. Never sends anything but the text. */
@@ -277,12 +301,29 @@ export async function askAssistant(
   supabase: SupabaseClient,
   question: string,
   channelLabels: Map<string, string>,
+  mode: AssistantMode = 'text',
 ): Promise<AssistantAnswer> {
   const trimmed = question.trim().slice(0, 500);
 
   if (!trimmed) {
-    return { answer: '', citations: [], refused: false, error: 'Ask a question first.' };
+    return emptyAnswer(mode, 'Ask a question first.');
   }
+
+  /*
+   * Which model answers, and why voice may use a different one.
+   *
+   * ⚠ Off unless VOICE_ASSISTANT_SMALL_MODEL=1, and that default is the
+   * decision rather than laziness. The 70B's allowance is ~30 questions a day
+   * SHARED BY EVERY TENANT, and voice is designed to make asking effortless —
+   * so voice is what exhausts it. `llama-3.1-8b-instant` is a different bucket
+   * (14,400/day) and costs the assistant nothing.
+   *
+   * It is opt-in because nobody has measured its refusal behaviour yet, and a
+   * spoken wrong answer is worse than a written one: nothing stays on screen to
+   * check it against. Run the eval before making this the default. See
+   * GROQ_VOICE_MODEL and the plan's §6.
+   */
+  const useVoiceModel = mode === 'voice' && process.env.VOICE_ASSISTANT_SMALL_MODEL === '1';
 
   // Groq by default — Gemini's free tier is 20 requests/DAY, measured
   // 2026-08-02. See packages/ai/src/assistant-provider.ts.
@@ -290,26 +331,22 @@ export async function askAssistant(
     groqApiKey: process.env.GROQ_API_KEY,
     geminiApiKey: process.env.GEMINI_API_KEY,
     preferred: process.env.ASSISTANT_PROVIDER,
+    ...(useVoiceModel ? { model: GROQ_VOICE_MODEL } : {}),
   });
 
   if (!chosen.ok) {
-    return {
-      answer: '',
-      citations: [],
-      refused: false,
-      error: `The assistant is not configured on this deployment (${chosen.reason}).`,
-    };
+    return emptyAnswer(
+      mode,
+      `The assistant is not configured on this deployment (${chosen.reason}).`,
+    );
   }
 
   const embedding = await embedViaWorker(trimmed);
   if (!embedding) {
-    return {
-      answer: '',
-      citations: [],
-      refused: false,
-      error:
-        'Could not reach the embedding service, so the assistant cannot search your messages right now.',
-    };
+    return emptyAnswer(
+      mode,
+      'Could not reach the embedding service, so the assistant cannot search your messages right now.',
+    );
   }
 
   // RLS scopes this to the signed-in user — `match_chunks` is SECURITY INVOKER
@@ -323,7 +360,7 @@ export async function askAssistant(
 
   if (error) {
     console.error(`[assistant] retrieval failed: ${error.message}`);
-    return { answer: '', citations: [], refused: false, error: 'Could not search your messages.' };
+    return emptyAnswer(mode, 'Could not search your messages.');
   }
 
   const retrieved: RetrievedMessage[] = ((data ?? []) as MatchRow[]).map((row) => ({
@@ -364,24 +401,31 @@ export async function askAssistant(
    * here about *that*".
    */
   if (context.length === 0) {
-    return { answer: EMPTY_CORPUS_ANSWER, citations: [], refused: true, error: null };
+    return {
+      answer: EMPTY_CORPUS_ANSWER,
+      citations: [],
+      refused: true,
+      error: null,
+      mode,
+      transcript: null,
+    };
   }
 
   const completion = await chosen.provider.complete(
     ASSISTANT_SYSTEM_PROMPT,
-    buildAssistantPrompt(trimmed, context),
+    // ⚠ `mode` reaches the prompt ONLY here. A text question builds the exact
+    // array it built before voice existed — see buildAssistantPrompt.
+    buildAssistantPrompt(trimmed, context, new Date(), mode),
   );
 
   if (!completion.ok) {
     console.error(`[assistant] completion failed: ${completion.reason}`);
-    return {
-      answer: '',
-      citations: [],
-      refused: false,
-      error: completion.retryable
+    return emptyAnswer(
+      mode,
+      completion.retryable
         ? rateLimitMessage(completion.limitScope, completion.retryAfterMs)
         : 'The assistant could not answer that.',
-    };
+    );
   }
 
   const parsed = parseAnswer(completion.text, context);
@@ -406,5 +450,14 @@ export async function askAssistant(
     ];
   });
 
-  return { answer: parsed.text, citations, refused: parsed.refused, error: null };
+  return {
+    answer: parsed.text,
+    citations,
+    refused: parsed.refused,
+    error: null,
+    mode,
+    // The caller sets this for a spoken question — it is the only party that
+    // knows what was heard, since `trimmed` is already the transcript here.
+    transcript: mode === 'voice' ? trimmed : null,
+  };
 }

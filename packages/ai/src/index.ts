@@ -12,6 +12,7 @@ export { createGeminiProvider, GEMINI_ASSISTANT_MODEL } from './gemini';
 export {
   createAssistantProvider,
   GROQ_ASSISTANT_MODEL,
+  GROQ_VOICE_MODEL,
   type AssistantProviderConfig,
   type AssistantProviderResult,
 } from './assistant-provider';
@@ -28,6 +29,8 @@ export {
   parseAnswer,
   RELATIVE_FLOOR,
   selectContext,
+  VOICE_BREVITY_NOTE,
+  type AssistantMode,
   type ParsedAnswer,
   type RetrievedMessage,
 } from './assistant';
@@ -67,6 +70,17 @@ export {
   type ExtractionValidation,
   type ValidatedExtraction,
 } from './extract';
+
+export {
+  MAX_AUDIO_BYTES,
+  MAX_CLIP_SECONDS,
+  transcribeAudio,
+  TRANSCRIPTION_LANGUAGE,
+  TRANSCRIPTION_MODEL,
+  type TranscribeInput,
+  type TranscribeOptions,
+  type TranscriptionResult,
+} from './transcribe';
 
 export {
   buildSummaryPrompt,

@@ -50,6 +50,14 @@ export default async function AssistantPage() {
       data: { user: caller },
     } = await client.auth.getUser();
 
+    /*
+     * Which surface asked (voice V1). Anything that is not exactly 'voice' is
+     * treated as text — the field arrives from a browser form and is untrusted
+     * input like any other, and the failure of a wrong value should be a
+     * detailed answer rather than a short one.
+     */
+    const mode = formData.get('mode') === 'voice' ? 'voice' : 'text';
+
     // Checked again inside the action: a server action is its own endpoint and
     // does not inherit the page's guard.
     if (!caller) {
@@ -58,6 +66,8 @@ export default async function AssistantPage() {
         citations: [],
         refused: false,
         error: 'Your session expired. Reload the page and sign in again.',
+        mode,
+        transcript: null,
       };
     }
 
@@ -69,13 +79,13 @@ export default async function AssistantPage() {
       ]),
     );
 
-    return askAssistant(client, String(formData.get('question') ?? ''), labels);
+    return askAssistant(client, String(formData.get('question') ?? ''), labels, mode);
   }
 
   return (
     <AppShell
       title="Assistant"
-      description="Ask about your messages. Every answer cites the ones it used."
+      description="Ask out loud or type. Every answer cites the messages it used."
       userEmail={user.email ?? 'Signed in'}
       userId={user.id}
       activeHref="/assistant"

@@ -54,11 +54,51 @@ import type { CompletionProvider } from './provider';
 /** Groq's larger model: 1,000 req/day, and not the one summaries use. */
 export const GROQ_ASSISTANT_MODEL = 'llama-3.3-70b-versatile';
 
+/**
+ * The model a SPOKEN answer may run on (voice V1) — opt-in, never the default.
+ *
+ * ── The problem it exists to solve ──────────────────────────────────────────
+ *
+ * The assistant is capped at roughly **30 questions per day, shared by every
+ * tenant** — one Groq key, and Groq scopes limits to the organisation. That cap
+ * has held so far because typing a question is work. Voice removes exactly that
+ * friction, on purpose. The plan's §6 is blunt about where that leads: the
+ * budget goes before lunch, and the next person gets "daily allowance used up"
+ * having asked nothing.
+ *
+ * `llama-3.1-8b-instant` is a different bucket — **14,400 requests/day against
+ * the 70B's 1,000** — so a spoken question costs the assistant's allowance
+ * nothing. It is also already the model that writes summaries and extractions,
+ * so its behaviour on this corpus is known rather than guessed at. And Ms.
+ * Maria's own requirement is that voice answers be short, which is the thing an
+ * 8B model is least likely to get wrong.
+ *
+ * ── ⚠ Why it is OFF by default ──────────────────────────────────────────────
+ *
+ * Because nobody has measured it. The refusal is the property this product is
+ * judged on, and a spoken wrong answer is worse than a written one — it leaves
+ * nothing on screen to check against. Before `VOICE_ASSISTANT_SMALL_MODEL=1`
+ * becomes the default, run `apps/worker/scripts/eval-assistant.ts` against this
+ * model and confirm the must-refuse score holds.
+ *
+ * This is `ASSISTANT_GROUND_EXTRACTIONS`' precedent, for the same reason: a
+ * flag is what lets before and after be one experiment instead of two unrelated
+ * runs.
+ */
+export const GROQ_VOICE_MODEL = 'llama-3.1-8b-instant';
+
 export interface AssistantProviderConfig {
   groqApiKey?: string;
   geminiApiKey?: string;
   /** `groq` (default) or `gemini`. */
   preferred?: string;
+  /**
+   * Override which Groq model answers. Defaults to `GROQ_ASSISTANT_MODEL`.
+   *
+   * ⚠ Groq only. Gemini ignores it — there is one Gemini model here and adding
+   * a second would need its own measured quota, which nobody has.
+   */
+  model?: string;
 }
 
 export type AssistantProviderResult =
@@ -69,6 +109,7 @@ export function createAssistantProvider({
   groqApiKey,
   geminiApiKey,
   preferred,
+  model,
 }: AssistantProviderConfig): AssistantProviderResult {
   const choice = (preferred ?? 'groq').toLowerCase();
 
@@ -82,7 +123,10 @@ export function createAssistantProvider({
   if (groqApiKey) {
     return {
       ok: true,
-      provider: createGroqProvider({ apiKey: groqApiKey, model: GROQ_ASSISTANT_MODEL }),
+      provider: createGroqProvider({
+        apiKey: groqApiKey,
+        model: model ?? GROQ_ASSISTANT_MODEL,
+      }),
     };
   }
 

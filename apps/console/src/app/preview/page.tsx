@@ -649,12 +649,40 @@ export default async function PreviewPage({
         ],
         refused: false,
         error: null,
+        mode: 'text',
+        transcript: null,
+      },
+      /*
+       * The same answer, as it arrives from a SPOKEN question (voice V1).
+       *
+       * `?state=spoken` is the only way to look at the "Heard" block and the
+       * shorter voice phrasing without spending a real question — and without
+       * a microphone, which this environment does not have.
+       */
+      spoken: {
+        answer: 'Maria wants the hero line under ten words and the disclaimer above the fold, by Thursday 3pm [1].',
+        citations: [
+          {
+            messageId: rowsForCitation[0]!.id,
+            subject: rowsForCitation[0]!.subject,
+            senderName: 'Maria Santos',
+            sentAt: rowsForCitation[0]!.sent_at,
+            excerpt:
+              'The hero line still reads a bit long on mobile — can we cut it to under ten words? Legal wants the disclaimer moved above the fold.',
+          },
+        ],
+        refused: false,
+        error: null,
+        mode: 'voice',
+        transcript: 'What did Maria ask me to change on the landing page?',
       },
       refused: {
         answer: 'I could not find anything in your messages about that.',
         citations: [],
         refused: true,
         error: null,
+        mode: 'text',
+        transcript: null,
       },
       error: {
         answer: '',
@@ -662,6 +690,8 @@ export default async function PreviewPage({
         refused: false,
         error:
           "You have used up today's assistant allowance. It refills gradually — try again later.",
+        mode: 'text',
+        transcript: null,
       },
     };
 
