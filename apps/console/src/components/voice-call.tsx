@@ -276,12 +276,18 @@ export function VoiceCall() {
         through the flowing-line backdrop without hiding it.
       */}
       <div className="relative flex items-center justify-center">
+        {/*
+          ⚠ Deliberately faint. The reference is explicit that the void is the
+          design and the particles carry every bit of the colour — a strong glow
+          behind them turns a constellation into a lamp with confetti on it.
+          This is just enough to stop the sphere floating on a flat plate.
+        */}
         <span
           aria-hidden
           className={cn(
-            'animate-orb-glow pointer-events-none absolute size-[22rem] rounded-full',
-            'blur-3xl transition-colors duration-700 sm:size-[26rem]',
-            live ? 'bg-primary/25' : 'bg-primary/10',
+            'animate-orb-glow pointer-events-none absolute size-[24rem] rounded-full',
+            'blur-3xl transition-colors duration-700 sm:size-[28rem]',
+            live ? 'bg-primary/12' : 'bg-primary/[0.06]',
           )}
         />
 
