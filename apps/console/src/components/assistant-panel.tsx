@@ -4,6 +4,7 @@ import { ArrowUpRight, CornerDownLeft, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useActionState, useCallback, useTransition } from 'react';
 
+import { BorderBeam } from '@/components/ui/border-beam';
 import { Callout } from '@/components/callout';
 import type { AssistantAnswer } from '@/lib/assistant';
 import { buttonClass, LABEL } from '@/lib/ui';
@@ -68,7 +69,7 @@ export function AssistantPanel({
   const working = pending || isPending;
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-2xl">
       <form action={formAction}>
         {/*
           Mode travels with the form so the server action never has to guess.
@@ -81,39 +82,47 @@ export function AssistantPanel({
           Ask about your messages
         </label>
 
-        <div className="relative">
-          <textarea
-            id="question"
-            name="question"
-            rows={2}
-            required
-            maxLength={500}
-            defaultValue={state?.error ? undefined : ''}
-            placeholder="Ask about your messages — “do I have upcoming meetings?”"
-            // Enter submits, Shift+Enter adds a line. A textarea is right
-            // because questions wrap; a bare input would hide the end of a
-            // long one behind the cursor.
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                event.currentTarget.form?.requestSubmit();
-              }
-            }}
-            className={cn(
-              'focus-ring w-full resize-none rounded-lg border border-border bg-panel',
-              'px-3.5 py-3 pr-28 text-row placeholder:text-muted-foreground',
-            )}
-          />
+        {/*
+          The beam runs while a question is in flight and dims the rest of the
+          time. An always-on animation beside a text field is something you stop
+          seeing within a minute; one that starts when you press Ask is telling
+          you the machine took it.
+        */}
+        <BorderBeam active={working} duration={working ? 3 : 9}>
+          <div className="relative">
+            <textarea
+              id="question"
+              name="question"
+              rows={2}
+              required
+              maxLength={500}
+              defaultValue={state?.error ? undefined : ''}
+              placeholder="Ask about your messages — “do I have upcoming meetings?”"
+              // Enter submits, Shift+Enter adds a line. A textarea is right
+              // because questions wrap; a bare input would hide the end of a
+              // long one behind the cursor.
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }}
+              className={cn(
+                'focus-ring w-full resize-none rounded-[inherit] border-0 bg-transparent',
+                'px-3.5 py-3 pr-28 text-row placeholder:text-muted-foreground',
+              )}
+            />
 
-          <button
-            type="submit"
-            disabled={working}
-            className={buttonClass({ size: 'sm', className: 'absolute right-2.5 bottom-2.5' })}
-          >
-            {working ? 'Thinking…' : 'Ask'}
-            {!working && <CornerDownLeft className="size-3" aria-hidden />}
-          </button>
-        </div>
+            <button
+              type="submit"
+              disabled={working}
+              className={buttonClass({ size: 'sm', className: 'absolute right-2.5 bottom-2.5' })}
+            >
+              {working ? 'Thinking…' : 'Ask'}
+              {!working && <CornerDownLeft className="size-3" aria-hidden />}
+            </button>
+          </div>
+        </BorderBeam>
       </form>
 
       {/*
@@ -123,7 +132,7 @@ export function AssistantPanel({
         feature is broken.
       */}
       {!state && !working && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-3 flex flex-wrap justify-center gap-1.5">
           {suggestions.map((suggestion) => (
             <button
               key={suggestion}

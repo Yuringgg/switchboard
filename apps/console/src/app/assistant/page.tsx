@@ -86,26 +86,27 @@ export default async function AssistantPage() {
   return (
     <AppShell
       title="Assistant"
-      description="Call it, or type. Every answer cites the messages it used."
+      description="Talk to Uriel, or type. Every answer cites the messages it used."
       userEmail={user.email ?? 'Signed in'}
       userId={user.id}
       activeHref="/assistant"
       channels={channels}
     >
       {/*
-        The one way to talk to this. A browser-microphone orb sat below for a
-        day and was removed on 2026-09-11 — this does the same job at around
-        1,900ms, with interruption and a live transcript, and two microphones on
-        one screen is a question the reader has to answer before they can start.
+        ── The stage ───────────────────────────────────────────────────────────
 
-        Typing still works, below. Ms. Maria's split holds: detailed on the
-        page, short on the call.
+        Uriel is the screen, not a control on it. The orb sits in the middle and
+        idles whether or not a call is running; the button that opens the line
+        is directly beneath it, so the thing you address and the way you address
+        it read as one object.
+
+        Typing lives below, and it is not a lesser path — Ms. Maria's split
+        holds: detailed on the page, short on the call.
       */}
-      <div className="mb-6">
+      <div className="flex flex-col gap-10 py-4">
         <VoiceCall />
+        <AssistantPanel action={ask} suggestions={SUGGESTIONS} />
       </div>
-
-      <AssistantPanel action={ask} suggestions={SUGGESTIONS} />
     </AppShell>
   );
 }

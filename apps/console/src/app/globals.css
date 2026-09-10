@@ -738,38 +738,47 @@
 }
 
 /*
- * The assistant orb's breathing ring — `components/assistant-orb.tsx`.
+ * The border beam — `components/ui/border-beam.tsx`.
  *
- * ⚠⚠ THIS EXISTS BECAUSE `animate-ripple` IS THE WRONG ANIMATION FOR IT, AND
- *    THE WAY IT IS WRONG IS INVISIBLE UNTIL SOMEBODY LOOKS.
+ * One rotation of a conic gradient sitting behind a panel that is inset by a
+ * pixel, so only that rim shows. `--beam-duration` is set per instance.
  *
- * `@keyframes ripple` above carries `translate(-50%, -50%)`, because the rings
- * it was written for are positioned by their own centre — `left: 50%; top: 50%`
- * on the auth screens. The orb's ring is `absolute inset-0` instead, already
- * filling its parent, so that translate shifts it half its own width up and to
- * the left. The result is a grey circle sitting off to one side of the
- * microphone button, which reads as a rendering fault rather than a ring.
- *
- * Nothing errors. Both classes exist, both animate, and the resting frame is
- * simply in the wrong place — precisely the defect AGENTS.md describes after a
- * reveal left a solid rectangle parked beside every auth field: *"an
- * animation's resting frame is something you have to look at."*
- *
- * So: the same breath, no translate. An element that positions itself by
- * `inset` must not be animated by a keyframe that positions by its centre.
+ * ⚠ Declared here rather than as an inline `animation` because Tailwind's
+ * arbitrary-animation syntax needs the keyframes to exist in the stylesheet,
+ * and a keyframe referenced but never defined fails silently — the element
+ * simply sits still, with nothing logged.
  */
-@keyframes orb-breathe {
-  0%,
-  100% {
-    transform: scale(1);
+@keyframes beam-spin {
+  from {
+    transform: rotate(0turn);
   }
-  50% {
-    transform: scale(0.94);
+  to {
+    transform: rotate(1turn);
   }
 }
 
-@utility animate-orb-breathe {
-  animation: orb-breathe 4.5s ease-in-out infinite;
+/*
+ * The glow behind the orb on `/assistant`.
+ *
+ * A soft radial pool, not a shadow: it has to read through the flowing-line
+ * backdrop without hiding it, and a box-shadow would clip to the orb's own
+ * square. Deliberately low opacity — it is the light the orb sits in, not a
+ * second object competing with it.
+ */
+@keyframes orb-glow {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.75;
+    transform: scale(1.06);
+  }
+}
+
+@utility animate-orb-glow {
+  animation: orb-glow 6s ease-in-out infinite;
 }
 
 /*

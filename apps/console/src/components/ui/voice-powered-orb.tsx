@@ -50,6 +50,15 @@ interface VoicePoweredOrbProps {
   level?: number;
   /** Colour rotation in degrees. Lets the caller tint who is speaking. */
   hue?: number;
+  /**
+   * Keep turning gently when no voice is driving it.
+   *
+   * ⚠ This is why the orb can sit on screen before a call starts. A voice
+   * product whose voice only appears once you have already committed to it
+   * gives you nothing to commit to — so it idles, and the level simply adds
+   * to a turn that was already happening.
+   */
+  idle?: boolean;
   /** Drawn when WebGL is unavailable. */
   fallback?: React.ReactNode;
 }
@@ -217,6 +226,7 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
   className,
   level = 0,
   hue = 0,
+  idle = false,
   fallback = null,
 }) => {
   const ctnDom = useRef<HTMLDivElement>(null);
@@ -236,8 +246,10 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
    */
   const levelRef = useRef(level);
   const hueRef = useRef(hue);
+  const idleRef = useRef(idle);
   levelRef.current = level;
   hueRef.current = hue;
+  idleRef.current = idle;
 
   useEffect(() => {
     const container = ctnDom.current;
@@ -333,6 +345,24 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
     window.addEventListener('resize', resize);
     resize();
 
+    /*
+     * ⚠ Stop drawing when the tab is hidden.
+     *
+     * This orb is on screen for as long as somebody has `/assistant` open, not
+     * just during a call. `requestAnimationFrame` is already throttled in a
+     * background tab on most browsers, but it is not guaranteed to stop, and a
+     * shader spinning behind a tab nobody is looking at is somebody's battery.
+     */
+    let hidden = document.visibilityState === 'hidden';
+    const onVisibility = () => {
+      const nowHidden = document.visibilityState === 'hidden';
+      // Resuming: reset the clock, or the first frame back gets the whole
+      // hidden duration as its delta and the orb jumps.
+      if (hidden && !nowHidden) lastTime = performance.now();
+      hidden = nowHidden;
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     let raf = 0;
     let lastTime = 0;
     let rot = 0;
@@ -347,6 +377,7 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
 
     const update = (t: number) => {
       raf = requestAnimationFrame(update);
+      if (hidden) return;
 
       const dt = (t - lastTime) * 0.001;
       lastTime = t;
@@ -358,9 +389,13 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
       program.uniforms.hue.value = hueRef.current;
 
       if (!reduceMotion) {
-        // A slow idle turn plus whatever the voice adds, so a live call never
-        // looks frozen even in silence.
-        rot += dt * (0.3 + eased * 2.4);
+        /*
+         * A slow turn plus whatever the voice adds, so neither a live call in
+         * silence nor an untouched page ever looks frozen. `idle` turns slower
+         * than a call: present, but not asking for attention.
+         */
+        const base = idleRef.current ? 0.14 : 0.3;
+        rot += dt * (base + eased * 2.4);
         program.uniforms.hover.value = Math.min(eased * 2, 1);
         program.uniforms.hoverIntensity.value = Math.min(eased * 0.8, 0.8);
       }
@@ -376,6 +411,7 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', onVisibility);
 
       if (container.contains(canvas)) container.removeChild(canvas);
       // ⚠ Browsers cap live WebGL contexts (often around 16). Without this,

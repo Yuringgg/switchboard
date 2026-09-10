@@ -8,10 +8,11 @@ import { Callout } from '@/components/callout';
 import { VoicePoweredOrb } from '@/components/ui/voice-powered-orb';
 import { VoiceTranscript } from '@/components/voice-transcript';
 import { buttonClass, LABEL } from '@/lib/ui';
+import { cn } from '@/lib/utils';
 import { foldTranscript, type TranscriptTurn } from '@/lib/voice/transcript';
 
 /**
- * Start a call with the Vapi voice agent (voice V2).
+ * Uriel — the voice stage on `/assistant`.
  *
  * ── ⚠ The one thing this component exists to do ─────────────────────────────
  *
@@ -39,6 +40,9 @@ import { foldTranscript, type TranscriptTurn } from '@/lib/voice/transcript';
  * row always exists first. Worth doing before a demo; not worth blocking the
  * first working call on.
  */
+
+/** What the assistant is called out loud. Keep it matching Vapi's greeting. */
+export const AGENT_NAME = 'Uriel';
 
 /** Both are public by design — the key is a browser credential, like Supabase's. */
 const PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPI_PUBLIC_KEY;
@@ -250,54 +254,66 @@ export function VoiceCall() {
   const live = state === 'live';
   const busy = state === 'connecting' || state === 'ending';
 
-  return (
-    <div className="rounded-lg border border-border bg-panel p-4">
-      <div className="flex flex-wrap items-center gap-4">
-        {/*
-          Only while a call is live. An orb spinning at an idle screen is
-          decoration; an orb that appears when the line opens is a status light.
-        */}
-        {(live || state === 'connecting') && (
-          <div className="size-20 shrink-0">
-            <VoicePoweredOrb
-              level={level}
-              hue={assistantSpeaking ? HUE_ASSISTANT : HUE_USER}
-              fallback={
-                // WebGL is genuinely absent in some renderers. A ring that
-                // scales with the same number keeps the signal.
-                <span
-                  aria-hidden
-                  className="size-12 rounded-full border-2 border-primary/60"
-                  style={{
-                    transform: `scale(${1 + Math.min(level, 1) * 0.35})`,
-                    transition: 'transform 90ms linear',
-                  }}
-                />
-              }
-            />
-          </div>
-        )}
+  const status = !configured
+    ? 'Unavailable'
+    : state === 'connecting'
+      ? 'Connecting'
+      : state === 'ending'
+        ? 'Hanging up'
+        : live
+          ? assistantSpeaking
+            ? 'Speaking'
+            : 'Listening'
+          : 'Ready';
 
-        <div className="min-w-0 flex-1">
-          <p className={LABEL} aria-live="polite">
-            {state === 'connecting'
-              ? 'Connecting'
-              : live
-                ? assistantSpeaking
-                  ? 'Speaking'
-                  : 'Listening'
-                : state === 'ending'
-                  ? 'Hanging up'
-                  : 'Voice call'}
-          </p>
-          <p className="mt-1.5 max-w-[52ch] text-note text-muted-foreground">
-            {!configured
-              ? 'Voice calling is not set up on this deployment.'
-              : live
-                ? 'Speak normally. It can read your attention board, search your messages, and look someone up.'
-                : 'Talk to Switchboard out loud, the way you would on the phone.'}
-          </p>
+  return (
+    <section className="flex flex-col items-center">
+      {/*
+        The orb, and the light it sits in.
+
+        ⚠ The glow is a separate absolutely-positioned pool, not a box-shadow.
+        A shadow clips to the orb's own box; this has to bleed past it and read
+        through the flowing-line backdrop without hiding it.
+      */}
+      <div className="relative flex items-center justify-center">
+        <span
+          aria-hidden
+          className={cn(
+            'animate-orb-glow pointer-events-none absolute size-[22rem] rounded-full',
+            'blur-3xl transition-colors duration-700 sm:size-[26rem]',
+            live ? 'bg-primary/25' : 'bg-primary/10',
+          )}
+        />
+
+        <div className="relative size-64 sm:size-72 lg:size-80">
+          <VoicePoweredOrb
+            level={level}
+            hue={assistantSpeaking ? HUE_ASSISTANT : HUE_USER}
+            fallback={
+              // WebGL is genuinely absent in some renderers, and this is the
+              // centre of the screen. A ring on the same number keeps the
+              // signal rather than leaving a hole.
+              <span
+                aria-hidden
+                className="size-40 rounded-full border-2 border-primary/50"
+                style={{
+                  transform: `scale(${1 + Math.min(level, 1) * 0.3})`,
+                  transition: 'transform 90ms linear',
+                }}
+              />
+            }
+          />
         </div>
+      </div>
+
+      {/*
+        Name, state, and the one control — directly under the orb, so the thing
+        you address and the button that addresses it read as one object.
+      */}
+      <div className="-mt-2 flex flex-col items-center gap-3">
+        <p className={cn(LABEL, !configured && 'text-destructive')} aria-live="polite">
+          {AGENT_NAME} · {status}
+        </p>
 
         <button
           type="button"
@@ -305,7 +321,8 @@ export function VoiceCall() {
           disabled={!configured || busy}
           className={buttonClass({
             variant: live ? 'subtle' : 'primary',
-            className: 'shrink-0',
+            size: 'md',
+            className: 'px-5',
           })}
         >
           {busy ? (
@@ -315,23 +332,31 @@ export function VoiceCall() {
           ) : (
             <Phone className="size-3.5" aria-hidden />
           )}
-          {live ? 'Hang up' : 'Call'}
+          {live ? 'End call' : `Talk to ${AGENT_NAME}`}
         </button>
+
+        <p className="max-w-[46ch] text-center text-note text-muted-foreground">
+          {!configured
+            ? 'Voice calling is not set up on this deployment.'
+            : live
+              ? 'Speak normally. Interrupt whenever you like.'
+              : `${AGENT_NAME} can read your attention board, search your messages, and look someone up.`}
+        </p>
       </div>
 
       {error && (
-        <div className="mt-3">
+        <div className="mt-5 w-full max-w-xl">
           <Callout tone="error" role="alert">
             {error}
           </Callout>
         </div>
       )}
 
-      {/*
-        Kept after the call ends on purpose — reading back what was said is most
-        useful once you have stopped talking.
-      */}
-      <VoiceTranscript turns={turns} />
-    </div>
+      {/* Kept after the call ends — reading back what was said is most useful
+          once you have stopped talking. */}
+      <div className="w-full max-w-xl">
+        <VoiceTranscript turns={turns} />
+      </div>
+    </section>
   );
 }
