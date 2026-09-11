@@ -69,7 +69,12 @@ export function AssistantPanel({
   const working = pending || isPending;
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
+    /*
+      ⚠ No `mx-auto max-w-2xl` any more. This used to be the full width of the
+      page and centred itself; it now lives in the narrower right-hand column
+      beside the orb, where a max-width just leaves a gap down one side.
+    */
+    <div className="w-full min-w-0">
       <form action={formAction}>
         {/*
           Mode travels with the form so the server action never has to guess.
@@ -132,7 +137,7 @@ export function AssistantPanel({
         feature is broken.
       */}
       {!state && !working && (
-        <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {suggestions.map((suggestion) => (
             <button
               key={suggestion}

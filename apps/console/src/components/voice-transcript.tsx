@@ -32,7 +32,21 @@ import { cn } from '@/lib/utils';
  * useful once you have stopped talking.
  */
 
-export function VoiceTranscript({ turns }: { turns: TranscriptTurn[] }) {
+export function VoiceTranscript({
+  turns,
+  /**
+   * How tall the scrolling area is.
+   *
+   * Passed in rather than fixed, because the right answer depends on where this
+   * is standing. Stacked under the orb it has to stay short or it pushes the
+   * controls off screen; in its own column it should fill the height it has,
+   * which is the whole reason it moved there.
+   */
+  className,
+}: {
+  turns: TranscriptTurn[];
+  className?: string;
+}) {
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -60,7 +74,7 @@ export function VoiceTranscript({ turns }: { turns: TranscriptTurn[] }) {
         ref={scrollRef}
         // Capped and scrollable: a long call must not push the Hang up button
         // off the screen.
-        className="mt-2 max-h-64 space-y-2.5 overflow-y-auto pr-1"
+        className={cn('mt-2 space-y-2.5 overflow-y-auto pr-1', className ?? 'max-h-64')}
         /*
          * `polite`, not `assertive`. A screen reader announcing every partial
          * would talk over the assistant, which is the one thing a voice UI
@@ -75,7 +89,7 @@ export function VoiceTranscript({ turns }: { turns: TranscriptTurn[] }) {
             className={cn('flex flex-col', turn.role === 'user' && 'items-end')}
           >
             <span className={cn(LABEL, 'mb-0.5')}>
-              {turn.role === 'user' ? 'You' : 'Switchboard'}
+              {turn.role === 'user' ? 'You' : 'Uriel'}
             </span>
             <p
               className={cn(

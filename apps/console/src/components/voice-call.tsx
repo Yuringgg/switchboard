@@ -2,7 +2,7 @@
 
 import Vapi from '@vapi-ai/web';
 import { Loader2, Phone, PhoneOff } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { Callout } from '@/components/callout';
 import { VoicePoweredOrb } from '@/components/ui/voice-powered-orb';
@@ -69,7 +69,18 @@ const HUE_USER = 0;
 /** Shifted while she talks, so it is visible at a glance who has the floor. */
 const HUE_ASSISTANT = 200;
 
-export function VoiceCall() {
+export function VoiceCall({
+  /**
+   * The typing panel, rendered beside the orb rather than under it.
+   *
+   * A slot rather than an import, because the call state lives here and the
+   * layout has to put the transcript and the composer in the same column. The
+   * page stays in charge of WHAT goes there; this decides WHERE.
+   */
+  children,
+}: {
+  children?: ReactNode;
+}) {
   const [state, setState] = useState<CallState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
@@ -85,6 +96,15 @@ export function VoiceCall() {
    * leak the previous one's event listeners.
    */
   const vapiRef = useRef<Vapi | null>(null);
+
+  /*
+   * The listeners below are registered once and close over the state they saw
+   * then, so they cannot read `state` directly — it would read 'idle' forever.
+   * This mirror is what lets `onError` know whether a call was actually running
+   * when the error arrived.
+   */
+  const stateRef = useRef<CallState>('idle');
+  stateRef.current = state;
 
   /*
    * ⚠ THE INSTANCE AND ITS LISTENERS ARE SET UP ONCE, HERE — NOT IN `start`.
@@ -108,10 +128,29 @@ export function VoiceCall() {
       setAssistantSpeaking(false);
     };
 
-    const onError = () => {
-      setError('The call dropped. Try again.');
+    /*
+     * An error AFTER a call has ended is not an error the caller caused.
+     *
+     * Vapi's transport emits one on a perfectly normal hangup — the room closes
+     * and the underlying client reports it. Showing "The call dropped. Try
+     * again." under a completed transcript tells somebody their working call
+     * failed, which is worse than saying nothing: it is a confident wrong
+     * answer about their own conversation.
+     *
+     * So it is surfaced only while a call was actually up. It is logged either
+     * way, because a genuine mid-call drop and a tidy-up error look identical
+     * from here and only one of them matters.
+     */
+    const onError = (cause: unknown) => {
+      const wasUp = stateRef.current === 'live' || stateRef.current === 'connecting';
+      console.warn('[vapi] transport error', {
+        whileUp: wasUp,
+        name: cause instanceof Error ? cause.name : typeof cause,
+      });
+
       setState('idle');
       setLevel(0);
+      if (wasUp) setError('The call dropped. Try again.');
     };
 
     const onSpeechStart = () => setAssistantSpeaking(true);
@@ -266,104 +305,121 @@ export function VoiceCall() {
             : 'Listening'
           : 'Ready';
 
+
   return (
-    <section className="flex flex-col items-center">
-      {/*
-        The orb, and the light it sits in.
+    /*
+      ── Two columns, and the orb gets the bigger one ────────────────────────
 
-        ⚠ The glow is a separate absolutely-positioned pool, not a box-shadow.
-        A shadow clips to the orb's own box; this has to bleed past it and read
-        through the flowing-line backdrop without hiding it.
-      */}
-      <div className="relative flex items-center justify-center">
-        {/*
-          ⚠ Deliberately faint. The reference is explicit that the void is the
-          design and the particles carry every bit of the colour — a strong glow
-          behind them turns a constellation into a lamp with confetti on it.
-          This is just enough to stop the sphere floating on a flat plate.
-        */}
-        <span
-          aria-hidden
-          className={cn(
-            'animate-orb-glow pointer-events-none absolute size-[24rem] rounded-full',
-            'blur-3xl transition-colors duration-700 sm:size-[28rem]',
-            // Warm, to sit under gold. A cool glow behind an amber
-            // constellation reads as two light sources disagreeing.
-            live ? 'bg-amber-400/12' : 'bg-amber-400/[0.06]',
-          )}
-        />
+      Stacked, the transcript sat below the fold and had to be scrolled into
+      view before it could be read — which defeats a LIVE transcript entirely.
+      Beside the orb it has its own height and scrolls inside itself.
 
-        <div className="relative size-64 sm:size-72 lg:size-80">
-          <VoicePoweredOrb
-            level={level}
-            hue={assistantSpeaking ? HUE_ASSISTANT : HUE_USER}
-            fallback={
-              // WebGL is genuinely absent in some renderers, and this is the
-              // centre of the screen. A ring on the same number keeps the
-              // signal rather than leaving a hole.
-              <span
-                aria-hidden
-                className="size-40 rounded-full border-2 border-primary/50"
-                style={{
-                  transform: `scale(${1 + Math.min(level, 1) * 0.3})`,
-                  transition: 'transform 90ms linear',
-                }}
-              />
-            }
+      ⚠ `1.45fr` against `1fr`: the orb is the subject and the column widths say
+      so. Equal columns would read as two panels of equal weight, which is the
+      arrangement this replaced.
+
+      One column below `lg`. On a narrow screen an orb and a scrolling log side
+      by side leaves neither enough room to be worth having.
+    */
+    <section className="grid items-start gap-8 lg:grid-cols-[1.45fr_1fr] lg:gap-10">
+      {/* ── Left: Uriel ──────────────────────────────────────────────────── */}
+      <div className="flex flex-col items-center lg:sticky lg:top-4">
+        <div className="relative flex items-center justify-center">
+          {/*
+            ⚠ Deliberately faint. The reference is explicit that the void is the
+            design and the particles carry every bit of the colour — a strong
+            glow behind them turns a constellation into a lamp with confetti on
+            it. This is just enough to stop the sphere floating on a flat plate.
+          */}
+          <span
+            aria-hidden
+            className={cn(
+              'animate-orb-glow pointer-events-none absolute size-[22rem] rounded-full',
+              'blur-3xl transition-colors duration-700 sm:size-[26rem]',
+              // Warm, to sit under gold. A cool glow behind an amber
+              // constellation reads as two light sources disagreeing.
+              live ? 'bg-amber-400/12' : 'bg-amber-400/[0.06]',
+            )}
           />
+
+          <div className="relative size-60 sm:size-72 lg:size-80">
+            <VoicePoweredOrb
+              level={level}
+              hue={assistantSpeaking ? HUE_ASSISTANT : HUE_USER}
+              idle={!live}
+              fallback={
+                // WebGL is genuinely absent in some renderers, and this is the
+                // centre of the screen. A ring on the same number keeps the
+                // signal rather than leaving a hole.
+                <span
+                  aria-hidden
+                  className="size-40 rounded-full border-2 border-primary/50"
+                  style={{
+                    transform: `scale(${1 + Math.min(level, 1) * 0.3})`,
+                    transition: 'transform 90ms linear',
+                  }}
+                />
+              }
+            />
+          </div>
         </div>
+
+        <div className="-mt-2 flex flex-col items-center gap-3">
+          <p className={cn(LABEL, !configured && 'text-destructive')} aria-live="polite">
+            {AGENT_NAME} · {status}
+          </p>
+
+          <button
+            type="button"
+            onClick={live ? stop : start}
+            disabled={!configured || busy}
+            className={buttonClass({
+              variant: live ? 'subtle' : 'primary',
+              size: 'md',
+              className: 'px-5',
+            })}
+          >
+            {busy ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            ) : live ? (
+              <PhoneOff className="size-3.5" aria-hidden />
+            ) : (
+              <Phone className="size-3.5" aria-hidden />
+            )}
+            {live ? 'End call' : `Talk to ${AGENT_NAME}`}
+          </button>
+
+          <p className="max-w-[38ch] text-center text-note text-muted-foreground">
+            {!configured
+              ? 'Voice calling is not set up on this deployment.'
+              : live
+                ? 'Speak normally. Interrupt whenever you like.'
+                : `${AGENT_NAME} can read your attention board, search your messages, and look someone up.`}
+          </p>
+        </div>
+
+        {error && (
+          <div className="mt-5 w-full max-w-md">
+            <Callout tone="error" role="alert">
+              {error}
+            </Callout>
+          </div>
+        )}
       </div>
 
-      {/*
-        Name, state, and the one control — directly under the orb, so the thing
-        you address and the button that addresses it read as one object.
-      */}
-      <div className="-mt-2 flex flex-col items-center gap-3">
-        <p className={cn(LABEL, !configured && 'text-destructive')} aria-live="polite">
-          {AGENT_NAME} · {status}
-        </p>
+      {/* ── Right: what was said, then what you type ─────────────────────── */}
+      <div className="flex min-w-0 flex-col gap-6">
+        {/*
+          ⚠ `max-h` in viewport units, not a pixel count. The point of moving it
+          here was to give it real room; a fixed height wastes a tall screen and
+          overflows a short one.
 
-        <button
-          type="button"
-          onClick={live ? stop : start}
-          disabled={!configured || busy}
-          className={buttonClass({
-            variant: live ? 'subtle' : 'primary',
-            size: 'md',
-            className: 'px-5',
-          })}
-        >
-          {busy ? (
-            <Loader2 className="size-3.5 animate-spin" aria-hidden />
-          ) : live ? (
-            <PhoneOff className="size-3.5" aria-hidden />
-          ) : (
-            <Phone className="size-3.5" aria-hidden />
-          )}
-          {live ? 'End call' : `Talk to ${AGENT_NAME}`}
-        </button>
+          Kept after the call ends — reading back what was said is most useful
+          once you have stopped talking.
+        */}
+        <VoiceTranscript turns={turns} className="max-h-[46vh] lg:max-h-[52vh]" />
 
-        <p className="max-w-[46ch] text-center text-note text-muted-foreground">
-          {!configured
-            ? 'Voice calling is not set up on this deployment.'
-            : live
-              ? 'Speak normally. Interrupt whenever you like.'
-              : `${AGENT_NAME} can read your attention board, search your messages, and look someone up.`}
-        </p>
-      </div>
-
-      {error && (
-        <div className="mt-5 w-full max-w-xl">
-          <Callout tone="error" role="alert">
-            {error}
-          </Callout>
-        </div>
-      )}
-
-      {/* Kept after the call ends — reading back what was said is most useful
-          once you have stopped talking. */}
-      <div className="w-full max-w-xl">
-        <VoiceTranscript turns={turns} />
+        {children}
       </div>
     </section>
   );

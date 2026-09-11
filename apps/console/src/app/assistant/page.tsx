@@ -91,21 +91,31 @@ export default async function AssistantPage() {
       userId={user.id}
       activeHref="/assistant"
       channels={channels}
+      /*
+       * ⚠ `wide`, like the attention board. This screen is now laid out ACROSS
+       * rather than down, and 56rem gives the right-hand column roughly 22rem —
+       * narrower than the reading measure a transcript needs.
+       */
+      width="wide"
     >
       {/*
         ── The stage ───────────────────────────────────────────────────────────
 
-        Uriel is the screen, not a control on it. The orb sits in the middle and
-        idles whether or not a call is running; the button that opens the line
-        is directly beneath it, so the thing you address and the way you address
-        it read as one object.
+        Uriel on the left, everything you read on the right: the live transcript
+        above, the composer and its answers below. The orb gets the wider column
+        because it is the subject, not a control.
 
-        Typing lives below, and it is not a lesser path — Ms. Maria's split
-        holds: detailed on the page, short on the call.
+        ⚠ The composer is passed as a CHILD rather than rendered as a sibling.
+        The call owns the state that decides the layout, and the transcript and
+        the composer have to share a column — a sibling could not be put there
+        without lifting the call state out of the component that manages it.
+
+        Ms. Maria's split still holds: detailed when you type, short on the call.
       */}
-      <div className="flex flex-col gap-10 py-4">
-        <VoiceCall />
-        <AssistantPanel action={ask} suggestions={SUGGESTIONS} />
+      <div className="py-4">
+        <VoiceCall>
+          <AssistantPanel action={ask} suggestions={SUGGESTIONS} />
+        </VoiceCall>
       </div>
     </AppShell>
   );
