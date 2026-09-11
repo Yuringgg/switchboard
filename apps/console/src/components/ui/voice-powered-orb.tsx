@@ -71,6 +71,34 @@ const SHELL_COUNT = 2600;
 const AMBIENT_COUNT = 700;
 
 /**
+ * ── The wiring ──────────────────────────────────────────────────────────────
+ *
+ * Adapted from ethanplusai/jarvis, whose orb is the same idea: particles
+ * holding a hollow sphere, "wired together by faint lines". The lines are the
+ * thing. Without them a particle sphere is dust; with them it reads as a
+ * structure — something built rather than scattered.
+ *
+ * ⚠ OURS IS COMPUTED ONCE, THEIRS EVERY FRAME, AND THAT IS CORRECT BOTH TIMES.
+ * Their particles drift under velocity and noise, so which ones are neighbours
+ * keeps changing and the graph has to be rebuilt. Ours are pinned to the shell
+ * and only breathe in and out together — the neighbours never change, so
+ * rebuilding the graph 60 times a second would burn the work to arrive at the
+ * same answer.
+ */
+const LINE_SAMPLE = 720;
+/**
+ * How close two sampled points must be to be wired.
+ *
+ * ⚠ Tuned against the sample count, not picked. 720 points on a unit sphere sit
+ * about `sqrt(4π/720)` ≈ 0.13 apart, so 0.19 catches each point's immediate
+ * ring of neighbours and little else. Raise it and the sphere fills in solid;
+ * drop it and the web breaks into unconnected flecks.
+ */
+const LINE_MAX_DIST = 0.19;
+/** A ceiling, so a tuning mistake cannot quietly ship a million-line buffer. */
+const MAX_LINES = 4200;
+
+/**
  * ⚠ COLOUR IS A FUNCTION OF RADIUS, NOT A RANDOM PICK.
  *
  * The first reference is lit from a white-hot centre outward — pale gold, then
@@ -116,6 +144,48 @@ function colorAtRadius(r: number): [number, number, number] {
   }
 
   return GRADIENT[GRADIENT.length - 1]!.rgb;
+}
+
+/**
+ * Wire nearby shell points together.
+ *
+ * Every `step`-th shell particle is a candidate, and each candidate is joined to
+ * any later candidate within `LINE_MAX_DIST`. Sampling rather than using all
+ * 2,600 keeps the web legible — wiring every particle produces a solid ball, not
+ * a lattice — and keeps the build to a few hundred thousand distance checks
+ * instead of several million.
+ *
+ * Returns flat vertex pairs, ready for `gl.LINES`.
+ */
+function buildLines(position: Float32Array): Float32Array {
+  const step = Math.max(1, Math.floor(SHELL_COUNT / LINE_SAMPLE));
+  const picked: number[] = [];
+  for (let i = CORE_COUNT; i < CORE_COUNT + SHELL_COUNT; i += step) picked.push(i);
+
+  const out: number[] = [];
+  const maxSq = LINE_MAX_DIST * LINE_MAX_DIST;
+
+  for (let a = 0; a < picked.length && out.length < MAX_LINES * 6; a += 1) {
+    const ia = picked[a]! * 3;
+    const ax = position[ia]!;
+    const ay = position[ia + 1]!;
+    const az = position[ia + 2]!;
+
+    // From `a + 1`, so each pair is considered once. Both directions would draw
+    // every line twice — invisible on screen, and double the buffer.
+    for (let b = a + 1; b < picked.length; b += 1) {
+      const ib = picked[b]! * 3;
+      const dx = ax - position[ib]!;
+      const dy = ay - position[ib + 1]!;
+      const dz = az - position[ib + 2]!;
+      if (dx * dx + dy * dy + dz * dz > maxSq) continue;
+
+      out.push(ax, ay, az, position[ib]!, position[ib + 1]!, position[ib + 2]!);
+      if (out.length >= MAX_LINES * 6) break;
+    }
+  }
+
+  return new Float32Array(out);
 }
 
 function buildParticles() {
@@ -318,6 +388,75 @@ const frag = /* glsl */ `
   }
 `;
 
+/**
+ * The wiring.
+ *
+ * ⚠⚠ NO BACKTICKS ANYWHERE INSIDE THESE TEMPLATE LITERALS. One in a comment
+ * closes the string holding the shader, and tsc reports "',' expected" on a
+ * line of GLSL — naming neither the cause nor the real problem. This has now
+ * cost two separate debugging rounds in this file.
+ *
+ * ⚠ The vertex transform is a deliberate DUPLICATE of the points' one, not a
+ * shared import. The two shaders must move together to the pixel — a line whose
+ * endpoints breathe on a slightly different curve to the particles it joins
+ * detaches from them, and the whole structure comes apart. They are kept
+ * adjacent so a change to one is obviously a change to both.
+ */
+const lineVert = /* glsl */ `
+  precision highp float;
+
+  attribute vec3 position;
+
+  uniform float iTime;
+  uniform float level;
+  uniform float rot;
+  uniform vec2 iResolution;
+
+  varying float vFade;
+
+  void main() {
+    float c = cos(rot);
+    float s = sin(rot);
+    vec3 p = vec3(c * position.x + s * position.z, position.y, -s * position.x + c * position.z);
+
+    float t = 0.22 * sin(iTime * 0.13);
+    float ct = cos(t);
+    float st = sin(t);
+    p = vec3(p.x, ct * p.y - st * p.z, st * p.y + ct * p.z);
+
+    // NOTE: no per-vertex seed term here. The points jitter individually; a line
+    // cannot, or its two ends drift apart from the particles they connect.
+    p *= 1.0 + level * 0.14;
+
+    float depth = clamp((p.z + 1.8) / 3.6, 0.0, 1.0);
+    // Steeper than the points' fade. The far half of a wireframe is what turns
+    // a sphere into a muddle, so the back of the web drops away harder.
+    vFade = 0.06 + depth * 0.94;
+
+    float aspect = iResolution.x / max(iResolution.y, 1.0);
+    gl_Position = vec4(vec2(p.x / max(aspect, 0.0001), p.y) * 0.58, 0.0, 1.0);
+  }
+`;
+
+const lineFrag = /* glsl */ `
+  precision highp float;
+
+  uniform float level;
+  uniform vec3 wireColor;
+
+  varying float vFade;
+
+  void main() {
+    /*
+     * ⚠ FAINT. This is the word the reference uses and it is the whole brief:
+     * the wiring is structure, not subject. At full strength it becomes a
+     * wireframe globe and buries the particles it exists to connect.
+     */
+    float alpha = vFade * (0.085 + level * 0.16);
+    gl_FragColor = vec4(wireColor, alpha);
+  }
+`;
+
 export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
   className,
   level = 0,
@@ -330,6 +469,9 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
 
   // Built once. Three thousand particles rebuilt per render is a visible stutter.
   const particles = useMemo(buildParticles, []);
+  // The neighbour graph never changes, because the shell never deforms — only
+  // breathes. See the note on LINE_SAMPLE.
+  const lines = useMemo(() => buildLines(particles.position), [particles]);
 
   const levelRef = useRef(level);
   const hueRef = useRef(hue);
@@ -409,6 +551,42 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
 
     const mesh = new Mesh(gl, { mode: gl.POINTS, geometry, program });
 
+    /*
+     * The wiring, as its own mesh.
+     *
+     * ⚠ Drawn BEFORE the particles, so the points sit on top of their own
+     * connections rather than behind them. With blending on and depth testing
+     * off, draw order is the only depth there is.
+     */
+    const lineGeometry = new Geometry(gl, {
+      position: { size: 3, data: lines },
+    });
+
+    const lineProgram = new Program(gl, {
+      vertex: lineVert,
+      fragment: lineFrag,
+      transparent: true,
+      depthTest: false,
+      uniforms: {
+        iTime: { value: 0 },
+        level: { value: 0 },
+        rot: { value: 0 },
+        iResolution: { value: [1, 1] },
+        // The shell's gold, so the web reads as the same material as the
+        // particles rather than a grid laid over them.
+        wireColor: { value: [1.0, 0.75, 0.24] },
+      },
+    });
+
+    const lineMesh = new Mesh(gl, { mode: gl.LINES, geometry: lineGeometry, program: lineProgram });
+
+    /*
+     * ⚠ ogl clears before every `render()` unless told otherwise, which would
+     * wipe the lines the instant the particles were drawn. The clear is done by
+     * hand once per frame instead.
+     */
+    renderer.autoClear = false;
+
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
       const width = container.clientWidth;
@@ -420,6 +598,7 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
       canvas.style.height = `${height}px`;
       program.uniforms.dpr.value = dpr;
       program.uniforms.iResolution.value = [canvas.width, canvas.height];
+      lineProgram.uniforms.iResolution.value = [canvas.width, canvas.height];
     };
 
     window.addEventListener('resize', resize);
@@ -468,7 +647,13 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
       }
       program.uniforms.rot.value = rot;
 
+      lineProgram.uniforms.iTime.value = t * 0.001;
+      lineProgram.uniforms.level.value = eased;
+      lineProgram.uniforms.rot.value = rot;
+
       gl.clear(gl.COLOR_BUFFER_BIT);
+      // Wiring first, particles over it. See the note where lineMesh is built.
+      renderer.render({ scene: lineMesh });
       renderer.render({ scene: mesh });
     };
 
@@ -487,7 +672,7 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
     };
     // Runs once. See the note on the refs above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [particles]);
+  }, [particles, lines]);
 
   return (
     <div ref={ctnDom} className={cn('relative h-full w-full', className)}>
