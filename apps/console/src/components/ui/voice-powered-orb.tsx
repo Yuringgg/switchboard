@@ -63,10 +63,24 @@ interface VoicePoweredOrbProps {
   fallback?: React.ReactNode;
 }
 
-/** Packed near the centre, so the sphere is lit from inside rather than hollow. */
-const CORE_COUNT = 520;
-/** On the shell. Enough to read as a surface, few enough to stay smooth. */
-const SHELL_COUNT = 2600;
+/**
+ * ⚠ A HINT OF A CORE, NOT A FILLED ONE — and this is the change that makes the
+ * wiring visible at all.
+ *
+ * At 520 the interior was dense enough to be opaque, and an opaque sphere hides
+ * every line on its far side. The JARVIS orb is HOLLOW: you see straight
+ * through it, which is why its web reads as a web rather than as texture on a
+ * ball. 140 keeps a suggestion of light inside without closing it up.
+ */
+const CORE_COUNT = 140;
+/**
+ * On the shell.
+ *
+ * ⚠ Down from 2,600. Fewer, smaller particles is not a performance change — it
+ * is what leaves black between them. A dense shell reads as a solid surface and
+ * the structure connecting it disappears into its own texture.
+ */
+const SHELL_COUNT = 1700;
 /** Drifting around it, so the sphere sits in a field rather than on a plate. */
 const AMBIENT_COUNT = 700;
 
@@ -85,18 +99,36 @@ const AMBIENT_COUNT = 700;
  * rebuilding the graph 60 times a second would burn the work to arrive at the
  * same answer.
  */
-const LINE_SAMPLE = 720;
+const LINE_SAMPLE = 430;
 /**
  * How close two sampled points must be to be wired.
  *
- * ⚠ Tuned against the sample count, not picked. 720 points on a unit sphere sit
- * about `sqrt(4π/720)` ≈ 0.13 apart, so 0.19 catches each point's immediate
- * ring of neighbours and little else. Raise it and the sphere fills in solid;
- * drop it and the web breaks into unconnected flecks.
+ * ⚠ LONG, and that is the whole correction. At 0.19 this joined only immediate
+ * neighbours — stitches a few pixels across, invisible among the particles they
+ * connected. The JARVIS orb's lines sweep right across the sphere, and the
+ * length is what makes them read as structure rather than as noise.
+ *
+ * At 0.42 on a unit sphere each of the 430 sampled points reaches roughly
+ * eighteen others, which lands near the cap below. Raising it further does not
+ * add detail — it adds a solid ball.
  */
-const LINE_MAX_DIST = 0.19;
-/** A ceiling, so a tuning mistake cannot quietly ship a million-line buffer. */
-const MAX_LINES = 4200;
+const LINE_MAX_DIST = 0.42;
+/**
+ * A ceiling, so a tuning mistake cannot quietly ship a million-line buffer.
+ *
+ * ⚠⚠ HEADROOM IS NOT OPTIONAL HERE, BECAUSE HITTING THIS CAP IS NOT GRACEFUL.
+ * The builder walks the sampled points in order and stops the moment it fills
+ * up, so every point it had not reached yet gets NO connections — a bald patch
+ * on one side of the sphere that looks like a rendering fault rather than a
+ * limit.
+ *
+ * The arithmetic: 430 points with a 0.42 chord threshold. That chord is an arc
+ * of 2·asin(0.21) ≈ 0.423 rad, a cap of 2π(1−cos 0.423) ≈ 0.552 steradians,
+ * which is 4.4% of the sphere — so each point reaches about 19 others and the
+ * graph lands near 4,060 segments. 4,200 would have been within a rounding
+ * error of shaving one side off.
+ */
+const MAX_LINES = 6000;
 
 /**
  * ⚠ COLOUR IS A FUNCTION OF RADIUS, NOT A RANDOM PICK.
@@ -260,11 +292,16 @@ function buildParticles() {
     seed[i] = Math.random();
     // Core particles are small and dense; ambient ones small and sparse; the
     // shell carries the readable triangles.
+    /*
+     * ⚠ Roughly half what it was. The particles are the NODES now, not the
+     * subject — big sprites drown the wiring they are supposed to hang from.
+     * Small enough to read as dust at a glance, still triangles up close.
+     */
     scale[i] = core
-      ? 3.0 + Math.random() * 2.0
+      ? 1.8 + Math.random() * 1.2
       : shell
-        ? 5.0 + Math.random() * 3.0
-        : 3.2 + Math.random() * 1.6;
+        ? 2.4 + Math.random() * 1.8
+        : 1.9 + Math.random() * 1.3;
   }
 
   return { position, color, seed, scale };
@@ -429,9 +466,12 @@ const lineVert = /* glsl */ `
     p *= 1.0 + level * 0.14;
 
     float depth = clamp((p.z + 1.8) / 3.6, 0.0, 1.0);
-    // Steeper than the points' fade. The far half of a wireframe is what turns
-    // a sphere into a muddle, so the back of the web drops away harder.
-    vFade = 0.06 + depth * 0.94;
+    /*
+     * ⚠ The far side stays VISIBLE, just dimmer. On a hollow sphere seeing
+     * through to the back is the effect — cutting it away leaves a dome. It
+     * still falls off, so near and far are distinguishable.
+     */
+    vFade = 0.28 + depth * 0.72;
 
     float aspect = iResolution.x / max(iResolution.y, 1.0);
     gl_Position = vec4(vec2(p.x / max(aspect, 0.0001), p.y) * 0.58, 0.0, 1.0);
@@ -452,7 +492,12 @@ const lineFrag = /* glsl */ `
      * the wiring is structure, not subject. At full strength it becomes a
      * wireframe globe and buries the particles it exists to connect.
      */
-    float alpha = vFade * (0.085 + level * 0.16);
+    /*
+     * ⚠ Faint, but not invisible — which is what 0.085 turned out to be. The
+     * wiring is structure rather than subject, and structure you cannot see is
+     * not doing either job.
+     */
+    float alpha = vFade * (0.26 + level * 0.34);
     gl_FragColor = vec4(wireColor, alpha);
   }
 `;
