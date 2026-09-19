@@ -203,28 +203,62 @@ export async function POST(request: Request) {
         authorization: apiKey,
         'content-type': 'application/json',
       },
+      /*
+       * ⚠ NO `recording_config`, and that is the fix for a real 400.
+       *
+       * This first sent `recording_config.transcript.provider.recallai_async`,
+       * reasoning that asking for the transcript up front saved a round trip.
+       * Recall rejected it and the route reported a 502.
+       *
+       * `recording_config.transcript.provider` takes **real-time** providers —
+       * `recallai_streaming` and friends — because that block configures what
+       * happens DURING the call. Async transcription is by definition after it,
+       * and is requested separately against the finished recording:
+       *
+       *     POST /recording/{id}/create_transcript
+       *
+       * Read from their real-time and async transcription guides, 2026-09-20.
+       * The two are not interchangeable settings with different latencies; they
+       * are configured in different places at different times.
+       *
+       * ⚠ Real-time would ALSO need `recording_config.realtime_endpoints`
+       * pointing at a public URL, and their own guide is explicit that without
+       * both fields you silently receive nothing. That is a webhook by another
+       * name, and webhooks are exactly what is broken on this account — so the
+       * async path is the right one here regardless.
+       */
       body: JSON.stringify({
         meeting_url: meetingUrl,
         bot_name: botName,
-        /*
-         * Ask for a transcript up front rather than calling
-         * `create_transcript` after `recording.done`. One fewer round trip and
-         * one fewer place the flow can stall.
-         *
-         * ⚠ `recording_config` is v1.11 — the only schema this workspace
-         * supports (`supported_bot_schema_versions: ["v1.11"]`, read from the
-         * live account 2026-09-18).
-         */
-        recording_config: {
-          transcript: { provider: { recallai_async: { language_code: 'auto' } } },
-        },
       }),
     });
 
     if (!response.ok) {
-      // ⚠ Status only, never the body. An error body from a third party can
-      // echo the request back, and the request contains a meeting link.
-      console.error('[recall] bot creation failed', { status: response.status });
+      /*
+       * ⚠ The body, with the meeting URL REDACTED out of it.
+       *
+       * This logged the status alone, and the first real call hit it: a 400
+       * because `recording_config` named an async transcription provider in a
+       * block that only takes real-time ones. Recall had said so in the body.
+       * The status alone meant reading two guides to find what one line already
+       * knew — the third time today an unhelpful error cost a round trip.
+       *
+       * ⚠ The redaction is not decoration. §6 forbids logging a provider's
+       * error body because it can echo the request, and here the request
+       * carries a meeting link with a PASSWORD in its query string. Recall
+       * echoes `meeting_url` on validation errors. So the body is kept for its
+       * field names and the one value worth hiding is removed first.
+       *
+       * Truncated, because a validation error is useful in its first line and
+       * a stack of them is not worth an unbounded log entry.
+       */
+      const detail = (await response.text().catch(() => ''))
+        .split(meetingUrl)
+        .join('<meeting-url>')
+        .slice(0, 400);
+
+      console.error('[recall] bot creation failed', { status: response.status, detail });
+
       return NextResponse.json(
         { error: 'Could not send the notetaker to that meeting.' },
         { status: 502 },
