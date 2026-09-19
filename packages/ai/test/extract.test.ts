@@ -668,3 +668,49 @@ describe('validateExtractions — affiliation', () => {
     }
   });
 });
+
+describe('validateExtractions — model-habit tolerance', () => {
+  it('accepts participants: null, which is how gpt-oss says "nobody"', () => {
+    /*
+     * ⚠ A regression test for a real loss on 2026-09-20. The old Llama model
+     * OMITTED this field; `openai/gpt-oss-20b` sends null. The schema had
+     * `.optional()` without `.nullable()`, so a valid affiliation was rejected
+     * whole with "model JSON did not match the schema at: items.0.participants".
+     */
+    const body = "Hi Yuri, I'm Rowena from Acme Logistics, I handle procurement.";
+    const result = validateExtractions(
+      response([
+        {
+          kind: 'affiliation',
+          title: 'Rowena — procurement at Acme Logistics',
+          quote: body,
+          company: 'Acme Logistics',
+          participants: null,
+        },
+      ]),
+      body,
+      SENT_AT,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.items).toHaveLength(1);
+    // Null becomes an empty array, so nothing downstream has to handle both.
+    expect(result.items[0]?.participants).toEqual([]);
+  });
+
+  it('still rejects a string where the array belongs', () => {
+    // Permissive about presence, strict about type. A string here is a
+    // misunderstanding, not an absence.
+    const body = 'Meeting with the team on Friday.';
+    const result = validateExtractions(
+      response([
+        { kind: 'meeting', title: 'Team meeting', quote: body, participants: 'the team' },
+      ]),
+      body,
+      SENT_AT,
+    );
+
+    expect(result.ok).toBe(false);
+  });
+});

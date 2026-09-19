@@ -180,7 +180,31 @@ const extractedItemSchema = z.object({
    */
   owed_by: z.enum(['me', 'them']).nullable().optional(),
 
-  participants: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
+  /**
+   * ⚠ `.nullable()` as well as `.optional()`, and the difference cost a real
+   * extraction on 2026-09-20.
+   *
+   * `llama-3.1-8b-instant` OMITTED this field when a message named nobody.
+   * `openai/gpt-oss-20b`, which replaced it when Groq decommissioned the Llama
+   * models, returns `"participants": null` instead. Both are reasonable; only
+   * one parsed. The whole item was rejected —
+   * `model JSON did not match the schema at: items.0.participants` — so a
+   * perfectly good affiliation was thrown away over an absent array.
+   *
+   * This is squarely the rule stated above: **permissive about PRESENCE,
+   * strict about TYPE.** A null here is the model saying "nobody", which is
+   * presence. A string where an array belongs would still be rejected, because
+   * that is a misunderstanding.
+   *
+   * ⚠ The general lesson, for the next model swap: the schema encodes habits of
+   * the model it was written against, and those habits are not part of any
+   * contract. Swapping models is not a constant change.
+   */
+  participants: z
+    .array(z.string().trim().min(1).max(120))
+    .max(20)
+    .nullable()
+    .optional(),
 
   location: z.string().trim().min(1).max(200).nullable().optional(),
 
