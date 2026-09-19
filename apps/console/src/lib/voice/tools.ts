@@ -34,6 +34,19 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * correctly is how a voice agent confidently says "four" about three things.
  */
 
+/**
+ * How a channel is NAMED when it is spoken aloud.
+ *
+ * ⚠ Spoken, so these are the words a person says — "Gmail", not "gmail", and
+ * "a meeting", not "meeting", because the article is what makes "seen on Gmail
+ * and a meeting" scan as a sentence.
+ */
+const CHANNEL_LABELS: Record<string, string> = {
+  gmail: 'Gmail',
+  whatsapp: 'WhatsApp',
+  meeting: 'a meeting',
+};
+
 /** Ready to speak, with the numbers already worked out. */
 export interface ToolResult {
   summary: string;
@@ -173,10 +186,21 @@ export async function resolvePerson(
       .eq('owner_id', ownerId)
       .eq('contact_id', contact.id);
 
+    /*
+     * ⚠ A LOOKUP, not a ternary.
+     *
+     * This was `type === 'gmail' ? 'Gmail' : 'WhatsApp'`, which was correct
+     * while there were exactly two channels and became a lie the moment
+     * `meeting` was added in Phase 7 — it would have said "WhatsApp" about a
+     * meeting, out loud, with no screen to catch it on.
+     *
+     * A map falls back to the raw value for anything unknown, so the next
+     * channel added reads as unpolished rather than as wrong.
+     */
     const channels = [
       ...new Set(
-        ((identityRows ?? []) as { channel_type: string }[]).map((row) =>
-          row.channel_type === 'gmail' ? 'Gmail' : 'WhatsApp',
+        ((identityRows ?? []) as { channel_type: string }[]).map(
+          (row) => CHANNEL_LABELS[row.channel_type] ?? row.channel_type,
         ),
       ),
     ];

@@ -1521,6 +1521,78 @@ kept as the free fallback under ADR-023, and `/voice-lab`.
 
 ---
 
+## ADR-026 — A meeting is a channel, and its webhook gets the same tenant rule
+
+**Date:** 2026-09-18 · **Status:** Accepted
+
+**Context.** Ms. Maria's research task 3 asks for meeting briefs, and task 2 asks
+for Zoom transcripts. Recall.ai sends a bot into a Zoom, Meet or Teams call and
+posts back a recording and a transcript — the same shape as Vapi: hosted
+infrastructure that calls into us, rather than a product we adopt.
+
+**Decision.** `meeting` becomes a third `CHANNEL_TYPE`, and its webhook resolves
+the tenant exactly the way voice does.
+
+**Why a channel.** `packages/core/src/adapter.ts` promises adding a platform is
+"a single file rather than a refactor". Making a meeting a channel means
+contacts, `extractions`, the attention board and all five of Uriel's tools work
+on meetings with no new code — the brief is then just extraction over a
+different body of text.
+
+**What that costs, stated plainly.** The fit is imperfect and pretending
+otherwise would mislead whoever writes the adapter. Gmail and WhatsApp deliver
+one message from one person, as it happens. A meeting delivers an hour of five
+people, once, *after* it has ended. Two consequences are already visible:
+
+- The session TTL is **12 hours**, not the hour `voice_call_sessions` uses. The
+  transcript event arrives after processing finishes, so a short window would
+  refuse the only delivery worth having — silently, looking exactly like Recall
+  never sent it.
+- `EXTRACT_INPUT_LIMIT` is 4,000 characters and an hour of speech is far past
+  that. **Rejected: one `messages` row per utterance** — 500 rows per meeting
+  would make "what's in my inbox" useless. The intended shape is one message
+  carrying the brief, with the segmented transcript beside it; that is 7A work,
+  and it is not designed yet on purpose (below).
+
+**The tenant rule — third instance, no longer a decision.** A Recall webhook
+arrives with no cookie and no user, so the route runs as `service_role` where
+every policy in 0002 is inert. The owner comes from `meeting_bot_sessions`,
+matched on Recall's bot id, written while a real session existed. Unknown or
+expired fails closed.
+
+This is `channels.external_account_id` for WhatsApp (0006, ADR-014) and
+`voice_call_sessions` for Vapi (0014, ADR-024), a third time. **It is now a
+pattern, and the next machine caller should reach for it rather than re-derive
+it.**
+
+**Verified, not assumed.** The Vapi integration lost most of a day to a payload
+shape taken from documentation that did not match the API. Two things follow:
+
+- The signature scheme was **read from Svix's own reference on 2026-09-18**
+  before the verifier was written — Recall delivers through Svix, so the scheme
+  is Svix's: HMAC-SHA256 over `{id}.{timestamp}.{body}`, base64, key = the
+  base64-**decoded** part after `whsec_`, header a space-delimited list. 13
+  tests, including the key-rotation case that only fails in production.
+- The `channels_type_check` constraint name was **read off the live database**
+  before the migration dropped it. A wrong name makes `drop constraint if
+  exists` a silent no-op, leaving the original constraint in place and rejecting
+  `meeting` from somewhere far away from the migration.
+
+**What is deliberately NOT built.** The webhook stores the payload in
+`raw_events` untouched and parses nothing beyond the bot id. Send one bot, read
+the real shape, *then* write the mapping. `last_event_type` exists from day one
+rather than after three wrong guesses, which is migration 0015's lesson applied
+ahead of the failure instead of behind it.
+
+**⚠ The constraint that is not technical.** RA 4200 makes recording a private
+communication a criminal offence in the Philippines without all-party consent —
+the same law that contributed to ADR-008 excluding calls. A visible, named bot
+plus the platform's own recording announcement plus **consent obtained before
+sending** is what makes this defensible. Whether to send a bot into a real client
+meeting is Ms. Maria's and iOzera's decision, not one to settle by shipping.
+
+---
+
 ## ADR-00N — <decision in one line>
 
 **Status:** Proposed | Accepted | Superseded by ADR-00M · YYYY-MM-DD

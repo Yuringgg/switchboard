@@ -44,6 +44,11 @@ const EXPECTED_TABLES = [
   // console does write these rows through a real session. The isolation that
   // protects the webhook is the call-id lookup itself, not a policy.
   'voice_call_sessions',
+  // Meetings, migration 0016. Maps a Recall.ai bot id to the tenant who sent
+  // it. Same shape, same inertness on the path that matters, and same reason
+  // for being listed anyway as `voice_call_sessions` above — the third time
+  // this pattern appears, and by now it is a pattern rather than a decision.
+  'meeting_bot_sessions',
 ] as const;
 
 interface Row {

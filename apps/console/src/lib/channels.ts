@@ -15,6 +15,10 @@ export const CHANNEL_META: Record<
 > = {
   gmail: { label: 'Gmail', dotClass: 'bg-channel-gmail' },
   whatsapp: { label: 'WhatsApp', dotClass: 'bg-channel-whatsapp' },
+  // Phase 7. This entry is here because the union above grew and `tsc` refused
+  // to build until it did — which is the mechanism this file's header describes
+  // working exactly as intended.
+  meeting: { label: 'Meetings', dotClass: 'bg-channel-meeting' },
 };
 
 export const CHANNELS = CHANNEL_TYPES.map((type) => ({

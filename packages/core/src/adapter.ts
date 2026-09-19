@@ -17,8 +17,22 @@
  *     `unique (channel_id, external_id)` constraint that depends on it.
  */
 
-/** The channels in scope for v1. Telegram was cut; calls are out entirely. ADR-001, ADR-008. */
-export const CHANNEL_TYPES = ['gmail', 'whatsapp'] as const;
+/**
+ * The channels in scope. Telegram was cut; live calls are out entirely.
+ * ADR-001, ADR-008.
+ *
+ * ⚠ `meeting` is Phase 7 (ADR-026) and is NOT like the other two. Gmail and
+ * WhatsApp deliver one message at a time from one person. A meeting delivers an
+ * hour of several people talking, once, after it has ended. It is a channel
+ * because everything downstream — contacts, extractions, the attention board,
+ * Uriel's tools — then works on it for free; but an adapter author should not
+ * assume the two shapes behave alike.
+ *
+ * ⚠ Kept in step with the `channels_type_check` constraint (migration 0016). A
+ * value added here and not there is rejected at insert — the safe direction,
+ * but a deploy-time failure rather than a compile-time one.
+ */
+export const CHANNEL_TYPES = ['gmail', 'whatsapp', 'meeting'] as const;
 
 export type ChannelType = (typeof CHANNEL_TYPES)[number];
 

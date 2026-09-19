@@ -100,6 +100,11 @@
    */
   --channel-gmail: oklch(0.575 0.2 27);
   --channel-whatsapp: oklch(0.58 0.14 158);
+  /* Meetings (Phase 7). Blue, a third hue far from both red and green — the
+     dot has to survive the two common colour-vision deficiencies, which is
+     exactly where a red/green pair is weakest and where adding a third warm
+     hue would have been the wrong call. */
+  --channel-meeting: oklch(0.55 0.16 262);
 
   /*
    * The frame. One step off the background, so the sidebar and header read as
@@ -164,6 +169,7 @@
 
   --channel-gmail: oklch(0.7 0.175 27);
   --channel-whatsapp: oklch(0.74 0.145 158);
+  --channel-meeting: oklch(0.72 0.14 262);
 
   /* Lighter than the background in dark mode, darker in light — the frame
      stays the surface nearest the viewer either way. */
@@ -195,6 +201,7 @@
 
   --color-channel-gmail: var(--channel-gmail);
   --color-channel-whatsapp: var(--channel-whatsapp);
+  --color-channel-meeting: var(--channel-meeting);
   --color-panel: var(--panel);
   --color-live: var(--live);
   --color-faint: var(--faint);
