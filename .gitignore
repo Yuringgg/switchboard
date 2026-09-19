@@ -47,3 +47,7 @@ pnpm-debug.log*
 # Vercel / Azure local state
 .vercel
 .azure
+
+# graphify's knowledge graph — regenerated from the repo, not source of truth.
+# graph.json alone is 1.7 MB and changes on every build.
+graphify-out/
