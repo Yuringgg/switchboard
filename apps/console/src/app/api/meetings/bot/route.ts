@@ -142,12 +142,46 @@ export async function POST(request: Request) {
         type: 'meeting',
         display_name: 'Meetings',
         status: 'active',
+        /*
+         * ⚠ `credentials` is `bytea NOT NULL` with no default, and an EMPTY
+         * blob is the honest value here — not an oversight.
+         *
+         * Gmail and WhatsApp each hold a per-tenant OAuth token in this column,
+         * encrypted with `CHANNEL_CREDENTIALS_KEY`. Meetings have no such
+         * thing: `RECALL_API_KEY` is one application-level key, held in the
+         * environment, never per-user. So there is nothing to store.
+         *
+         * ⚠ Rejected: making the column nullable. That NOT NULL is what stops a
+         * Gmail or WhatsApp channel being created with no token at all, and
+         * relaxing it for a channel that legitimately has none would remove the
+         * guarantee from the two that do not.
+         *
+         * `\x` is Postgres's hex form for zero bytes — the same encoding
+         * `api/auth/google/callback` writes a real credential with.
+         */
+        credentials: '\\x',
       })
       .select('id')
       .single();
 
     if (channelError || !created) {
-      console.error('[recall] could not create the meeting channel');
+      /*
+       * ⚠ The CODE and MESSAGE, not just "it failed".
+       *
+       * This line originally said only "could not create the meeting channel",
+       * and the first real call hit it — a NOT NULL on `credentials` that the
+       * insert did not satisfy. Diagnosing that took a query against the live
+       * schema, when Postgres had already said exactly what was wrong.
+       *
+       * Safe to log here, unlike a completion error: a database constraint
+       * violation names columns and constraints, never message content. The
+       * rule in `docs/02-ARCHITECTURE.md` §6 is about provider errors echoing
+       * a prompt, and there is no prompt on this path.
+       */
+      console.error('[recall] could not create the meeting channel', {
+        code: channelError?.code,
+        message: channelError?.message,
+      });
       return NextResponse.json({ error: 'Could not set up meetings.' }, { status: 500 });
     }
 
