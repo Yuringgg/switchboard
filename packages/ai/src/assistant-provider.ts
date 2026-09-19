@@ -1,5 +1,8 @@
 import { createGeminiProvider } from './gemini';
-import { createGroqProvider } from './groq';
+// ⚠ The VALUE, not a copy of the string: `GROQ_VOICE_MODEL` is defined as this
+// constant so the two cannot drift, which is what
+// `assistant-voice.test.ts` asserts.
+import { createGroqProvider, GROQ_SUMMARY_MODEL } from './groq';
 import type { CompletionProvider } from './provider';
 
 /**
@@ -51,8 +54,21 @@ import type { CompletionProvider } from './provider';
  * provider interface here in the first place.
  */
 
-/** Groq's larger model: 1,000 req/day, and not the one summaries use. */
-export const GROQ_ASSISTANT_MODEL = 'llama-3.3-70b-versatile';
+/**
+ * Groq's larger model: 1,000 req/day, and not the one summaries use.
+ *
+ * ⚠ Was `llama-3.3-70b-versatile` until 2026-09-20, when Groq decommissioned
+ * it — a bare HTTP 404 on every completion, with no deprecation notice. See the
+ * note at the top of `groq.ts` for how that was diagnosed and for the full list
+ * of what the account can actually reach.
+ *
+ * **The daily allowance is unchanged at 1,000, but it is no longer shared with
+ * anything that matters.** The old 70B's 1,000/day was the entire assistant
+ * budget for every tenant on one key — roughly 30 questions a day in practice.
+ * This is still 1,000/day, but it is now 1,000 for the assistant ALONE, because
+ * the limit is per-model and nothing else in this project uses this one.
+ */
+export const GROQ_ASSISTANT_MODEL = 'openai/gpt-oss-120b';
 
 /**
  * The model a SPOKEN answer may run on (voice V1) — opt-in, never the default.
@@ -85,7 +101,32 @@ export const GROQ_ASSISTANT_MODEL = 'llama-3.3-70b-versatile';
  * flag is what lets before and after be one experiment instead of two unrelated
  * runs.
  */
-export const GROQ_VOICE_MODEL = 'llama-3.1-8b-instant';
+/*
+ * ⚠⚠ 2026-09-20 — every number in the comment above is HISTORICAL.
+ *
+ * `llama-3.1-8b-instant` is gone (see `groq.ts`), and with it the 14,400/day
+ * figure the argument above rests on. Every surviving model is **1,000
+ * requests/day, 8,000 tokens/minute, per model**.
+ *
+ * What survives is the part that matters: **this must not be the assistant's
+ * model**, because limits are per-model and a spoken question must not spend
+ * the allowance a typed one needs. That still holds.
+ *
+ * ⚠ A third model (`qwen/qwen3.8-27b`) was tried here for bucket isolation and
+ * REVERTED. `assistant-voice.test.ts` asserts this equals the summariser's
+ * model, and its stated reason — *"known behaviour on this corpus rather than a
+ * third model nobody has run"* — got STRONGER on 2026-09-20, not weaker: after
+ * the decommission, no model had been run on this corpus, so isolation would
+ * have been bought with the one property that was actually scarce. The
+ * extraction backfill exercises `gpt-oss-20b` over hundreds of these messages,
+ * which makes it the known quantity again.
+ *
+ * ⚠⚠ THE "OFF BY DEFAULT" REASONING BELOW NOW MATTERS MORE, NOT LESS. The model
+ * changed underneath this flag without the flag changing. Run
+ * `apps/worker/scripts/eval-assistant.ts` against it and confirm the
+ * must-refuse score before `VOICE_ASSISTANT_SMALL_MODEL=1` becomes a default.
+ */
+export const GROQ_VOICE_MODEL = GROQ_SUMMARY_MODEL;
 
 export interface AssistantProviderConfig {
   groqApiKey?: string;

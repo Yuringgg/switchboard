@@ -50,7 +50,42 @@ const ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
  * quality ever proves otherwise, the answer is a better prompt before a bigger
  * model.
  */
-export const GROQ_SUMMARY_MODEL = 'llama-3.1-8b-instant';
+/**
+ * ── ⚠⚠ 2026-09-20: THE LLAMA MODELS ABOVE ARE GONE ─────────────────────────
+ *
+ * Every number in the comment above described `llama-3.1-8b-instant` and
+ * `llama-3.3-70b-versatile`. **Groq decommissioned both.** A completion against
+ * either now returns a bare **HTTP 404**, and nothing else — no deprecation
+ * warning, no message, no header. Found when a routine extraction backfill
+ * failed 10/10 with `groq http 404`.
+ *
+ * ⚠ The failure mode is the thing to remember: a removed model and a wrong API
+ * path produce the *same* 404, and a 404 from a POST reads like a bug in our
+ * URL rather than a change on their side. What settled it was listing
+ * `/v1/models` against the live key — the same "build an instrument, stop
+ * guessing" move that migration 0015 forced on the Vapi payload.
+ *
+ * Verified from the live account on 2026-09-20 — the full list was:
+ *
+ *   allam-2-7b · groq/compound · groq/compound-mini · openai/gpt-oss-20b
+ *   openai/gpt-oss-120b · openai/gpt-oss-safeguard-20b · qwen/qwen3.8-27b
+ *   whisper-large-v3 · whisper-large-v3-turbo · (2 prompt-guard, 2 orpheus)
+ *
+ * `whisper-large-v3-turbo` survived, so ADR-025 and `transcribe.ts` are
+ * untouched. Embeddings are local and were never involved.
+ *
+ * ── The new limits, and why they are better ────────────────────────────────
+ *
+ * Read from live headers on 2026-09-20. **1,000 requests/day and 8,000
+ * tokens/minute, PER MODEL** — confirmed per-model rather than shared by
+ * spending exactly two requests against each and seeing each report 998 left.
+ *
+ * That is a straight upgrade for the assistant, which was on the 70B's 1,000
+ * shared with nothing else useful, and a reduction for the worker, which had
+ * 14,400. The worker can afford it: extraction and summarisation are bounded by
+ * the per-minute token window long before a daily count, and always were.
+ */
+export const GROQ_SUMMARY_MODEL = 'openai/gpt-oss-20b';
 
 /**
  * Phase 5 extraction runs on the SAME model as summaries. Deliberately.
