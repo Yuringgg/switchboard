@@ -254,6 +254,13 @@ export async function extractMessage(
               owed_by: item.owedBy,
               participants: item.participants,
               location: item.location,
+              // `affiliation` only (Phase 7B); null on every other kind, and
+              // `validateExtractions` is what guarantees that rather than the
+              // model's restraint.
+              company: item.company,
+              relationship: item.relationship,
+              role: item.role,
+              decision_maker: item.decisionMaker,
             })}::jsonb,
             ${item.confidence}, ${completion.model}
           )

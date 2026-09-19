@@ -1091,6 +1091,128 @@ again.**
 
 ---
 
+## Phase 7 — Meetings PLUMBING LANDED (2026-09-18)
+
+Ms. Maria's research task 3, *"Meeting Brief Protocols"*, and the half of task 2
+that says **Zoom transcripts**. Recall.ai sends a bot into a meeting, records it,
+transcribes it, and posts the result back to us.
+
+### ⚠⚠ READ THIS BEFORE BUILDING ANY FURTHER — RA 4200
+
+**ADR-008 excluded calls partly because of the Anti-Wiretapping Act (RA 4200),
+which makes recording a private communication a criminal offence in the
+Philippines without the consent of *every* party.** A bot that joins a meeting
+and records it is squarely in that territory. The technical plumbing below does
+not change that and was never going to.
+
+What makes it defensible, and none of it is optional:
+
+- The bot is **visible in the participant list** with a name that says what it
+  is. A recorder nobody can see is the thing the law is about.
+- Zoom, Meet and Teams **announce recording** to the room themselves.
+- **Consent is obtained and recorded** before a bot is ever sent — not inferred
+  from someone having shared a link.
+
+⚠ This is a question for Ms. Maria and for iOzera's own policy, **not** an
+engineering decision, and not one to settle by shipping. The plumbing is safe to
+have; sending a bot into a real client meeting is not a step to take on a
+student's judgement alone. Ask first.
+
+### The idea
+
+**A meeting is just another channel.** `adapter.ts` promises that adding a
+platform is "a single file rather than a refactor", and this is the test of that
+claim. Once a meeting is a channel, everything downstream — contacts,
+extractions, the attention board, Uriel's five tools — works on it for free.
+
+It is not a *comfortable* fit and the union's comment says so: Gmail and WhatsApp
+deliver one message at a time from one person; a meeting delivers an hour of
+several people talking, once, after it has ended. **ADR-026.**
+
+### 7A — Meetings in, brief out
+
+| | Built | Status |
+|---|---|---|
+| `channels.type` accepts `meeting` | migration 0016 | **applied** |
+| `CHANNEL_TYPES` + console display | `adapter.ts`, `lib/channels.ts`, a third dot colour | **done** |
+| Tenant boundary | `meeting_bot_sessions` (0016) | **applied, RLS forced, verified** |
+| Webhook signature | `lib/meetings/signature.ts`, 13 tests | **done** |
+| The webhook | `/api/webhooks/recall` | **done — stores, does not parse** |
+| Sending the bot | `/api/meetings/bot` | **not built** |
+| Transcript → `messages` | — | **not built, deliberately** |
+
+**⚠ The last two rows are the point, not a gap.** The webhook verifies, resolves
+the tenant, and files the payload into `raw_events` **untouched**. That is the
+whole job in 7A.
+
+Everything beyond the bot id would have been read from Recall's *documentation*
+rather than from a delivery anyone has received — and that is precisely what cost
+a day on Vapi, where the published shape was flat and the real one was nested,
+every tool failed identically, and it took a new database column (0015) to see
+it. So: **send one bot, read the real payload out of `raw_events`, then write the
+mapping.** The instrument is built first on purpose.
+
+`meeting_bot_sessions.last_event_type` exists from day one for the same reason,
+rather than being added after three wrong guesses.
+
+### 7B — Ms. Maria's categories EXTRACTION LANDED (2026-09-20)
+
+Her brief asks for **company names, relationship categories (client / partner /
+investor / broker), and decision-maker roles.**
+
+**Started ahead of 7A, deliberately.** 7A is blocked on a Recall account issue
+(below), and none of this needs a meeting: affiliations extract from the 344
+Gmail and WhatsApp messages already in the database. When meetings do arrive
+they flow into extraction that already works.
+
+| | Built | Status |
+|---|---|---|
+| `affiliation` kind | migration 0017, `EXTRACTION_KINDS` | **applied** |
+| `company · relationship · role · decision_maker` | Zod schema + worker payload | **done** |
+| Prompt rules and four worked examples | `EXTRACTION_SYSTEM_PROMPT` | **done** |
+| 7 tests | `packages/ai/test/extract.test.ts` | **633 passing** |
+| Per-person roll-up | — | **not built** |
+| Backfill over the existing corpus | — | **not run** |
+
+**⚠ Why an extraction and not a column on `contacts`.** A
+`contacts.relationship` column can say "client" and can never say *why*. Stored
+as an extraction it earns a `quote` and gets the same hallucination check as
+everything else — `validateExtractions` drops any row whose quote is not in the
+body. The per-person view is a roll-up; the evidence survives it. See 0017.
+
+**⚠ Three refusals worth keeping.** The `relationship` enum is exactly her four
+values plus null — a model given a wider menu reaches for the nearest label
+rather than admitting none fits, and a confident wrong "partner" about a real
+person is worse than a null. `decision_maker` is about authority, not seniority
+(*"I'll check with my manager"* → `false`, which is as useful as `true`). And
+affiliation fields are stripped off any other kind, so a company never gets
+attributed to somebody on the strength of a calendar invite.
+
+**Next:** run the backfill over the existing corpus and see what it finds, then
+build the per-person roll-up on `/contacts`.
+
+### 7C — Facebook Messenger
+
+Listed under Stretch below, and the cheapest thing on this page: same Meta app,
+same webhook, same signature verification as WhatsApp. It is what makes
+"multiplatform" true rather than aspirational.
+
+### Cost
+
+$0.50/hr for the bot, $0.15/hr for transcription. **$5.00 of starting credit ≈
+7.5 hours.**
+
+⚠ Do **not** route this through `packages/ai/src/transcribe.ts` to save the
+$0.15. That path caps at 30-second clips (`MAX_CLIP_SECONDS`), so an hour of
+audio would need chunking — a side-quest that saves pennies, demos nothing, and
+puts a second transcription pipeline in the codebase.
+
+⚠ Check first whether iOzera already records to **Zoom cloud**. If so, Zoom's own
+API returns the transcript for free and the bot is unnecessary. Recall's value is
+joining live across Zoom, Meet *and* Teams.
+
+---
+
 ## Stretch — only after Phase 5 is solid
 
 | Item | Notes |
@@ -1117,6 +1239,7 @@ again.**
 | Gmail `watch` expires unnoticed | Medium | **High** — it's the primary channel | Renewal cron + alerting in Phase 1. |
 | Adapter abstraction turns out wrong | Low | High | Phase 2's refactor checkpoint exists to surface this early. |
 | **Cross-tenant leak via a worker bug** | Medium | **Critical** | `service_role` bypasses RLS. Derive `owner_id` from the channel, never the payload. Isolation test in Phase 0. |
+| **Recording a meeting without all-party consent — RA 4200** | **Certain if a bot is sent casually** | **Critical, and criminal rather than technical** | The Anti-Wiretapping Act is why ADR-008 excluded calls; a meeting bot is the same territory. Mitigations are non-negotiable: the bot is **named and visible** in the participant list, the platform's own recording announcement stays on, and **consent is obtained before a bot is ever sent** — never inferred from a shared link. ⚠ This is Ms. Maria's and iOzera's call, not an engineering decision. Phase 7, ADR-026. |
 | Calendar write-back duplicates events | Medium | Medium | `calendar_event_id` checked before every insert. |
 | Google forces production verification | Low | High | Stay in OAuth testing mode with allowlisted users. Publishing with Gmail restricted scopes triggers a CASA assessment. |
 | **Gmail refresh token expires every 7 days** | **Certain — it is the documented behaviour of testing mode** | **High: mail stops** | Verified 2026-08-02. External + Testing expires every refresh token **7 days from consent**, per user, not configurable. The watch sweep catches it and shows *Needs attention* on `/channels`, so it is visible — but **reconnect on the morning of any demo.** `docs/03-RESOURCES.md` §2. |

@@ -507,3 +507,164 @@ describe('validateExtractions — bounding what one message can produce', () => 
     expect(result.dropped).toHaveLength(1);
   });
 });
+
+/**
+ * `affiliation` — who somebody is (Phase 7B, Ms. Maria's brief protocols).
+ *
+ * ⚠ These rows end up as evidence about REAL PEOPLE in a per-person roll-up,
+ * which makes a wrong one more expensive than a wrong meeting: a meeting gets
+ * dismissed from a queue, a relationship label gets believed. So the tests here
+ * are mostly about what we REFUSE to store.
+ */
+const AFFIL_BODY = [
+  "Hi, I'm Rowena from Acme Logistics — I handle procurement here.",
+  "Send me the quotation and I'll approve it on our end.",
+].join('\n');
+
+describe('validateExtractions — affiliation', () => {
+  it('keeps company, role and decision_maker when the message states them', () => {
+    const result = validateExtractions(
+      response([
+        {
+          kind: 'affiliation',
+          title: 'Rowena — procurement at Acme Logistics',
+          quote: "Hi, I'm Rowena from Acme Logistics — I handle procurement here.",
+          company: 'Acme Logistics',
+          role: 'procurement',
+          decision_maker: true,
+          relationship: null,
+          confidence: 0.9,
+        },
+      ]),
+      AFFIL_BODY,
+      SENT_AT,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      kind: 'affiliation',
+      company: 'Acme Logistics',
+      role: 'procurement',
+      decisionMaker: true,
+      // Nothing in the message says Acme is a client. Null is the right answer.
+      relationship: null,
+    });
+  });
+
+  it('keeps decision_maker FALSE — knowing someone cannot decide is useful', () => {
+    const body = "I'll check with my manager before we can commit.";
+    const result = validateExtractions(
+      response([
+        {
+          kind: 'affiliation',
+          title: 'Sender defers to their manager',
+          quote: body,
+          decision_maker: false,
+          confidence: 0.7,
+        },
+      ]),
+      body,
+      SENT_AT,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // ⚠ Must survive as `false`, not collapse to null via `??`.
+    expect(result.items[0]?.decisionMaker).toBe(false);
+  });
+
+  it('refuses a relationship outside Ms. Maria\'s four categories', () => {
+    /*
+     * ⚠ The schema, not the prompt, is what holds this line. A model asked for
+     * four values will sometimes offer a fifth that "fits better", and a
+     * plausible-looking "vendor" would be stored as fact about a real person.
+     */
+    const result = validateExtractions(
+      response([
+        {
+          kind: 'affiliation',
+          title: 'Rowena at Acme',
+          quote: "Hi, I'm Rowena from Acme Logistics — I handle procurement here.",
+          relationship: 'vendor',
+        },
+      ]),
+      AFFIL_BODY,
+      SENT_AT,
+    );
+
+    expect(result.ok).toBe(false);
+  });
+
+  it('drops an affiliation whose quote is not in the message', () => {
+    // The same hallucination check every other kind gets — and the one that
+    // matters most here, because this row becomes a claim about a person.
+    const result = validateExtractions(
+      response([
+        {
+          kind: 'affiliation',
+          title: 'Rowena is the CEO',
+          quote: 'I am the chief executive of Acme Logistics.',
+          company: 'Acme Logistics',
+          role: 'CEO',
+        },
+      ]),
+      AFFIL_BODY,
+      SENT_AT,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.items).toHaveLength(0);
+    expect(result.dropped[0]).toContain('quote is not in the message body');
+  });
+
+  it('strips affiliation fields off a kind that is not an affiliation', () => {
+    /*
+     * ⚠ A model that attaches a company to a meeting is filling in a field
+     * because the field exists. Left in, it would reach the per-person roll-up
+     * and become evidence drawn from a calendar invite.
+     */
+    const result = validateExtractions(
+      response([
+        {
+          kind: 'meeting',
+          title: 'Project sync',
+          quote:
+            'Confirming our project sync on Friday 31 July 2026 at 3:00 PM at the iOzera office.',
+          starts_at: '2026-07-31T15:00:00+08:00',
+          company: 'iOzera',
+          relationship: 'client',
+          role: 'host',
+          decision_maker: true,
+        },
+      ]),
+      BODY,
+      SENT_AT,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.items[0]).toMatchObject({
+      kind: 'meeting',
+      company: null,
+      relationship: null,
+      role: null,
+      decisionMaker: null,
+    });
+  });
+
+  it('is listed in EXTRACTION_KINDS so the prompt and the DB agree', () => {
+    // The constraint in migration 0017 is the real authority; this catches the
+    // two drifting apart before a deploy does.
+    expect(EXTRACTION_KINDS).toContain('affiliation');
+  });
+
+  it('documents the four relationship values in the system prompt', () => {
+    for (const value of ['client', 'partner', 'investor', 'broker']) {
+      expect(EXTRACTION_SYSTEM_PROMPT).toContain(value);
+    }
+  });
+});
