@@ -33,34 +33,34 @@
  * known. Speculative leniency that outlives its uncertainty stops being caution
  * and becomes code nobody can reason about.
  *
- * ── ⚠⚠ AN UNRESOLVED RISK, FOUND IN THE DOCS ON 2026-09-18 ──────────────────
+ * ── ✅ RESOLVED 2026-09-20, AGAINST A REAL RECORDING ────────────────────────
  *
- * The shape above is the **bot status change** webhook. The two events that
- * actually carry a meeting — `recording.done` and `transcript.done` — are
- * *recording artifact* webhooks, and the guide describes reading them at
- * `data.recording.id` and `data.transcript.id`.
+ * The open question was whether the deliveries that actually carry a meeting —
+ * `recording.done` and `transcript.done`, which are *recording artifact*
+ * events — reference the BOT at all, or only their own artifact id. The
+ * schemas live in doc components the docs API does not expand, so it could not
+ * be settled from documentation. If the answer had been "only their own id",
+ * the tenant lookup would have refused exactly the deliveries worth having.
  *
- * **It does not say whether they also carry `data.bot.id`.** The schemas live
- * in doc components that the docs API does not expand, so this could not be
- * settled from documentation.
+ * A real bot was sent into a real Zoom meeting and the recording read back.
+ * **A recording carries the bot id twice:**
  *
- * If they do not, `botIdOf` returns null for exactly the deliveries that matter
- * and the tenant lookup refuses them — failing closed, which is the right
- * direction, but useless.
+ *     { "id": "3299fb14-…",            ← the recording
+ *       "bot_id": "8b37ef2b-…",        ← top level
+ *       "bot": { "id": "8b37ef2b-…" }  ← and nested
+ *       … }
  *
- * Two ways out, in order of preference, to be decided against a REAL payload:
+ * So `botIdOf` works on recording-shaped payloads as written, and the
+ * `data.bot.id` path is the right primary. `bot_id` is kept as a sibling
+ * because the API itself uses both spellings on one object.
  *
- *  1. **Ask Recall, do not trust the payload.** Take the recording id, call
- *     Recall's API with our own key to learn which bot produced it, then match
- *     that bot id against `meeting_bot_sessions` as usual. The identifier still
- *     comes from a row we wrote; the payload is only ever a pointer.
- *  2. **Key the session on more than the bot id** — store the recording id on
- *     the row once `recording.done` names it. Cheaper, but it means one webhook
- *     teaching us the key for the next, which is a weaker chain.
+ * ⚠ The fallbacks below stay until a real WEBHOOK delivery has been seen —
+ * this was an API response, and the webhook envelope may wrap it differently.
+ * Delete them then, not before.
  *
- * ⚠ Do NOT "solve" this by reading an owner out of bot `metadata`. Metadata is
- * echoed back from what was sent and is therefore payload, not provenance.
- * ADR-026 exists to stop exactly that shortcut.
+ * ⚠ Do NOT "solve" a future gap by reading an owner out of bot `metadata`.
+ * Metadata is echoed back from what was sent and is therefore payload, not
+ * provenance. ADR-026 exists to stop exactly that shortcut.
  */
 
 /** Narrow an unknown into something indexable, without casting. */
