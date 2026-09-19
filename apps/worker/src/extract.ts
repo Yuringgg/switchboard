@@ -171,6 +171,23 @@ export async function extractMessage(
       // answer, not a writing task — variability here is not creativity, it is
       // the same message yielding different proposals on different days.
       temperature: 0,
+      /*
+       * ⚠ Without this, extraction returns EMPTY on long messages.
+       *
+       * `openai/gpt-oss-20b` is a reasoning model and its thinking is billed
+       * out of `maxTokens` — measured at 298 reasoning tokens against 355
+       * total on a SHORT message. On a 4,000-character body the thinking
+       * exhausted the 1,600 ceiling before writing any JSON, and the failure
+       * surfaced as "groq returned an empty completion", which looks like the
+       * provider misbehaving.
+       *
+       * `low` costs 51 reasoning tokens instead of 298 and produced the same
+       * content on the same prompt. It is the right setting twice over: this
+       * is a structured extraction with a right answer, not a task that
+       * benefits from deliberation, and the per-minute token window is what
+       * actually bounds every backfill.
+       */
+      reasoningEffort: 'low',
     });
 
     if (!completion.ok) {

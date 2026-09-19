@@ -333,10 +333,25 @@ export const EXTRACTION_SYSTEM_PROMPT = [
   '',
   'Return ONLY a JSON object of this shape, with no prose around it:',
   '',
+  /*
+   * ⚠ BOTH shapes are shown, and the second one is not decoration.
+   *
+   * With only the `meeting` example here, the model wrote a perfectly correct
+   * affiliation TITLE — "Rowena — procurement at Acme Logistics" — and left
+   * company, role and decision_maker all null. It had understood the message
+   * completely and simply followed the one template it had been shown.
+   *
+   * Measured 2026-09-20 on a real message. A model copies the example far more
+   * reliably than it follows prose about fields, so a field that never appears
+   * in an example is a field that will mostly be null.
+   */
   '  {"items": [',
   '    {"kind": "meeting", "title": "...", "quote": "...", "starts_at": "...",',
   '     "ends_at": null, "participants": ["..."], "location": null,',
-  '     "confidence": 0.9}',
+  '     "confidence": 0.9},',
+  '    {"kind": "affiliation", "title": "...", "quote": "...",',
+  '     "company": "Acme Logistics", "relationship": null,',
+  '     "role": "procurement", "decision_maker": true, "confidence": 0.9}',
   '  ]}',
   '',
   'If the message contains nothing actionable, return {"items": []}. That is the',

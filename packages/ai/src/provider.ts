@@ -15,6 +15,34 @@ export interface CompletionOptions {
   temperature?: number;
   /** Abort rather than hold an ingest event open. */
   timeoutMs?: number;
+
+  /**
+   * How much a REASONING model may think before it answers.
+   *
+   * ⚠ This exists because of a real failure on 2026-09-20, the first day on
+   * `openai/gpt-oss-*` after Groq decommissioned the Llama models. Those models
+   * think in tokens that come out of the SAME `maxTokens` budget as the answer,
+   * and Groq reports them separately:
+   *
+   *     completion_tokens: 355  →  reasoning_tokens: 298   (84%)
+   *
+   * On a long extraction prompt the thinking consumed the entire ceiling and
+   * the content came back EMPTY — reported as "groq returned an empty
+   * completion", which reads like the provider misbehaving rather than like a
+   * budget we set too low.
+   *
+   * Measured on the same prompt: `low` = 51 reasoning tokens, `medium` = 298,
+   * `high` = 698, and the CONTENT was equally complete at all three.
+   *
+   * So `low` is not a quality trade here — it is 3x less spend against a
+   * per-minute token window that is the binding constraint on every backfill.
+   * Raising `maxTokens` instead would have fixed the emptiness and made the
+   * window problem worse.
+   *
+   * ⚠ Providers that are not reasoning models must never be sent this. See the
+   * conditional in `groq.ts`.
+   */
+  reasoningEffort?: 'low' | 'medium' | 'high';
 }
 
 /**

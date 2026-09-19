@@ -186,7 +186,12 @@ export function createGroqProvider({
       user: string,
       options: CompletionOptions = {},
     ): Promise<CompletionResult> {
-      const { maxTokens = 160, temperature = 0.2, timeoutMs = 15_000 } = options;
+      const {
+        maxTokens = 160,
+        temperature = 0.2,
+        timeoutMs = 15_000,
+        reasoningEffort,
+      } = options;
 
       // A hung request holds a queued event open behind it, so the timeout is
       // not defensive — it is what keeps one slow call from stalling ingest.
@@ -204,6 +209,14 @@ export function createGroqProvider({
             model,
             temperature,
             max_tokens: maxTokens,
+            /*
+             * ⚠ Only sent when asked for. The gpt-oss models accept it; the
+             * others on this account may reject an unknown field with a 400,
+             * which `retryable` correctly treats as fatal — so an
+             * unconditional parameter here would take out every model that has
+             * never heard of it.
+             */
+            ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
             messages: [
               { role: 'system', content: system },
               { role: 'user', content: user },
