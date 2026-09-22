@@ -475,7 +475,7 @@ export function TimelineSkeleton() {
   );
 }
 
-/** "Gmail" · "Gmail and WhatsApp" — no serial comma needed at two channels. */
+/** "Gmail" · "Gmail and WhatsApp" · "Gmail, WhatsApp and Meetings". */
 function formatList(items: string[]): string {
   if (items.length === 0) return 'Nothing';
   if (items.length === 1) return items[0]!;

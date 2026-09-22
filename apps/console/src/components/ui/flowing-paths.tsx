@@ -286,8 +286,8 @@ export function AuthAside() {
           Many lines in, one operator&rsquo;s view out.
         </p>
         <p className={cn(LABEL, 'mt-4 normal-case')}>
-          Gmail and WhatsApp arrive in one ordered record. A model reads each one
-          as it lands and shows you the sentence it read.
+          Gmail, WhatsApp and meetings arrive in one ordered record. A model
+          reads each one as it lands and shows you the sentence it read.
         </p>
       </div>
     </aside>

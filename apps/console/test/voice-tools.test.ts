@@ -122,6 +122,86 @@ describe('the tenant filter — the property that matters', () => {
     expect(result.summary).toMatch(/no whatsapp account is connected/i);
   });
 
+  /*
+   * ── ⚠ The meeting channel, which the filter used to drop on the floor ─────
+   *
+   * `getRecentMessages` resolved its channel with a two-arm ternary. A caller
+   * saying "meetings" fell through to `null`, which means NO FILTER — so the
+   * agent answered a question about meetings by reading out Gmail, down a
+   * phone line, with no screen to catch it on.
+   *
+   * It failed silently in the one direction that matters: a filter that is
+   * ignored looks exactly like a filter that matched everything.
+   */
+  /*
+   * ⚠ The fake answers EVERY query with the same rows, so a row here has to be
+   * legal as a channel lookup result AND as a message. `body_text` is `not
+   * null` in the schema (migration 0001), so '' is what the real column would
+   * hold, never undefined.
+   */
+  const MEETING_ROW = {
+    id: 'chan-meeting',
+    subject: null,
+    body_text: '',
+    sent_at: '2026-09-19T20:28:00.000Z',
+    sender: null,
+    channel: { type: 'meeting' },
+  };
+
+  it('accepts "meetings" as a channel and actually filters on it', async () => {
+    const { client, calls } = fakeClient([MEETING_ROW]);
+    await getRecentMessages(client, OWNER, { channel: 'meetings' });
+
+    const typeFilters = calls
+      .filter((c) => c.method === 'eq' && c.args[0] === 'type')
+      .map((c) => c.args[1]);
+
+    expect(typeFilters).toContain('meeting');
+  });
+
+  it('accepts the platform names a caller actually says', async () => {
+    // Nobody says "the meeting channel" out loud; they say Zoom.
+    for (const spoken of ['meeting', 'meetings', 'zoom', 'teams']) {
+      const { client, calls } = fakeClient([MEETING_ROW]);
+      await getRecentMessages(client, OWNER, { channel: spoken });
+
+      const typeFilters = calls
+        .filter((c) => c.method === 'eq' && c.args[0] === 'type')
+        .map((c) => c.args[1]);
+
+      expect(typeFilters, `"${spoken}" should resolve to the meeting channel`).toContain(
+        'meeting',
+      );
+    }
+  });
+
+  it('says meetings were not RECORDED, not that an account is missing', async () => {
+    const { client } = fakeClient([]);
+    const result = await getRecentMessages(client, OWNER, { channel: 'meetings' });
+
+    /*
+     * ⚠ The generic template said "No meeting account is connected", which is
+     * not a sentence anybody says. Gmail and WhatsApp are accounts somebody
+     * connects; a meeting either happened or it did not.
+     */
+    expect(result.messages).toEqual([]);
+    expect(result.summary).toMatch(/no meetings have been recorded/i);
+    expect(result.summary).not.toMatch(/account/i);
+  });
+
+  it('a word nobody recognises still means no filter, not an error', async () => {
+    const { client, calls } = fakeClient([]);
+    const result = await getRecentMessages(client, OWNER, { channel: 'telegram' });
+
+    /*
+     * ⚠ Deliberate. The model heard a word out loud and may have misheard it.
+     * Refusing would be pedantry the caller can neither see nor correct, so an
+     * unrecognised word falls back to the whole record.
+     */
+    expect(calls.filter((c) => c.method === 'eq' && c.args[0] === 'type')).toHaveLength(0);
+    expect(result.summary).not.toMatch(/TOOL_ERROR/);
+  });
+
   it('getPersonActivity constrains owner_id before trusting a person id', async () => {
     const { client, calls } = fakeClient([]);
     await getPersonActivity(client, OWNER, PERSON);

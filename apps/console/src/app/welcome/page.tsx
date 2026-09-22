@@ -9,9 +9,9 @@ import { buttonClass, LABEL } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = {
-  title: 'Switchboard — Gmail and WhatsApp on one board',
+  title: 'Switchboard — Gmail, WhatsApp and meetings on one board',
   description:
-    'Switchboard patches Gmail and WhatsApp into a single ordered timeline, reads ' +
+    'Switchboard patches Gmail, WhatsApp and meetings into a single ordered timeline, reads ' +
     'every message as it arrives, and shows you which ones want something from you.',
 };
 
@@ -69,7 +69,19 @@ export default async function WelcomePage() {
       </a>
 
       <header className="border-b border-border">
-        <div className="mx-auto flex max-w-6xl items-center gap-4 px-5 py-5 md:px-10">
+        {/*
+          ⚠ `flex-wrap`, and it is load-bearing on a phone.
+
+          The brand at `lg`, plus a three-button theme toggle, plus "Sign in",
+          measures about 423px. A 375px phone has 335px after the gutters, so
+          the row overflowed by 23px and gave the LANDING PAGE — the first thing
+          anybody ever sees — a horizontal scrollbar.
+
+          Wrapping puts the controls on their own right-aligned line rather than
+          shrinking the wordmark into something illegible. `gap-y-3` because a
+          wrapped row with only a column gap has its two lines touching.
+        */}
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-3 px-5 py-5 md:px-10">
           <Brand size="lg" />
           <div className="ml-auto flex items-center gap-2.5">
             <ThemeToggle size="md" />
@@ -119,6 +131,11 @@ export default async function WelcomePage() {
               WhatsApp
             </span>
             <span aria-hidden>·</span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="size-1.5 rounded-full bg-channel-meeting" aria-hidden />
+              Meetings
+            </span>
+            <span aria-hidden>·</span>
             <span className="inline-flex items-center gap-1.5 text-foreground">
               <span className="animate-lamp size-1.5 rounded-full bg-live" aria-hidden />
               One board
@@ -135,13 +152,13 @@ export default async function WelcomePage() {
             is visibly wrong.
           */}
           <h1 className="mt-5 max-w-[16ch] text-hero font-semibold text-balance">
-            Stop checking two apps.
+            Stop checking three apps.
           </h1>
 
           <p className="mt-5 max-w-[58ch] text-lg leading-relaxed text-muted-foreground text-pretty">
-            Switchboard patches Gmail and WhatsApp into a single ordered
-            timeline, reads every message as it lands, and tells you which ones
-            want something from you.
+            Switchboard patches Gmail, WhatsApp and your meetings into a
+            single ordered timeline, reads every message as it lands, and tells
+            you which ones want something from you.
           </p>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
@@ -167,15 +184,17 @@ export default async function WelcomePage() {
         {/* ── The problem, in one paragraph ────────────────────────────────── */}
         <section className="mx-auto max-w-6xl px-5 py-20 md:px-10 md:py-28">
           <p className="max-w-[38ch] text-3xl leading-snug font-medium text-balance md:text-4xl">
-            A client answers on WhatsApp. Their team replies by email.
+            A client answers on WhatsApp. Their team replies by email. The
+            decision was made out loud in a call nobody wrote down.
           </p>
           <p className="mt-6 max-w-[58ch] text-lg leading-relaxed text-muted-foreground text-pretty">
-            Two apps, two orderings, and the one thing you actually need —{' '}
+            Three places, three orderings, and the one thing you actually need
+            —{' '}
             <span className="text-foreground">
               what happened, in the order it happened
             </span>{' '}
-            — exists in neither of them. You end up reconstructing it in your
-            head, every morning, from two scroll positions.
+            — exists in none of them. You end up reconstructing it in your head,
+            every morning, from scroll positions and memory.
           </p>
         </section>
 
@@ -367,8 +386,9 @@ const PIPELINE = [
   {
     title: 'It is normalised',
     body:
-      'Gmail and WhatsApp are structurally different. Both become one canonical ' +
-      'message — same fields, same shape — before anything stores or reads them.',
+      'Gmail, WhatsApp and a meeting transcript are structurally different. Each ' +
+      'becomes one canonical message — same fields, same shape — before anything ' +
+      'stores or reads them.',
   },
   {
     title: 'It is read',

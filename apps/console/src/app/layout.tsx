@@ -53,7 +53,7 @@ const mono = Martian_Mono({
 export const metadata: Metadata = {
   title: 'Switchboard',
   description:
-    'Gmail and WhatsApp in one ordered timeline, read by a model that shows its work.',
+    'Gmail, WhatsApp and meetings in one ordered timeline, read by a model that shows its work.',
 };
 
 export const viewport: Viewport = {

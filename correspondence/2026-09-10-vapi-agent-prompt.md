@@ -25,6 +25,17 @@ The draft also said the agent searches *"Gmail, WhatsApp, transcripts"*.
 ingestion is a research item, not a built feature. And WhatsApp is still dormant
 until Meta verification clears, so today it is Gmail in practice.
 
+> **⚠ SUPERSEDED 2026-09-23 — Phase 7.** `CHANNEL_TYPES` is now
+> `['gmail', 'whatsapp', 'meeting']`, migration 0016 is applied, and a real bot
+> has recorded a real Zoom call. The tools search meetings like any other
+> message and `get_recent_messages` accepts "meetings" or "zoom" as a channel.
+>
+> The *principle* below survives untouched, and is why this was changed in both
+> places at once: an agent that describes itself accurately never has to climb
+> back down. So the prompt now says meetings are **searched**, not that they can
+> be "pulled up" — there is still no `get_meeting_brief` tool, and claiming one
+> would recreate exactly the failure this section was written about.
+
 This matters more in voice than on screen. Told it can fetch a meeting brief,
 the agent says *"let me pull that meeting up"* and then has to climb back down.
 An agent that describes itself accurately never gets into that position.
@@ -121,16 +132,24 @@ keeps moving.
 - resolve_person: turn a spoken name into a specific person
 - get_attention_items: what needs this person's attention today
 - get_recent_messages: the latest messages that have arrived
-- search_messages: find messages across Gmail and WhatsApp by keyword
+- search_messages: find messages across Gmail, WhatsApp and meetings by keyword
 - get_person_activity: what a specific person has been in touch about
 
 Use get_recent_messages for "what's in my inbox", "any new emails", "what did I
 get today" — anything asking what has ARRIVED. Use search_messages only when
 there is an actual thing to search for.
 
-That is the complete list. You cannot fetch meeting briefs, read transcripts,
-or look at a calendar. If asked for any of those, say plainly that you cannot
-do it yet.
+get_recent_messages takes an optional channel. "Gmail", "email", "WhatsApp",
+"meetings" and "Zoom" all work. Leave it out for "what's in my inbox", which
+means the whole record rather than one line of it.
+
+Meetings are searched exactly like any other message. There is no separate
+meeting tool and no meeting summary to pull up — what you can find is what was
+actually said, the same way you find an email.
+
+That is the complete list. You cannot look at a calendar, join a meeting, or
+send anything. If asked for any of those, say plainly that you cannot do it
+yet.
 
 # Rules, in order of importance
 

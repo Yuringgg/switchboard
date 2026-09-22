@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ChannelType } from '@switchboard/core';
 
 /**
  * The five tools the Vapi agent can call.
@@ -35,17 +36,71 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  */
 
 /**
- * How a channel is NAMED when it is spoken aloud.
+ * Everything a channel needs to be SAID OUT LOUD, in one place.
  *
  * ⚠ Spoken, so these are the words a person says — "Gmail", not "gmail", and
  * "a meeting", not "meeting", because the article is what makes "seen on Gmail
  * and a meeting" scan as a sentence.
+ *
+ * ⚠⚠ Typed `Record<ChannelType, …>` so adding a fourth channel to the canonical
+ * union makes this file fail to typecheck until somebody decides how it is
+ * pronounced. Phase 7 added `meeting` and found THREE separate places that had
+ * quietly assumed two — a `resolve_person` ternary that would have said
+ * "WhatsApp" about a meeting out loud, the spoken-word filter below, and the
+ * unit noun under it. One record, checked by the compiler, is what stops a
+ * fourth.
+ *
+ * `missing` is a whole sentence rather than a noun because the three are not
+ * parallel: Gmail and WhatsApp are accounts somebody connects, and a meeting is
+ * something that either happened or did not.
  */
-const CHANNEL_LABELS: Record<string, string> = {
-  gmail: 'Gmail',
-  whatsapp: 'WhatsApp',
-  meeting: 'a meeting',
+interface SpokenChannel {
+  /** Mid-sentence: "seen on Gmail and a meeting". */
+  label: string;
+  /** Counted: "three Gmail messages". */
+  unit: string;
+  /** Said when the filter matched no channel at all. */
+  missing: string;
+  /** Words a caller might actually use for it, lowercase. */
+  heard: readonly string[];
+}
+
+const CHANNEL_SPEECH: Record<ChannelType, SpokenChannel> = {
+  gmail: {
+    label: 'Gmail',
+    unit: 'Gmail message',
+    missing: 'No Gmail account is connected.',
+    heard: ['gmail', 'email', 'emails', 'mail', 'e-mail'],
+  },
+  whatsapp: {
+    label: 'WhatsApp',
+    unit: 'WhatsApp message',
+    missing: 'No WhatsApp account is connected.',
+    heard: ['whatsapp', 'whats app'],
+  },
+  meeting: {
+    label: 'a meeting',
+    unit: 'meeting',
+    missing: 'No meetings have been recorded yet.',
+    heard: ['meeting', 'meetings', 'zoom', 'meet', 'teams', 'google meet'],
+  },
 };
+
+/**
+ * A spoken word to a channel type.
+ *
+ * ⚠ Built FROM `CHANNEL_SPEECH` rather than written out again. A second list
+ * is a second thing to forget.
+ *
+ * ⚠ `inbox` is deliberately absent. "What's in my inbox" means the whole
+ * unified record, which is the entire point of this product — mapping it to
+ * Gmail would answer a different question than the one asked.
+ */
+const HEARD_AS = new Map<string, ChannelType>(
+  (Object.entries(CHANNEL_SPEECH) as [ChannelType, SpokenChannel][]).flatMap(
+    ([type, spoken]) => spoken.heard.map((word) => [word, type] as const),
+  ),
+);
 
 /** Ready to speak, with the numbers already worked out. */
 export interface ToolResult {
@@ -200,7 +255,7 @@ export async function resolvePerson(
     const channels = [
       ...new Set(
         ((identityRows ?? []) as { channel_type: string }[]).map(
-          (row) => CHANNEL_LABELS[row.channel_type] ?? row.channel_type,
+          (row) => CHANNEL_SPEECH[row.channel_type as ChannelType]?.label ?? row.channel_type,
         ),
       ),
     ];
@@ -296,8 +351,16 @@ export async function getAttentionItems(
 /**
  * Find messages across the connected channels.
  *
- * ⚠ Gmail and WhatsApp only. There are no transcripts in this system — the
- * agent's prompt says so too, and both have to stay true together.
+ * ⚠ Searches whatever is in `messages`, which since Phase 7 includes the
+ * `meeting` channel. This said "Gmail and WhatsApp only. There are no
+ * transcripts in this system", and pointed at the agent's prompt saying the
+ * same. The two have to stay true together, so BOTH were changed — see
+ * `correspondence/2026-09-10-vapi-agent-prompt.md`.
+ *
+ * ⚠ What is still true: there is no `get_meeting_brief` tool. A meeting is
+ * found the way every other message is found, by keyword. An agent told it can
+ * "pull up a meeting" says "let me pull that up" and then has to climb back
+ * down, which is the exact failure that prompt was rewritten to avoid.
  */
 export async function searchMessagesForVoice(
   supabase: SupabaseClient,
@@ -454,15 +517,21 @@ export async function getRecentMessages(
   { channel, limit = 5 }: { channel?: string; limit?: number } = {},
 ): Promise<ToolResult> {
   /*
-   * "gmail" and "whatsapp" are the only channels that exist (CHANNEL_TYPES).
-   * Anything else is treated as no filter rather than as an error — the model
-   * heard a word out loud, and refusing on "email" when it meant Gmail would be
-   * pedantry the caller cannot see or correct.
+   * A word the caller said, to a channel.
+   *
+   * ⚠ This was a two-arm ternary covering "gmail"/"email" and "whatsapp", and
+   * it did not fail loudly when meetings arrived — it fell through to `null`,
+   * which means NO FILTER. So "what were my last meetings" quietly returned
+   * Gmail, out loud, with no screen to catch it on. Silently ignoring a filter
+   * is worse than refusing one.
+   *
+   * Anything still unrecognised is treated as no filter rather than as an
+   * error, which was the original and correct call: the model heard a word out
+   * loud, and refusing on "email" when it meant Gmail would be pedantry the
+   * caller cannot see or correct.
    */
   const wanted = channel?.toLowerCase().trim();
-  const type = wanted === 'gmail' || wanted === 'email' ? 'gmail'
-    : wanted === 'whatsapp' ? 'whatsapp'
-    : null;
+  const type = wanted ? (HEARD_AS.get(wanted) ?? null) : null;
 
   let channelIds: string[] | null = null;
   if (type) {
@@ -479,7 +548,13 @@ export async function getRecentMessages(
     // Falling through to an unfiltered query here would read WhatsApp messages
     // aloud to somebody who asked for Gmail.
     if (channelIds.length === 0) {
-      return { summary: `No ${type} account is connected.`, messages: [] };
+      /*
+       * ⚠ A whole sentence per channel, not `No ${type} account is connected`.
+       * That template produced "No meeting account is connected", which is not
+       * a thing anybody says: a meeting is not an account you connect, it is
+       * something that happened or did not.
+       */
+      return { summary: CHANNEL_SPEECH[type].missing, messages: [] };
     }
   }
 
@@ -487,7 +562,9 @@ export async function getRecentMessages(
     .from('messages')
     .select(
       'subject, body_text, sent_at, ' +
-        'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id)',
+        'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id), ' +
+        // For `seenOn` below. Embedded rather than a second round trip.
+        'channel:channels(type)',
     )
     // ⚠ THE TENANT FILTER.
     .eq('owner_id', ownerId)
@@ -507,6 +584,7 @@ export async function getRecentMessages(
     body_text: string;
     sent_at: string;
     sender: { display_name: string | null; external_id: string } | null;
+    channel: { type: string } | null;
   };
 
   const messages = ((data ?? []) as unknown as Row[]).map((row) => ({
@@ -514,14 +592,28 @@ export async function getRecentMessages(
     subject: row.subject ?? null,
     when: spokenWhen(row.sent_at),
     excerpt: speakable(row.body_text),
+    /*
+     * ⚠ Which line it came in on, spoken.
+     *
+     * Without this the agent reads an unfiltered list and every item sounds
+     * like an email. That was survivable while two channels both delivered one
+     * message from one person. It stops being survivable with meetings, where
+     * "Maria said" means something different depending on whether she typed it
+     * or said it in a room with other people listening.
+     */
+    seenOn: row.channel
+      ? (CHANNEL_SPEECH[row.channel.type as ChannelType]?.label ?? null)
+      : null,
   }));
 
   if (messages.length === 0) {
     return { summary: 'There are no messages yet.', messages: [] };
   }
 
-  const label = type === 'gmail' ? 'Gmail message' : type === 'whatsapp' ? 'WhatsApp message' : 'message';
-  return { summary: `The ${count(messages.length, label)}, newest first.`, messages };
+  // ⚠ Was a two-arm ternary ending in 'message', which would have called a
+  // meeting a message. CHANNEL_SPEECH decides, once, for every channel.
+  const unit = type ? CHANNEL_SPEECH[type].unit : 'message';
+  return { summary: `The ${count(messages.length, unit)}, newest first.`, messages };
 }
 
 /** Exported for the route's dispatch table and for tests. */
