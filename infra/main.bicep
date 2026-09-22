@@ -61,6 +61,30 @@ param googleClientId string = ''
 @description('Full Pub/Sub topic name: projects/<project>/topics/<topic>.')
 param googlePubsubTopic string = ''
 
+// ⚠⚠ THESE TWO WERE MISSING, AND THE GAP WAS INVISIBLE FROM HERE.
+//
+// The worker reads GROQ_API_KEY and EMBED_API_SECRET (apps/worker/src/env.ts),
+// and this template declared neither. That is not a harmless omission: a bicep
+// deployment REPLACES the revision's env list, so redeploying would strip
+// whatever was set by hand on the live app and take summaries, extraction and
+// the /embed endpoint down with it — while the deployment reported success.
+//
+// The worker fails SOFT on both ('[summary] disabled', '[extract] disabled',
+// '/embed is DISABLED'), so the only symptom is that nothing gets extracted any
+// more. Same shape as the BOM incident in docs/02-ARCHITECTURE.md §8: green
+// everywhere, and the work quietly not happening.
+//
+// Declaring them here is what makes this file the whole truth about the
+// revision, which is the same reason the image is pinned by digest.
+
+@description('Groq API key. Without it the worker still ingests mail, but silently stops summarising and extracting.')
+@secure()
+param groqApiKey string = ''
+
+@description('Bearer token for the internal POST /embed on the worker, called by the console for search queries. Without it that endpoint 404s and search degrades.')
+@secure()
+param embedApiSecret string = ''
+
 var logAnalyticsName = '${namePrefix}-logs'
 var environmentName = '${namePrefix}-env'
 var workerAppName = '${namePrefix}-worker'
@@ -117,7 +141,9 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
       secrets: concat(
         empty(databaseUrl) ? [] : [{ name: 'database-url', value: databaseUrl }],
         empty(channelCredentialsKey) ? [] : [{ name: 'channel-credentials-key', value: channelCredentialsKey }],
-        empty(googleClientSecret) ? [] : [{ name: 'google-client-secret', value: googleClientSecret }]
+        empty(googleClientSecret) ? [] : [{ name: 'google-client-secret', value: googleClientSecret }],
+        empty(groqApiKey) ? [] : [{ name: 'groq-api-key', value: groqApiKey }],
+        empty(embedApiSecret) ? [] : [{ name: 'embed-api-secret', value: embedApiSecret }]
       )
     }
     template: {
@@ -140,7 +166,11 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
             empty(channelCredentialsKey) ? [] : [{ name: 'CHANNEL_CREDENTIALS_KEY', secretRef: 'channel-credentials-key' }],
             empty(googleClientSecret) ? [] : [{ name: 'GOOGLE_CLIENT_SECRET', secretRef: 'google-client-secret' }],
             empty(googleClientId) ? [] : [{ name: 'GOOGLE_CLIENT_ID', value: googleClientId }],
-            empty(googlePubsubTopic) ? [] : [{ name: 'GOOGLE_PUBSUB_TOPIC', value: googlePubsubTopic }]
+            empty(googlePubsubTopic) ? [] : [{ name: 'GOOGLE_PUBSUB_TOPIC', value: googlePubsubTopic }],
+            // Both fail soft — see the parameter note above. A missing key here
+            // is a worker that ingests and never extracts, with no error.
+            empty(groqApiKey) ? [] : [{ name: 'GROQ_API_KEY', secretRef: 'groq-api-key' }],
+            empty(embedApiSecret) ? [] : [{ name: 'EMBED_API_SECRET', secretRef: 'embed-api-secret' }]
           )
           probes: [
             {
