@@ -95,7 +95,19 @@ Phase 4A shipped · Phase 4B shipped and its loose ends closed ·
 Phase 5 shipped (extraction, the `/attention` **board**, calendar
 write-back) · **Ms. Maria's 2026-08-05 review built** ·
 **Phase 6 — VOICE SHIPPED 2026-09-11**: you can call Switchboard and ask it
-things out loud, ~1,900ms, hosted by Vapi. Polish remains.**
+things out loud, ~1,900ms, hosted by Vapi. Polish remains.** ·
+**Phase 7 — MEETINGS, IN PROGRESS since 2026-09-18.** 7A's receiving pathway is
+built and proven against a real Zoom meeting (migrations 0016/0017, a signed
+webhook, `/api/meetings/bot`); 7B's affiliation extraction is built and
+backfilled. Nothing maps a transcript into `messages` yet, deliberately —
+**nobody has seen one.**
+
+> ⚠⚠ **THE WORKER IN AZURE IS RUNNING BROKEN CODE.** Groq decommissioned every
+> Llama model the project used; the fix (`35f65c7`) is built into an image and
+> **not deployed**, so extraction and summaries are dead in production. The
+> deploy is blocked on an expired `az` login, not on code. **Read
+> `correspondence/2026-09-22-phase-7-handoff.md` before doing anything else** —
+> it is newer than this file and newer than everything in `docs/`.
 
 ### Ms. Maria's review landed 2026-08-06 — six things a console session must know
 
@@ -251,7 +263,13 @@ these notes is a DOM measurement. `localhost:3100/welcome`, `/login` and
 it carries the verified numbers and the next action. Read that, then come back.
 
 > **Joining cold? Read these in order after this file:**
-> `correspondence/2026-08-09-design-revisions.md` — **most recent.** Yuri's
+> `correspondence/2026-09-22-phase-7-handoff.md` — **most recent, and the one
+> to read first.** Where Phase 7 stands, the two things blocked on Yuri, the
+> uncommitted work in the tree, and why the worker deploy must NOT go through
+> bicep. Newer than every doc in `docs/`.
+> `correspondence/2026-09-10-voice-integration-plan.md` — the voice build.
+> `correspondence/2026-08-09-design-revisions.md` — **the console's most
+> recent design pass.** Yuri's
 > screenshot review, three third-party components adopted rather than pasted,
 > the flowing-line backdrop, and archive (migration 0013). Read it before
 > touching `apps/console`.

@@ -1091,7 +1091,7 @@ again.**
 
 ---
 
-## Phase 7 — Meetings PLUMBING LANDED (2026-09-18)
+## Phase 7 — Meetings PATHWAY PROVEN (2026-09-20)
 
 Ms. Maria's research task 3, *"Meeting Brief Protocols"*, and the half of task 2
 that says **Zoom transcripts**. Recall.ai sends a bot into a meeting, records it,
@@ -1138,7 +1138,9 @@ several people talking, once, after it has ended. **ADR-026.**
 | Tenant boundary | `meeting_bot_sessions` (0016) | **applied, RLS forced, verified** |
 | Webhook signature | `lib/meetings/signature.ts`, 13 tests | **done** |
 | The webhook | `/api/webhooks/recall` | **done — stores, does not parse** |
-| Sending the bot | `/api/meetings/bot` | **not built** |
+| Sending the bot | `/api/meetings/bot` | **built and deployed — a real bot joined a real Zoom call** |
+| Polling probe | `apps/worker/scripts/probe-recall.ts` | **done, run, answered its question** |
+| Requesting a transcript | `apps/worker/scripts/fetch-transcript.ts` | **written, never run** — no API key on disk |
 | Transcript → `messages` | — | **not built, deliberately** |
 
 **⚠ The last two rows are the point, not a gap.** The webhook verifies, resolves
@@ -1155,6 +1157,38 @@ mapping.** The instrument is built first on purpose.
 `meeting_bot_sessions.last_event_type` exists from day one for the same reason,
 rather than being added after three wrong guesses.
 
+**✅ The first half of that is now done (2026-09-20).** A real bot was sent into
+a real Zoom meeting and the recording read back. The open question was whether
+`recording.done` and `transcript.done` — which are *recording artifact* events —
+reference the BOT at all, or only their own artifact id. If the answer had been
+"only their own id", the tenant lookup would have refused exactly the deliveries
+worth having. **A recording carries the bot id twice**, at `bot_id` and at
+`bot.id`, so `botIdOf` works as written.
+
+⚠ The fallbacks in `lib/meetings/payload.ts` **stay** until a real *webhook*
+delivery has been seen — that was an API response, and the webhook envelope may
+wrap it differently.
+
+**What is still unseen is the transcript.** `transcript` was `null` on that
+recording; async transcription has to be requested explicitly. Until
+`fetch-transcript.ts` has been run and its output read, **nothing maps a
+transcript into `messages`.**
+
+### ⚠ Recall's webhook portal is broken, and it is not our bug
+
+Their dashboard webhook page is an embedded Svix portal whose Create button does
+nothing, in two browsers. There is **no webhook path anywhere in
+`list_rate_limits`** — every endpoint they publish — so it cannot be created
+through the API either. Support emailed 2026-09-19, no reply as of 2026-09-22.
+
+⚠ An earlier diagnosis blamed an *account write restriction*. **That was wrong**;
+`list_rate_limits` shows every write endpoint at `source: "default"`.
+
+**This blocks nothing.** `GET /bot/{id}`, `/recording/{id}` and
+`/transcript/{id}` are public at 300/min. A webhook is Recall telling us;
+polling is us asking. Same answer. The signed route stays built and tested for
+the day they fix it.
+
 ### 7B — Ms. Maria's categories EXTRACTION LANDED (2026-09-20)
 
 Her brief asks for **company names, relationship categories (client / partner /
@@ -1170,9 +1204,9 @@ they flow into extraction that already works.
 | `affiliation` kind | migration 0017, `EXTRACTION_KINDS` | **applied** |
 | `company · relationship · role · decision_maker` | Zod schema + worker payload | **done** |
 | Prompt rules and four worked examples | `EXTRACTION_SYSTEM_PROMPT` | **done** |
-| 7 tests | `packages/ai/test/extract.test.ts` | **633 passing** |
-| Per-person roll-up | — | **not built** |
-| Backfill over the existing corpus | — | **not run** |
+| 7 tests | `packages/ai/test/extract.test.ts` | **635 passing** |
+| Backfill over the existing corpus | — | **run** |
+| Per-person roll-up | — | **not built** — needs no Recall, no Azure, no key |
 
 **⚠ Why an extraction and not a column on `contacts`.** A
 `contacts.relationship` column can say "client" and can never say *why*. Stored
@@ -1188,8 +1222,16 @@ person is worse than a null. `decision_maker` is about authority, not seniority
 affiliation fields are stripped off any other kind, so a company never gets
 attributed to somebody on the strength of a calendar invite.
 
-**Next:** run the backfill over the existing corpus and see what it finds, then
-build the per-person roll-up on `/contacts`.
+**⚠ Two things the backfill taught, both about the model rather than the code.**
+`gpt-oss` is a *reasoning* model and bills thinking tokens out of `max_tokens` —
+298 of 355 completion tokens were reasoning, which exhausted the ceiling and
+surfaced as "groq returned an empty completion". `reasoning_effort: 'low'` cut
+it to 51 for the same output. And every affiliation field came back null despite
+a perfect job title, because the prompt's shape block only ever showed a
+`meeting` example: **a model follows the example over the prose.**
+
+**Next:** build the per-person roll-up on `/contacts`. It is the actual "brief"
+view, and the only Phase 7 work that is not waiting on somebody else.
 
 ### 7C — Facebook Messenger
 
