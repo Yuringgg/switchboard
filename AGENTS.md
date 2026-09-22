@@ -99,7 +99,9 @@ things out loud, ~1,900ms, hosted by Vapi. Polish remains.** ·
 **Phase 7 — MEETINGS, IN PROGRESS since 2026-09-18.** 7A's receiving pathway is
 built and proven against a real Zoom meeting (migrations 0016/0017, a signed
 webhook, `/api/meetings/bot`); 7B's affiliation extraction is built and
-backfilled. Nothing maps a transcript into `messages` yet, deliberately —
+backfilled. The console caught up on 2026-09-23 — meetings now has its own lane
+in the split timeline, Uriel can be asked about it, and the copy stops claiming
+two channels. Nothing maps a transcript into `messages` yet, deliberately —
 **nobody has seen one.**
 
 > ⚠⚠ **THE WORKER IN AZURE IS RUNNING BROKEN CODE.** Groq decommissioned every

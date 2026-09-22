@@ -1141,6 +1141,8 @@ several people talking, once, after it has ended. **ADR-026.**
 | Sending the bot | `/api/meetings/bot` | **built and deployed — a real bot joined a real Zoom call** |
 | Polling probe | `apps/worker/scripts/probe-recall.ts` | **done, run, answered its question** |
 | Requesting a transcript | `apps/worker/scripts/fetch-transcript.ts` | **written, never run** — no API key on disk |
+| Meetings visible in the console | split timeline, third lane at a wide measure | **done 2026-09-23** |
+| Meetings reachable by Uriel | `lib/voice/tools.ts`, agent prompt | **done 2026-09-23** — ⚠ prompt still to be pasted into Vapi |
 | Transcript → `messages` | — | **not built, deliberately** |
 
 **⚠ The last two rows are the point, not a gap.** The webhook verifies, resolves
@@ -1232,6 +1234,41 @@ a perfect job title, because the prompt's shape block only ever showed a
 
 **Next:** build the per-person roll-up on `/contacts`. It is the actual "brief"
 view, and the only Phase 7 work that is not waiting on somebody else.
+
+### The console caught up 2026-09-23
+
+Meetings had been a live channel for five days while the timeline, the voice
+assistant and every line of marketing copy behaved as though it was not one.
+Three separate failures, one root cause: **layout and copy written when there
+were exactly two channels, none of which failed loudly when a third arrived.**
+
+- The split timeline's Meetings lane **rendered perfectly, several screens below
+  the fold** — a three-item two-column grid puts the third item in row two. A
+  column that is present and invisible is worse than one that is missing.
+- Split view ran at a 56rem reading measure, giving three lanes **250px each**.
+  It uses the wide shell now: 357px, measured.
+- `get_recent_messages` resolved its channel with a two-arm ternary, so
+  "meetings" fell through to **no filter** and the question was answered with
+  Gmail, out loud.
+- Eight places of copy, including the hero diagram, still drew two channels.
+
+⚠ The pattern is the point, not the individual bugs. A two-way ternary over
+channels is a lie waiting for a third channel, and Phase 7 found **three** of
+them. Every one is now a `Record<ChannelType, …>` that `tsc` refuses to compile
+until a new channel is accounted for. See `lib/channels.ts`, `lib/voice/tools.ts`
+and `components/marketing/patch-field.tsx`.
+
+⚠ Also fixed: a ~400-character LinkedIn tracking URL gave the message view a
+horizontal scrollbar, because `whitespace-pre-wrap` has nowhere to break a
+string with no whitespace in it. `[overflow-wrap:anywhere]`, not `break-words`
+— the latter only breaks a word that would overflow on a line of its own.
+
+**⚠ The open design question, and it is the real one.** A meeting is not a
+message. One hour-long meeting is 200–500 separate things said, and one row per
+utterance buries a week of mail. The intended shape is **one timeline row per
+meeting, with every utterance stored and embedded behind it** — the timeline
+stays readable and the assistant can still quote what was actually said. Decide
+it **after** a real transcript has been read, not before.
 
 ### 7C — Facebook Messenger
 

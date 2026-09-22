@@ -1,8 +1,8 @@
 # Session Handoff — Phase 7, meetings
 
-**Written 2026-09-22.** Newer than everything in `docs/` and newer than every
-other file in `correspondence/`. Where this disagrees with them, **this is
-right** — except where it says otherwise below.
+**Written 2026-09-22, updated 2026-09-23.** Newer than everything in `docs/`
+and newer than every other file in `correspondence/`. Where this disagrees with
+them, **this is right** — except where it says otherwise below.
 
 *Read `AGENTS.md` first, then this. This file is only the delta since
 2026-09-17.*
@@ -20,7 +20,11 @@ run over the whole existing corpus.** What is left is the transcript itself:
 nobody has yet seen what one looks like, and nothing maps one into `messages`
 until somebody has.
 
-**Two jobs are half-finished and both are blocked on Yuri, not on code.** See
+**On 2026-09-23 the console caught up with the database.** Meetings was a live
+channel that the timeline, the voice assistant and every line of marketing copy
+still behaved as though did not exist. That is fixed and shipped.
+
+**Two jobs remain half-finished and both are blocked on Yuri, not on code.** See
 *Blocked on Yuri* below — start there.
 
 ---
@@ -46,8 +50,9 @@ decision to make by shipping. `docs/04-ROADMAP.md` Phase 7, ADR-026.
 
 ## Blocked on Yuri — the two things that unblock everything
 
-Neither is a code problem. Both were asked for on 2026-09-20 and neither was
-done as of 2026-09-22, so **ask again rather than assuming**.
+Neither is a code problem. Both were asked for on 2026-09-20 and **neither was
+done as of 2026-09-23**, so **ask again rather than assuming**. Three days is
+long enough that the reason may have changed.
 
 ### 1. Azure login expired → the worker deploy is stuck
 
@@ -127,12 +132,11 @@ az containerapp show -g rg-switchboard -n switchboard-worker \
 
 ---
 
-## Uncommitted work in the tree
+## Shipped 2026-09-23, and why each one mattered
 
-Two files, both finished, both unpushed because they could not be *run* yet.
-**Do not rewrite them — read them.**
+Everything below is committed and pushed. **Do not rewrite it — read it.**
 
-### `infra/main.bicep` — modified
+### `infra/main.bicep` — `4d378b1`
 
 Added `groqApiKey` and `embedApiSecret` as `@secure()` params, plus their
 secrets and env entries. `az bicep build` passes.
@@ -149,7 +153,7 @@ extracted any more. Same shape as the BOM incident in `docs/02-ARCHITECTURE.md`
 ⚠ `EMBED_API_SECRET` is not in `apps/worker/.env` either, so `/embed` is
 probably disabled locally *and* in production. Not chased — flagged.
 
-### `apps/worker/scripts/fetch-transcript.ts` — new
+### `apps/worker/scripts/fetch-transcript.ts` — `4d378b1`
 
 Requests an async transcript for a finished recording, polls until terminal,
 downloads it, and writes the raw payload **and** a shape summary to
@@ -180,6 +184,82 @@ is a 400 — that mistake already cost a round trip (`6dc53fd`).
 
 ⚠ Output goes outside the repo on purpose. A transcript is a real conversation
 between real people and has no business in git. Same rule as `probe-recall.ts`.
+
+---
+
+### The console, `d66dab5` · `88b0204` · `65d791d`
+
+**Meetings had been a live channel for five days and the console behaved as
+though it was not one.** Three separate places, all the same root cause: layout
+and copy written when there were exactly two channels, none of which failed
+loudly when a third arrived.
+
+**The split timeline buried it.** `TimelineSplit` maps over `CHANNELS`, so the
+column was correct the day 0016 landed. The grid was a hard `lg:grid-cols-2`,
+and a three-item two-column grid puts the third item in row TWO — which begins
+below the tallest cell in row one. With fifty Gmail messages that is several
+screens down. **It rendered perfectly and was invisible**, which is worse than
+missing, because nothing looks broken. The track count now follows the number
+of lines, written out as a lookup because Tailwind only ships classes it can
+find as literal text and `lg:grid-cols-${n}` silently compiles to one column.
+
+**Split view also ran at a reading measure.** `AppShell` defaults to 56rem,
+right for merged, which is one column of prose. Split is laid out across, and
+three lines inside 56rem measured **250px each** — narrower than a subject line.
+That is the identical complaint that put `width="wide"` on the attention board,
+so split uses it now: **357px per lane**, measured.
+
+**A LinkedIn job alert gave the whole page a horizontal scrollbar.**
+`whitespace-pre-wrap` has nowhere to break a ~400-character tracking URL with no
+whitespace in it, and `max-w-[62ch]` caps the box rather than what overflows it.
+`[overflow-wrap:anywhere]` now on the four places that render text somebody else
+wrote. ⚠ `break-words` would NOT have fixed it — it only breaks a word that
+would overflow on a line of its own, and this URL sits after ordinary words.
+
+**The voice tools dropped the meeting filter on the floor.**
+`getRecentMessages` resolved its channel with a two-arm ternary. "meetings" fell
+through to `null`, which means NO FILTER, so *"what were my last meetings"*
+quietly answered with Gmail, **out loud, with no screen to catch it on**. An
+ignored filter looks exactly like a filter that matched everything.
+
+`CHANNEL_LABELS` became `CHANNEL_SPEECH`, typed `Record<ChannelType, …>`. It
+holds the label, the counted unit, the "nothing there" sentence and the words a
+caller might actually say — "zoom", "teams" and "meet" included, because nobody
+says "the meeting channel" out loud. `HEARD_AS` is built FROM it rather than
+written out again. **Phase 7 found three separate places that had assumed two
+channels**; one compiler-checked record is what stops a fourth. Four new tests,
+because the bug was silent.
+
+`get_recent_messages` now returns which line each message arrived on. Without
+it every item sounds like an email, and *"Maria said"* means something different
+depending on whether she typed it or said it in a room with other people
+listening.
+
+**The agent prompt moved in the same commit**, because `tools.ts` claimed "there
+are no transcripts in this system" and pointed at the prompt saying the same.
+Both now say meetings are **searched** like any other message — not that they
+can be "pulled up", because there is still no `get_meeting_brief` tool and
+claiming one recreates the exact failure that prompt was written to avoid.
+
+> ⚠⚠ **The prompt lives in Vapi's dashboard.**
+> `correspondence/2026-09-10-vapi-agent-prompt.md` is the source of truth and it
+> is updated, but **somebody still has to paste it into Vapi.** Until that
+> happens the shipped agent still believes it cannot read meetings.
+
+**Copy.** Eight places described a two-channel product, including the browser
+tab title and the whole landing page. All updated. The hero diagram
+(`patch-field.tsx`) now draws three source lines — two Gmail cords, two
+WhatsApp, one meeting, because a meeting arrives once after the fact where mail
+and chat arrive all day. `STROKE`/`FILL` are `Record<ChannelType, …>` for the
+same reason as above.
+
+⚠ The colour-blindness rule is **unchanged, not relaxed**. Meetings blue
+survives the red/green axis, which makes two of three sources legible by hue
+rather than three — so every source is still named in words.
+
+Also fixed in passing: the landing header measured ~423px against 335px of
+usable width on a 375px phone, so **the first page anybody sees scrolled
+sideways**. Pre-existing, unrelated to Phase 7, found by checking.
 
 ---
 
@@ -281,15 +361,16 @@ tested so it works the day they fix their portal.
 
 ---
 
-## Current numbers, verified 2026-09-22
+## Current numbers, verified 2026-09-23
 
 | | |
 |---|---|
-| Branch | `main` at `742fcaa`, pushed |
-| Tests | **635 passing**, 42 files |
+| Branch | `main` at `65d791d`, pushed, working tree clean |
+| Tests | **639 passing**, 42 files |
 | Typecheck | clean |
 | Latest migration | **0017** |
-| Uncommitted | `infra/main.bicep` (modified), `apps/worker/scripts/fetch-transcript.ts` (new) |
+| Console | deployed by Vercel off the push |
+| Worker | ⚠ **still the old image.** See the warning above |
 
 ---
 
@@ -306,12 +387,43 @@ tested so it works the day they fix their portal.
    blocked.
 5. **Chase Recall support.**
 
+### ⚠ The design decision waiting at step 3
+
+**A meeting is not a message, and the schema currently says it is.** One
+hour-long meeting is 200–500 separate things said. If each becomes a row, a
+single meeting buries a week of Gmail and WhatsApp under it and the timeline
+stops being a timeline.
+
+Three ways, and the third is the one to build:
+
+| | | |
+|---|---|---|
+| **A** | One row per meeting, transcript on its own page | Clean, but nothing said inside a meeting is findable |
+| **B** | One row per utterance | Dies on contact. Floods everything |
+| **C** | One row per meeting in the timeline, every utterance stored and embedded behind it | **This one** |
+
+**C** keeps the timeline readable and still answers *"what did Maria say about
+the deadline"* with the actual sentence and a citation. It costs almost nothing
+extra: extraction and embeddings already run per message, so utterances inherit
+both.
+
+⚠ Decide this **after** reading a real transcript, not before. The shape may
+make one of these obviously wrong.
+
 ### Smaller, still open
 
+- **Paste the updated agent prompt into Vapi.** Until then the shipped agent
+  still says it cannot read meetings. `correspondence/2026-09-10-vapi-agent-prompt.md`.
 - Restrict Vapi's Public Key **Origins** from "All domains allowed" to the
   Vercel domain.
 - Delete `components/ui/shader-svg.tsx` — 225 lines, orphaned.
 - `EMBED_API_SECRET` appears to be set nowhere. Confirm, then decide.
+- **Split view caps at about four lanes.** Facebook Messenger is Phase 7C; at
+  four lanes each is ~265px again. Decide then whether the fifth scrolls
+  sideways or drops out of split.
+- **Merged is arguably the better default view.** The product's promise is
+  "what happened, in the order it happened", which is merged; split is a triage
+  view. Right now split loads first. Yuri's call.
 
 ---
 
