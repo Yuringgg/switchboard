@@ -205,7 +205,9 @@ function Answer({ answer }: { answer: AssistantAnswer }) {
       <div aria-live="polite">
         <p
           className={cn(
-            'max-w-[68ch] text-row whitespace-pre-wrap',
+            // ⚠ It quotes message bodies back, so it inherits the long-URL
+            // overflow that message-row.tsx documents.
+            'max-w-[68ch] text-row whitespace-pre-wrap [overflow-wrap:anywhere]',
             answer.refused && 'text-muted-foreground italic',
           )}
         >

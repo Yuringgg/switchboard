@@ -262,8 +262,13 @@ export default async function MessagePage({
             )}
 
             <div className="mt-6 border-t border-border pt-5">
+              {/*
+                ⚠ See message-row.tsx: `whitespace-pre-wrap` has nowhere to break
+                a 400-character tracking URL, and one of those gave the whole
+                page a horizontal scrollbar.
+              */}
               {message.body_text.trim() ? (
-                <p className="max-w-[68ch] text-row whitespace-pre-wrap">
+                <p className="max-w-[68ch] text-row whitespace-pre-wrap [overflow-wrap:anywhere]">
                   {message.body_text}
                 </p>
               ) : (

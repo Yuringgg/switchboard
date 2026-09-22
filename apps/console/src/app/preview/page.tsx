@@ -784,6 +784,10 @@ export default async function PreviewPage({
       userId={PREVIEW_USER_ID}
       activeHref="/"
       channels={channels}
+      // ⚠ Must match `app/page.tsx` exactly. A harness that shows the split
+      // view at a different measure than production is a harness that lies
+      // about the design, which is the one thing it cannot do.
+      width={view === 'split' ? 'wide' : 'default'}
     >
       {/*
         The channel filter (Ms. Maria, 2026-08-05).

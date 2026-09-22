@@ -130,6 +130,27 @@ export function Timeline({
  * ⚠ **Days are still grouped, per column.** A flat list of fifty rows with no
  * date structure is worse than either view.
  */
+/**
+ * How many tracks the split view gets, by how many lines there are to show.
+ *
+ * ⚠ Written out rather than computed. Tailwind only ships the classes it can
+ * find as literal text in the source, so `lg:grid-cols-${n}` compiles to
+ * nothing at all — it does not fail, it silently produces a one-column grid.
+ *
+ * ⚠ Four lines go two-up at `lg` and four-up only at `xl`. Four tracks in a
+ * 1024px viewport, minus the shell, is about 200px each, and a subject line
+ * does not survive that.
+ */
+const TRACKS: Record<number, string> = {
+  1: 'lg:grid-cols-1',
+  2: 'lg:grid-cols-2',
+  3: 'lg:grid-cols-3',
+  4: 'lg:grid-cols-2 xl:grid-cols-4',
+};
+
+/** More lines than TRACKS covers. Never narrower than this. */
+const WIDEST_TRACK = 'lg:grid-cols-2 xl:grid-cols-4';
+
 export function TimelineSplit({
   messages,
   channelTypeById,
@@ -182,8 +203,17 @@ export function TimelineSplit({
         `min-w-0` on each track for the same reason the board needs it — a long
         unbreakable subject would otherwise widen its column and shove the
         other one off the screen.
+
+        ⚠⚠ The track count follows the number of LINES. This was a hard
+        `lg:grid-cols-2`, written when there were two channels. Meetings made
+        three, and a three-item two-column grid puts the third item in row TWO —
+        which begins below the tallest cell in row one. With fifty messages in
+        Gmail, the Meetings line was rendering perfectly, several screens below
+        the fold, where nobody would ever find it. A column that is present and
+        invisible is worse than one that is missing, because nothing looks
+        broken.
       */}
-      <div className="grid gap-x-8 gap-y-10 lg:grid-cols-2">
+      <div className={cn('grid gap-x-8 gap-y-10', TRACKS[columns.length] ?? WIDEST_TRACK)}>
         {columns.map((column) => (
           <section key={column.key} className="min-w-0">
             <h2 className="flex items-center gap-2 border-b border-border pb-2.5">

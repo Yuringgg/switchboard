@@ -99,6 +99,18 @@ export default async function TimelinePage({
       userId={user.id}
       activeHref="/"
       channels={channels}
+      /*
+       * ⚠ Split view runs wide; merged view does not. They are different
+       * shapes of page and the same measure cannot serve both.
+       *
+       * `default` (56rem) is a READING measure and is right for merged, which
+       * is one column of prose. Split is laid out ACROSS — and at 56rem three
+       * lines get about 250px each, measured, which is narrower than a subject
+       * line. That is the identical complaint that put `wide` on the attention
+       * board; see the prop's note in app-shell.tsx. Two channels fitted 56rem
+       * by luck, and meetings made it three.
+       */
+      width={view === 'split' ? 'wide' : 'default'}
     >
       {/*
         Outside the message column's boundary and in one of its own: the filter
