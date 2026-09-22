@@ -164,6 +164,15 @@ on 2026-08-09**; do not spend session time on it.
 Full note: `correspondence/2026-09-10-voice-integration-plan.md` §11, and the
 agent prompt is `correspondence/2026-09-10-vapi-agent-prompt.md`.
 
+> **⚠⚠ VAPI HOLDS ITS OWN COPY OF THE PROMPT AND EVERY TOOL DEFINITION, AND
+> NOTHING HERE DEPLOYS TO IT.** `git push` updates the webhook that ANSWERS a
+> tool call. It does not update what the agent believes it can do. On
+> 2026-09-23 meetings were wired through the tools, deployed, and the live agent
+> still said *"I can only read Gmail and WhatsApp messages"* for an hour.
+> **`docs/03-RESOURCES.md` §4d lists the four places a channel is named and
+> which of them live in the dashboard. Read it before editing
+> `lib/voice/tools.ts`.**
+
 1. **CAUTION: `/api/webhooks/vapi` HAS NO SESSION AND RUNS AS `service_role`.** Every
    policy in migration 0002 is inert for it. The tenant comes from
    `voice_call_sessions` by call id — a row this app wrote while a real session

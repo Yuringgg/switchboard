@@ -412,8 +412,10 @@ make one of these obviously wrong.
 
 ### Smaller, still open
 
-- **Paste the updated agent prompt into Vapi.** Until then the shipped agent
-  still says it cannot read meetings. `correspondence/2026-09-10-vapi-agent-prompt.md`.
+- ✅ **Done 2026-09-23** — the agent prompt and three tool descriptions were
+  pasted into Vapi by hand. ⚠ Nothing in this repo deploys to Vapi, so this has
+  to be repeated every time Uriel's abilities change. `docs/03-RESOURCES.md`
+  §4d is the checklist.
 - Restrict Vapi's Public Key **Origins** from "All domains allowed" to the
   Vercel domain.
 - Delete `components/ui/shader-svg.tsx` — 225 lines, orphaned.

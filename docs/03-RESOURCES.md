@@ -563,6 +563,90 @@ voice agent on it would exhaust the thing it is meant to complement. The saving
 is under two cents a minute. If the model is ever moved, `llama-3.1-8b-instant`
 is the only sane target.
 
+### ⚠⚠ WHAT LIVES IN VAPI'S DASHBOARD AND NOT IN THIS REPO (2026-09-23)
+
+**Read this before changing anything in `apps/console/src/lib/voice/`.**
+
+Vapi is not a library. It is a hosted service holding **its own copy** of the
+agent's instructions and tool definitions, and nothing in this repository
+deploys to it. `git push` updates the webhook that ANSWERS a tool call. It does
+not update what the agent believes it can do, what the tools are called, or what
+their parameters mean.
+
+**This has already cost an hour.** On 2026-09-23 the meeting channel was wired
+through the tools, tested, committed and deployed. Asked *"can you reach the
+Meetings channel?"*, the live agent said **"I can only read Gmail and WhatsApp
+messages"** — and kept saying it, because its dashboard copy still said so. The
+code was right and the product was wrong.
+
+#### The four places a channel is named, and all four must agree
+
+| Where | What it holds | Lives in |
+|---|---|---|
+| `lib/voice/tools.ts` | `CHANNEL_SPEECH`, `HEARD_AS`, the queries | **this repo** |
+| System prompt → Identity | *"a unified inbox that brings together …"* | **Vapi** |
+| System prompt → Tools you have access to | what it may claim it can do | **Vapi** |
+| Tool Description + parameter Description | what the MODEL reads when choosing a tool | **Vapi** |
+
+⚠ The Identity line is the one that gets missed. A tool list is where a
+capability claim is *expected* to live, so it gets checked; an identity sentence
+is a capability claim too, and the model repeats it more readily than any rule
+further down the prompt.
+
+`correspondence/2026-09-10-vapi-agent-prompt.md` is the **source of truth for
+the prompt**, and it is not connected to anything. Editing it changes nothing
+until a person pastes it into Vapi.
+
+#### The tools as they exist in Vapi, 2026-09-23
+
+Account `leiruychua@gmail.com`, PAYG. Dashboard → **Tools**.
+
+| Tool | Version | Type |
+|---|---|---|
+| `get_recent_messages` | v3 | function — `bab51bfb-ba5d-4005-ad52-a988e5368ed1` |
+| `search_messages` | v3 | function — `8bd7acfa-a481-4a65-82a0-f83a18bac456` |
+| `resolve_person` | v3 | function |
+| `get_person_activity` | v2 | function |
+| `get_attention_items` | v2 | function |
+| `end_switchboard_call` | v1 | **End call** |
+
+⚠ **Six tools in Vapi, five in `VOICE_TOOLS`.** `end_switchboard_call` is Vapi's
+own built-in end-call type. It never reaches our webhook and there is no handler
+for it, which is correct — do not "fix" the mismatch by adding one.
+
+⚠ Editing a tool bumps its version. `get_recent_messages`, `search_messages`
+and `resolve_person` are on v3 because their descriptions were corrected for
+meetings; the other two never mentioned a channel and needed nothing.
+
+#### What each tool carries there
+
+Per tool: **Name**, **Description**, **Parameters** (each with name, type,
+description, optional enum values, and a Required flag), and the switches
+**Async**, **Strict** and **Lock schema**. All three switches are **off** on
+every tool here, deliberately — `Strict` would reject a call the moment a model
+sends a field the schema does not name, and this agent's whole failure mode is
+mid-sentence.
+
+⚠ **The Description is not documentation. It is the prompt.** It is what the
+model reads when deciding whether a tool applies. `search_messages` said *"Find
+messages across Gmail and WhatsApp by keyword"* and the model believed it, which
+is exactly right behaviour on a wrong sentence.
+
+⚠ Same for a parameter description. `get_recent_messages.channel` said
+*`Optional. "gmail" or "whatsapp" to narrow it. Leave empty for both.`* The code
+had accepted "meetings", "zoom", "teams" and "meet" for hours by then; the model
+was never told they existed, so it never sent them.
+
+⚠ `channel` has **no enum values and is not Required**, on purpose. An enum
+would make Vapi reject a word the caller actually said, and `getRecentMessages`
+already treats an unrecognised word as "no filter" rather than an error — the
+model heard it out loud and may have misheard it.
+
+#### After any edit
+
+**Apply** on the parameter, then **Published** at the top right. A tool saved
+but not published is the previous version still serving calls.
+
 ### Groq Whisper — speech to text (ADR-025)
 
 `whisper-large-v3-turbo`, free tier, read from Groq's own documentation:

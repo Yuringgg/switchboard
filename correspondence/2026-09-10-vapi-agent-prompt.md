@@ -187,3 +187,27 @@ about. Do not fill in a server URL until the webhook is built and the call
 session table exists — see the plan's §11. A tool pointed at a URL that answers
 nothing produces an agent that fails mid-sentence, which is a worse first
 impression than an agent with three tools that work.
+
+> **⚠ SUPERSEDED — the tools exist.** Six of them, live, as of 2026-09-23.
+> `docs/03-RESOURCES.md` §4d records what each one holds in the dashboard, the
+> four places a channel has to be named, and why three of them are in Vapi
+> rather than in this repo. Read that before touching
+> `apps/console/src/lib/voice/tools.ts`.
+
+---
+
+## 4. ⚠ This file changes nothing on its own
+
+The prompt above is the **source of truth** and it is **not connected to
+anything**. Vapi holds its own copy, and editing this file updates neither the
+agent nor any tool.
+
+On 2026-09-23 the meeting channel was wired through the tools, tested,
+committed and deployed, and the live agent went on answering *"I can only read
+Gmail and WhatsApp messages"* for the better part of an hour — because its
+dashboard copy still said that, in the Identity block rather than the tool list
+where somebody thought to look.
+
+**Changing what Uriel can do means editing this file AND pasting it into Vapi**,
+and usually editing a tool description there as well. `docs/03-RESOURCES.md`
+§4d has the checklist.
