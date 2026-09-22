@@ -176,7 +176,7 @@ export default async function WelcomePage() {
           <PatchField className="mt-10 max-w-4xl md:mt-12" />
 
           <p className={cn(LABEL, 'mt-6 max-w-[70ch] normal-case')}>
-            Two lines in, one jack field, one record out — and every row still
+            Three lines in, one jack field, one record out — and every row still
             carries the line it arrived on.
           </p>
         </section>

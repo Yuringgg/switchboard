@@ -1,3 +1,5 @@
+import type { ChannelType } from '@switchboard/core';
+
 import { cn } from '@/lib/utils';
 
 /**
@@ -6,9 +8,13 @@ import { cn } from '@/lib/utils';
  *
  * ── What it says ─────────────────────────────────────────────────────────────
  *
- * Two lines come in on the left. Every message on either of them is patched
+ * Three lines come in on the left. Every message on any of them is patched
  * through one jack field in the middle. One ordered record comes out on the
  * right, and each row still carries the colour of the line it arrived on.
+ *
+ * ⚠ It was two until Phase 7. Meetings is a real connected channel, and a
+ * product diagram that shows fewer lines than the product has is the one thing
+ * this figure cannot afford to be — a visitor reads it instead of the copy.
  *
  * That is the entire product in one picture: *many lines in, one operator's
  * view out*, which is also the name. A visitor who reads nothing else on the
@@ -43,20 +49,45 @@ import { cn } from '@/lib/utils';
  *
  * ── Colour ───────────────────────────────────────────────────────────────────
  *
- * The two channel hues and amber, and nothing else — the same three meanings
- * the console spends colour on. ⚠ Gmail red against WhatsApp green is the worst
+ * The three channel hues and amber, and nothing else — the same meanings the
+ * console spends colour on. ⚠ Gmail red against WhatsApp green is the worst
  * pair for red/green colour blindness, so exactly as in the timeline, **the
- * colour is never the only carrier**: both sources are named in words, and the
+ * colour is never the only carrier**: every source is named in words, and the
  * figure carries a text alternative for anyone who cannot see it at all.
+ *
+ * Meetings blue is the one hue here that survives that axis, which is why it
+ * did NOT change the rule — it makes two of three legible, not three.
  */
 
-/** One message on the board: which line it came in on, and which jack it takes. */
+/**
+ * Where each line sits on the left edge.
+ *
+ * ⚠ Named rather than repeated as literals in SIGNALS below. They were written
+ * out at every use, so moving a source meant finding every copy of `96`, and
+ * the jack field is full of numbers that look just like it.
+ *
+ * Spread about the jack field's own centre (168), so the cords fan rather than
+ * all sweeping the same way.
+ */
+const SOURCE_Y = {
+  gmail: 74,
+  meeting: 168,
+  whatsapp: 262,
+} as const;
+
+/**
+ * One message on the board: which line it came in on, and which jack it takes.
+ *
+ * ⚠ Two Gmail, two WhatsApp, one meeting — and the ratio is deliberate. A
+ * meeting arrives once, after the fact, where mail and chat arrive all day.
+ * Five even cords would draw a product that does not exist.
+ */
 const SIGNALS = [
-  { channel: 'gmail', sourceY: 96, jackY: 52 },
-  { channel: 'whatsapp', sourceY: 244, jackY: 110 },
-  { channel: 'gmail', sourceY: 96, jackY: 168 },
-  { channel: 'gmail', sourceY: 96, jackY: 226 },
-  { channel: 'whatsapp', sourceY: 244, jackY: 284 },
+  { channel: 'gmail', sourceY: SOURCE_Y.gmail, jackY: 52 },
+  { channel: 'meeting', sourceY: SOURCE_Y.meeting, jackY: 110 },
+  { channel: 'whatsapp', sourceY: SOURCE_Y.whatsapp, jackY: 168 },
+  { channel: 'gmail', sourceY: SOURCE_Y.gmail, jackY: 226 },
+  { channel: 'whatsapp', sourceY: SOURCE_Y.whatsapp, jackY: 284 },
 ] as const;
 
 /**
@@ -66,15 +97,28 @@ const SIGNALS = [
  */
 const CYCLE_MS = 3600;
 
-const STROKE = {
+/*
+ * ⚠ Typed `Record<ChannelType, …>`, so a fourth channel added to the canonical
+ * union makes this file fail to typecheck until the diagram accounts for it.
+ * Same mechanism as `lib/channels.ts` and `lib/voice/tools.ts`. A product
+ * picture that silently keeps showing the old channel count is exactly the kind
+ * of wrong nobody notices.
+ *
+ * ⚠ Written out in full rather than built from a template. Tailwind only ships
+ * classes it can find as literal text, so `stroke-channel-${type}` compiles to
+ * nothing and the cords would render unstyled.
+ */
+const STROKE: Record<ChannelType, string> = {
   gmail: 'stroke-channel-gmail',
   whatsapp: 'stroke-channel-whatsapp',
-} as const;
+  meeting: 'stroke-channel-meeting',
+};
 
-const FILL = {
+const FILL: Record<ChannelType, string> = {
   gmail: 'fill-channel-gmail',
   whatsapp: 'fill-channel-whatsapp',
-} as const;
+  meeting: 'fill-channel-meeting',
+};
 
 export function PatchField({ className }: { className?: string }) {
   return (
@@ -83,14 +127,16 @@ export function PatchField({ className }: { className?: string }) {
       className={cn('h-auto w-full', className)}
       role="img"
       aria-label={
-        'A diagram of the switchboard: Gmail and WhatsApp on the left, both patched ' +
-        'through one jack field in the middle, arriving as a single ordered list of ' +
-        'messages on the right, each still marked with the channel it came in on.'
+        'A diagram of the switchboard: Gmail, WhatsApp and meetings on the left, all ' +
+        'three patched through one jack field in the middle, arriving as a single ' +
+        'ordered list of messages on the right, each still marked with the channel ' +
+        'it came in on.'
       }
     >
-      {/* ── The two lines coming in ─────────────────────────────────────────── */}
-      <SourceLine y={96} channel="gmail" label="Gmail" />
-      <SourceLine y={244} channel="whatsapp" label="WhatsApp" />
+      {/* ── The three lines coming in ───────────────────────────────────────── */}
+      <SourceLine y={SOURCE_Y.gmail} channel="gmail" label="Gmail" />
+      <SourceLine y={SOURCE_Y.meeting} channel="meeting" label="Meetings" />
+      <SourceLine y={SOURCE_Y.whatsapp} channel="whatsapp" label="WhatsApp" />
 
       {/*
         ── The cords ──────────────────────────────────────────────────────────
@@ -237,7 +283,7 @@ function SourceLine({
   label,
 }: {
   y: number;
-  channel: 'gmail' | 'whatsapp';
+  channel: ChannelType;
   label: string;
 }) {
   return (
