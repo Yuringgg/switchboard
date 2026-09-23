@@ -5,6 +5,7 @@ import {
   Search,
   Sparkles,
   Users,
+  Video,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -28,5 +29,9 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Needs attention', href: '/attention', icon: ListChecks, ready: true },
   { label: 'Contacts', href: '/contacts', icon: Users, ready: true },
   { label: 'Assistant', href: '/assistant', icon: Sparkles, ready: true },
+  // Above Channels and below Assistant: sending a notetaker is a *doing*
+  // surface like Needs attention, not configuration. Channels stays last
+  // because it is the one screen you visit once and then forget.
+  { label: 'Meetings', href: '/meetings', icon: Video, ready: true },
   { label: 'Channels', href: '/channels', icon: Plug, ready: true },
 ];

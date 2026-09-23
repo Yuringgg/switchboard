@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
 import { AppShell } from '@/components/app-shell';
+import { MeetingsPanel } from '@/components/meetings-panel';
 import { AssistantPanel } from '@/components/assistant-panel';
 import { AttentionBoard, AttentionEmpty } from '@/components/attention-board';
 import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
@@ -613,6 +614,60 @@ export default async function PreviewPage({
         ) : (
           <AttentionBoard items={items} channels={rows} now={new Date()} />
         )}
+      </AppShell>
+    );
+  }
+
+  if (screen === 'meetings') {
+    /*
+     * ⚠ Here for the CONSENT GATE, which is the most important control in the
+     * console and is otherwise unreachable without signing in.
+     *
+     * The form is a criminal-liability boundary (RA 4200 — see the note in
+     * `components/meetings-panel.tsx`), so the one thing that must never
+     * silently change is how loudly it reads. A preview screen is how somebody
+     * checks that without a login and without sending a real bot into a real
+     * meeting to find out.
+     *
+     * `state=empty` shows the "none yet" state, which is what a new tenant
+     * sees and is otherwise reachable only on a fresh account.
+     */
+    const sessions =
+      state === 'empty'
+        ? []
+        : [
+            {
+              recall_bot_id: '8b37ef2b-0bd2-4812-9e81-1ccae8973322',
+              // ⚠ Carries a `?pwd=` on purpose. `displayMeetingUrl` strips the
+              // query string so a live meeting password never reaches the
+              // screen, and a fixture without one cannot demonstrate that.
+              meeting_url: 'https://us05web.zoom.us/j/78581577133?pwd=not-a-real-password',
+              created_at: new Date(Date.now() - 22 * 60_000).toISOString(),
+              expires_at: new Date(Date.now() + 11 * 60 * 60_000).toISOString(),
+              last_event_at: null,
+              last_event_type: null,
+            },
+            {
+              recall_bot_id: '1f0c9a44-55d2-4a10-9b31-6c2ee8410077',
+              meeting_url: 'https://meet.google.com/abc-defg-hij',
+              created_at: new Date(Date.now() - 30 * 60 * 60_000).toISOString(),
+              // Already past its TTL, so the "Session expired" marker renders.
+              expires_at: new Date(Date.now() - 18 * 60 * 60_000).toISOString(),
+              last_event_at: null,
+              last_event_type: null,
+            },
+          ];
+
+    return (
+      <AppShell
+        title="Meetings"
+        description="Send a notetaker into a call, and see what it did."
+        userEmail="preview@switchboard.local"
+        userId={PREVIEW_USER_ID}
+        activeHref="/meetings"
+        channels={channels}
+      >
+        <MeetingsPanel sessions={sessions} />
       </AppShell>
     );
   }
