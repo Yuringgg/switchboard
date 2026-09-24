@@ -2,6 +2,7 @@ import {
   buildSummaryPrompt,
   randomNonce,
   shouldSummarise,
+  SUMMARY_COMPLETION_OPTIONS,
   SUMMARY_SYSTEM_PROMPT,
   validateSummary,
   type CompletionProvider,
@@ -111,7 +112,14 @@ export async function summariseMessage(
       randomNonce(),
     );
 
-    const completion = await provider.complete(SUMMARY_SYSTEM_PROMPT, prompt);
+    // ⚠ SUMMARY_COMPLETION_OPTIONS, never the provider defaults: on the gpt-oss
+    // reasoning models the defaults return an empty summary every time. The
+    // note on the constant has the measurement.
+    const completion = await provider.complete(
+      SUMMARY_SYSTEM_PROMPT,
+      prompt,
+      SUMMARY_COMPLETION_OPTIONS,
+    );
     if (!completion.ok) {
       return {
         status: 'failed',

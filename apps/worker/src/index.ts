@@ -12,6 +12,7 @@ import {
 import { createDbClient } from '@switchboard/db';
 
 import { claimNextEvent, markDone, markFailed } from './claim';
+import { catchUpEmbeddings } from './embed-catchup';
 import { embedBatch } from './embed-messages';
 import { extractBatch } from './extract';
 import { catchUpExtractions } from './extract-catchup';
@@ -29,6 +30,8 @@ import { ingestGmailEvent } from './gmail-ingest';
 import { readGmailWatchConfig, renewExpiringWatches } from './gmail-watch';
 import { ingestMeetingEvent } from './meeting-ingest';
 import { sweepMeetings } from './meeting-sweep';
+import { reclaimStaleEvents, STALE_CLAIM_MINUTES } from './queue';
+import { catchUpSummaries } from './summary-catchup';
 import { summariseBatch } from './summarize';
 import { ingestWhatsAppEvent } from './whatsapp-ingest';
 
@@ -458,7 +461,11 @@ async function watchRenewalLoop(): Promise<void> {
 }
 
 /**
- * Extraction catch-up, every 15 minutes.
+ * Catch-up — summaries, embeddings, then extraction — every 15 minutes.
+ *
+ * (Extraction came first and the reasoning below was written for it; summaries
+ * and embeddings joined on 2026-09-24 after the same hole was measured in both.
+ * See `catchUpLoop`.)
  *
  * ⚠ This loop is the answer to a measured hole, not a precaution. See the long
  * note in `extract-catchup.ts`: on 2026-08-03 the live database held 84
@@ -481,6 +488,12 @@ const CATCH_UP_BATCH = 5;
 const CATCH_UP_DELAY_MS = 20_000;
 
 /**
+ * Larger than `CATCH_UP_BATCH` because embedding is local: no token window to
+ * share, only CPU, and ~22 ms per chunk once the model is warm.
+ */
+const EMBED_CATCH_UP_BATCH = 20;
+
+/**
  * ── Phase 7: pulling meeting transcripts in ─────────────────────────────────
  *
  * ⚠ A POLL, because Recall cannot push. Their webhook portal cannot create an
@@ -493,7 +506,7 @@ const CATCH_UP_DELAY_MS = 20_000;
  * another screen. Recall's read endpoints run at 300/min, so a handful of
  * requests every five minutes is nothing.
  *
- * ⚠ Unlike `extractionCatchUpLoop` this does NOT wait for an idle queue. It
+ * ⚠ Unlike `catchUpLoop` this does NOT wait for an idle queue. It
  * spends no LLM tokens — the shared 6,000/minute window it would be competing
  * for is not a resource this touches at all.
  */
@@ -537,13 +550,77 @@ async function meetingSweepLoop(): Promise<void> {
   }
 }
 
-async function extractionCatchUpLoop(): Promise<void> {
+/**
+ * Messages each catch-up gave up on in this process's life — see the `giveUp`
+ * parameter on each. Module-level so they survive between sweeps, and in memory
+ * so a restart or a new model gives every one of them another try.
+ */
+const summaryGiveUp = new Set<string>();
+const embedGiveUp = new Set<string>();
+const extractGiveUp = new Set<string>();
+
+/**
+ * One loop for all three catch-ups, in the same order ingest runs them:
+ * summaries, then embeddings, then extraction.
+ *
+ * ⚠ One loop, not three, because summaries and extraction share a model and so
+ * a per-minute token window. Three independent loops would wake together and
+ * hit Groq at once — the contention each of them is already careful to avoid
+ * with live ingest, recreated between themselves. Sequential, they cannot.
+ *
+ * ⚠ Each step is wrapped separately. A summary sweep that throws must not cost
+ * the embedding and extraction sweeps behind it their turn.
+ */
+async function catchUpLoop(): Promise<void> {
   while (running) {
     // Broken into short sleeps so SIGTERM is not waited out. Sleeping FIRST
     // also keeps the sweep clear of startup, when the queue is likeliest busy.
     const wakeAt = Date.now() + EXTRACT_SWEEP_MS;
     while (running && Date.now() < wakeAt) await sleep(1_000);
-    if (!running || !extractor) return;
+    if (!running) return;
+
+    if (summariser) {
+      try {
+        const result = await catchUpSummaries(
+          db,
+          summariser,
+          CATCH_UP_BATCH,
+          CATCH_UP_DELAY_MS,
+          summaryGiveUp,
+        );
+        // Silent when there is nothing outstanding — a line every 15 minutes
+        // saying "0" would train people to skim.
+        if (result.considered > 0) {
+          console.info(
+            `[summary-catchup] sweep: considered=${result.considered} ` +
+              `written=${result.written} skipped=${result.skipped} failed=${result.failed}`,
+          );
+        }
+      } catch (error) {
+        console.error(
+          '[summary-catchup] sweep errored:',
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+
+    try {
+      const result = await catchUpEmbeddings(db, EMBED_CATCH_UP_BATCH, embedGiveUp);
+      if (result.considered > 0) {
+        console.info(
+          `[embed-catchup] sweep: considered=${result.considered} ` +
+            `embedded=${result.embedded} chunks=${result.chunks} ` +
+            `skipped=${result.skipped} failed=${result.failed}`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        '[embed-catchup] sweep errored:',
+        error instanceof Error ? error.message : error,
+      );
+    }
+
+    if (!extractor) continue;
 
     try {
       const result = await catchUpExtractions(
@@ -551,10 +628,9 @@ async function extractionCatchUpLoop(): Promise<void> {
         extractor,
         CATCH_UP_BATCH,
         CATCH_UP_DELAY_MS,
+        extractGiveUp,
       );
 
-      // Silent when there is nothing outstanding, which is the healthy steady
-      // state — a line every 15 minutes saying "0" would train people to skim.
       if (result.considered > 0) {
         console.info(
           `[extract-catchup] sweep: considered=${result.considered} ` +
@@ -570,6 +646,44 @@ async function extractionCatchUpLoop(): Promise<void> {
         error instanceof Error ? error.message : error,
       );
     }
+  }
+}
+
+/**
+ * Stranded-event reaper, at startup and then every five minutes.
+ *
+ * ⚠ The answer to 27 events found stuck in 'processing' on 2026-09-24, the
+ * oldest since 4 August — and to the extraction catch-up having been switched
+ * off by them for all of that time. The full account is in `queue.ts`.
+ *
+ * At STARTUP first, because a restart is exactly when a row has just been
+ * stranded: the process that claimed it is the one that died. `STALE_CLAIM_MINUTES`
+ * still applies, so a row the previous revision is finishing during a deploy is
+ * left alone.
+ *
+ * Cheap enough to run forever: one UPDATE over a few hundred rows that matches
+ * nothing in the healthy steady state, and says nothing when it does.
+ */
+const RECLAIM_SWEEP_MS = 5 * 60 * 1000;
+
+async function reclaimLoop(): Promise<void> {
+  while (running) {
+    try {
+      const result = await reclaimStaleEvents(db, MAX_ATTEMPTS);
+      if (result.requeued > 0 || result.failed > 0) {
+        // Loud, because every one of these is an event a worker died holding.
+        console.warn(
+          `[reclaim] ${result.requeued} event(s) stuck in processing for over ` +
+            `${STALE_CLAIM_MINUTES} minutes returned to the queue` +
+            (result.failed > 0 ? `; ${result.failed} were out of attempts and parked as failed` : ''),
+        );
+      }
+    } catch (error) {
+      console.error('[reclaim] sweep errored:', error instanceof Error ? error.message : error);
+    }
+
+    const wakeAt = Date.now() + RECLAIM_SWEEP_MS;
+    while (running && Date.now() < wakeAt) await sleep(1_000);
   }
 }
 
@@ -630,7 +744,8 @@ void warmEmbedder().then((result) => {
   }
 });
 
+void reclaimLoop();
 void loop();
 void watchRenewalLoop();
-void extractionCatchUpLoop();
+void catchUpLoop();
 void meetingSweepLoop();

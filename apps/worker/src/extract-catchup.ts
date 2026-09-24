@@ -3,6 +3,7 @@ import type { Database } from '@switchboard/db';
 import { sql } from 'drizzle-orm';
 
 import { extractMessage } from './extract';
+import { queueIsIdle } from './queue';
 
 /**
  * Re-extract messages the live ingest path dropped.
@@ -61,22 +62,20 @@ import { extractMessage } from './extract';
  * an indexed query, cheap enough to run forever and loud enough to notice.
  */
 
-/**
- * ⚠ Only when the queue is EMPTY.
+/*
+ * ⚠ Only when the queue is EMPTY — `queueIsIdle`, in `queue.ts`.
  *
- * The sweep and live ingest draw on one 6,000/minute window. A sweep grinding
- * through yesterday's newsletters while today's mail arrives would starve the
- * step that a person is about to look at — reintroducing the exact failure this
- * file exists to fix, with the priorities inverted.
+ * The sweep and live ingest draw on one per-minute token window. A sweep
+ * grinding through yesterday's newsletters while today's mail arrives would
+ * starve the step that a person is about to look at — reintroducing the exact
+ * failure this file exists to fix, with the priorities inverted.
+ *
+ * ⚠⚠ Until 2026-09-24 this file carried its own idle check, and it counted
+ * EVERY 'processing' row as busy. One event stranded in 'processing' on
+ * 4 August therefore switched this sweep off for seven weeks, with nothing in
+ * any log — 183 of 393 messages never extracted. The check now ignores stale
+ * claims, and lives in `queue.ts` so the three catch-ups share one definition.
  */
-async function queueIsIdle(db: Database): Promise<boolean> {
-  const rows = await db.execute<{ pending: number }>(sql`
-    select count(*)::int as pending
-      from raw_events
-     where status in ('pending', 'processing')
-  `);
-  return (rows[0]?.pending ?? 0) === 0;
-}
 
 export interface CatchUpResult {
   considered: number;
@@ -96,6 +95,17 @@ export async function catchUpExtractions(
   provider: CompletionProvider,
   batchSize: number,
   delayMs: number,
+  /**
+   * Messages that failed NON-retryably earlier in this process's life.
+   *
+   * ⚠ A failure records no run (ADR-019), so without this a message the model
+   * cannot handle — one that always comes back as prose, say — is first in
+   * line again on every sweep. Five of them at the top of the list and the
+   * sweep never reaches anything older, forever, while reporting activity.
+   * In memory on purpose: a restart or a new model is exactly when they
+   * deserve another try.
+   */
+  giveUp: Set<string> = new Set(),
 ): Promise<CatchUpResult> {
   const empty: CatchUpResult = {
     considered: 0,
@@ -124,15 +134,20 @@ export async function catchUpExtractions(
    * there, so every sweep would pick up the same message forever and report
    * work it never did. This corpus contains exactly such a message.
    */
-  const pending = await db.execute<{ id: string }>(sql`
+  const candidates = await db.execute<{ id: string }>(sql`
     select m.id
       from messages m
       left join message_extraction_runs r on r.message_id = m.id
      where r.message_id is null
        and btrim(m.body_text, E' \t\r\n') <> ''
      order by m.sent_at desc
-     limit ${batchSize}
+     limit ${batchSize + giveUp.size}
   `);
+
+  // Over-fetched by the size of `giveUp` so filtering it out still leaves a
+  // full batch — filtered here rather than in SQL to keep the query identical
+  // to `backfill-extractions.ts`, which the note above depends on.
+  const pending = candidates.filter((row) => !giveUp.has(row.id)).slice(0, batchSize);
 
   const result: CatchUpResult = { ...empty, considered: pending.length };
 
@@ -157,6 +172,7 @@ export async function catchUpExtractions(
        * again. That "next sweep" is the entire point of this file.
        */
       if (outcome.retryable) break;
+      giveUp.add(row.id);
     }
 
     if (index < pending.length - 1) await new Promise((r) => setTimeout(r, delayMs));

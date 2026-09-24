@@ -1,3 +1,5 @@
+import type { CompletionOptions } from './provider';
+
 /**
  * The assistant's prompt, context and citation handling (US-6, ADR-007, ADR-016).
  *
@@ -555,6 +557,35 @@ export function parseAnswer(
    */
   return { text, citedMessageIds: cited, refused: cited.length === 0 };
 }
+
+/**
+ * What every assistant request asks the provider for.
+ *
+ * ── ⚠ The same trap as `SUMMARY_COMPLETION_OPTIONS`, on the assistant ───────
+ *
+ * The console called `provider.complete(system, prompt)` with no options, which
+ * meant `groq.ts`'s defaults: 160 tokens. On `llama-3.3-70b-versatile` that was
+ * the answer's budget. On 2026-09-20 the assistant moved to
+ * `openai/gpt-oss-120b`, a reasoning model whose thinking is billed out of the
+ * SAME `max_tokens` — and a retrieval prompt of ~3,000 tokens gives it a lot to
+ * think about. When the thinking overruns the ceiling the content comes back
+ * empty, `groq.ts` reports it as retryable, and the reader is told the
+ * assistant is busy. The model switch was verified on extraction alone.
+ *
+ * ⚠ NOT yet measured against the live model — nothing here holds a Groq key.
+ * Run `eval-assistant.ts` before quoting a score; the numbers ADR-017 and
+ * ADR-020 cite (6/6, 7/7) were measured on the Llama model and say nothing
+ * about this one.
+ *
+ * `low` because it cut reasoning from 298 tokens to 51 on extraction with no
+ * loss of content. 900 is a ceiling, not a reservation: it leaves room for that
+ * thinking plus an answer with its citations. Gemini ignores `reasoningEffort`
+ * and simply receives the ceiling, a little above its own default of 800.
+ */
+export const ASSISTANT_COMPLETION_OPTIONS = {
+  maxTokens: 900,
+  reasoningEffort: 'low',
+} as const satisfies CompletionOptions;
 
 /** No context at all: refuse without spending a request. */
 export const EMPTY_CORPUS_ANSWER =

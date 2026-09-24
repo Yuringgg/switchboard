@@ -31,6 +31,7 @@ import {
   createGroqProvider,
   randomNonce,
   shouldSummarise,
+  SUMMARY_COMPLETION_OPTIONS,
   SUMMARY_MAX_CHARS,
   SUMMARY_SYSTEM_PROMPT,
   validateSummary,
@@ -258,7 +259,12 @@ async function main(): Promise<void> {
       { subject: testCase.subject, bodyText: testCase.body },
       randomNonce(),
     );
-    const completion = await provider.complete(SUMMARY_SYSTEM_PROMPT, prompt);
+    // The same options the worker sends, or this measures a request nobody makes.
+    const completion = await provider.complete(
+      SUMMARY_SYSTEM_PROMPT,
+      prompt,
+      SUMMARY_COMPLETION_OPTIONS,
+    );
 
     if (!completion.ok) {
       report(testCase.name, [`provider failed: ${completion.reason}`], '');

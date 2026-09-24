@@ -19,6 +19,7 @@ export {
 
 export {
   ABSOLUTE_FLOOR,
+  ASSISTANT_COMPLETION_OPTIONS,
   ASSISTANT_SYSTEM_PROMPT,
   buildAssistantPrompt,
   EMPTY_CORPUS_ANSWER,
@@ -86,6 +87,7 @@ export {
   buildSummaryPrompt,
   randomNonce,
   shouldSummarise,
+  SUMMARY_COMPLETION_OPTIONS,
   SUMMARY_INPUT_LIMIT,
   SUMMARY_MAX_CHARS,
   SUMMARY_MIN_BODY,
