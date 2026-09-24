@@ -339,6 +339,66 @@ differently.
 
 ---
 
+## ✅ THE TRANSCRIPT SHAPE IS KNOWN (2026-09-23)
+
+A real transcript was generated for recording `3299fb14-…` and read back. This
+was the last unknown blocking the mapping, and it is now answered. Raw files in
+`D:/Claude Code/_scratch/recall/` — outside the repo, because a transcript is a
+real conversation.
+
+**The transcript is an array of speaker turns, word by word:**
+
+```
+[ { "participant": { "id": 1, "name": "Yuriel Chua", "is_host": true,
+                     "platform": "unknown", "email": null, "extra_data": {…} },
+    "words": [ { "text": "…",
+                 "start_timestamp": { "relative": 27.88, "absolute": null },
+                 "end_timestamp":   { "relative": 28.01, "absolute": null } },
+               … 67 total ],
+    "language_code": "en" } ]
+```
+
+Measured: 1 group, 67 words, 350 characters once joined, spanning 27.9s to
+57.0s of a 68-second recording.
+
+### Four things that decide how the mapping has to be written
+
+1. **⚠⚠ THE ARTIFACT HAS NO BOT ID.** It carries `recording.id` and nothing
+   else pointing anywhere. The known bot id does not appear anywhere in the
+   serialised object. A recording carries it twice; a transcript carries it
+   **zero** times. So the chain is **transcript → recording → bot → tenant**,
+   and `botIdOf` returns null on a transcript-shaped payload today. Full note
+   and the two workable fixes are in `lib/meetings/payload.ts`.
+
+2. **⚠ `absolute` timestamps are null. Only `relative` seconds exist.**
+   `messages.sent_at` is a `timestamptz`, so it has to be computed as
+   `recording.started_at + relative`. Reading `relative` as an epoch puts every
+   utterance in January 1970 — which sorts correctly among itself, so a
+   meetings-only view would look perfectly normal. Exactly the WhatsApp
+   seconds-vs-milliseconds trap in a new costume (AGENTS.md §6).
+
+3. **⚠ `participant.email` is null.** Zoom does not hand over addresses, so
+   identity resolution cannot match a speaker to an existing contact by email
+   the way Gmail does. It has a display name and nothing else. Do not assume
+   `contact_identities` will resolve a speaker — decide what happens when it
+   cannot.
+
+4. **It is word-level, not sentence-level.** A message body is
+   `words.map(w => w.text).join(' ')`. There is no punctuation-aware sentence
+   split in the payload, so anything wanting sentences has to make them.
+
+⚠ `platform` read `"unknown"` on a Zoom call. Do not use it to decide anything.
+
+### The decision this now unblocks
+
+One meeting is one group per speaker turn. A short solo test produced one; an
+hour of four people talking produces hundreds. **One timeline row per
+utterance would bury a week of mail under a single meeting.** The intended
+shape stays the one written under *What to do next*: one row per meeting, with
+utterances stored and embedded behind it.
+
+---
+
 ## The webhook is broken on Recall's side, and it is not our bug
 
 Recall's dashboard webhook page is an embedded Svix portal. **The Create button
@@ -378,8 +438,9 @@ tested so it works the day they fix their portal.
 
 1. **Deploy the worker** once `az login` is done. Production extraction is
    broken until then — this outranks everything else here.
-2. **Fetch the transcript** once the Recall key is in `apps/worker/.env`. Run
-   the script, then **read `transcript.shape.json` before writing any mapping.**
+2. ✅ **Done 2026-09-23.** The transcript was fetched and its shape read. See
+   the section above — and note the artifact does NOT carry a bot id, which
+   changes how the tenant is resolved on that path.
 3. **Map transcript → `messages` + segments.** Not before step 2. The Vapi
    payload-shape guess cost most of a day and this is the same class of unknown.
 4. **Per-person roll-up on `/contacts`** — the actual "brief" view, and the one

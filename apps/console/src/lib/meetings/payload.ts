@@ -58,6 +58,37 @@
  * this was an API response, and the webhook envelope may wrap it differently.
  * Delete them then, not before.
  *
+ * ── ⚠⚠ A TRANSCRIPT ARTIFACT DOES **NOT** CARRY THE BOT ID (2026-09-23) ─────
+ *
+ * A real transcript was generated and read back, and this is the half of the
+ * question the recording answered the *other* way. The artifact is:
+ *
+ *     { "id": "7288bade-…",                    ← the transcript
+ *       "recording": { "id": "3299fb14-…" },   ← the recording, and that is ALL
+ *       "status": { … }, "data": { "download_url": … } }
+ *
+ * **There is no `bot_id` and no `bot` anywhere in it.** Searched the whole
+ * serialised object for the known bot id: absent.
+ *
+ * So `botIdOf` returns null on a transcript-shaped payload, and the tenant
+ * lookup refuses it — failing closed, which is right, and useless, because
+ * `transcript.done` is the one delivery that carries the thing we actually
+ * want.
+ *
+ * ⚠ Whoever wires the transcript path must therefore resolve
+ * **transcript → recording → bot**, not transcript → bot. Two workable shapes:
+ *
+ *   1. Store `recording_id` on `meeting_bot_sessions` when the recording first
+ *      appears, so a transcript delivery can be matched directly. Needs a
+ *      migration and a moment to write it.
+ *   2. On a transcript delivery, `GET /recording/{id}` and read `bot_id` off
+ *      that — one extra call, no schema change. The recording DOES carry it,
+ *      twice, which is what the 2026-09-20 probe established above.
+ *
+ * ⚠ Whichever is chosen, the rule does not move: the tenant comes from a row
+ * THIS APP WROTE, never from the payload. An extra hop to find the bot id is
+ * still a claim to be matched, not provenance. ADR-026.
+ *
  * ⚠ Do NOT "solve" a future gap by reading an owner out of bot `metadata`.
  * Metadata is echoed back from what was sent and is therefore payload, not
  * provenance. ADR-026 exists to stop exactly that shortcut.
