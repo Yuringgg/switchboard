@@ -50,6 +50,13 @@ migrations/0008_summary_extractions.sql   Phase 4A: one summary per message
 migrations/0009_chunk_retrieval.sql       HNSW index + match_chunks
 migrations/0010_search_summaries.sql      search results carry their summary
 migrations/0011_extraction_runs.sql       Phase 5: "the pass has run" (ADR-019)
+migrations/0012_extraction_status.sql     the attention board's three columns
+migrations/0013_extraction_archive.sql    archive, never delete (ADR-021)
+migrations/0014_voice_call_sessions.sql   which tenant is on the phone (ADR-024)
+migrations/0015_voice_last_tool_name.sql  which tool a call asked for
+migrations/0016_meeting_bot_sessions.sql  meetings as a channel (ADR-026)
+migrations/0017_affiliation_extractions.sql  who somebody is (Phase 7B)
+migrations/0018_raw_events_claimed_at.sql when an event was claimed (ADR-027)
 
 tests/tenant_isolation.sql           two tenants, one shared contact, no bleed
 tests/idempotency.sql                replay 3×, assert one row, across 4 guards
@@ -59,7 +66,7 @@ src/schema.ts                        Drizzle tables for typed queries
 src/supabase-types.ts                generated types, kept in step by hand
 ```
 
-All eleven migrations are applied to project `ytrkpcryztwgflmbhfdu`
+All eighteen migrations are applied to project `ytrkpcryztwgflmbhfdu`
 (`ap-southeast-1`), verified by introspection rather than assumed.
 
 CAUTION: **Adding a table to `public` makes CI red until `EXPECTED_TABLES` in

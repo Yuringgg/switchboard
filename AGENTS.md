@@ -98,18 +98,33 @@ write-back) · **Ms. Maria's 2026-08-05 review built** ·
 things out loud, ~1,900ms, hosted by Vapi. Polish remains.** ·
 **Phase 7 — MEETINGS, IN PROGRESS since 2026-09-18.** 7A's receiving pathway is
 built and proven against a real Zoom meeting (migrations 0016/0017, a signed
-webhook, `/api/meetings/bot`); 7B's affiliation extraction is built and
-backfilled. The console caught up on 2026-09-23 — meetings now has its own lane
-in the split timeline, Uriel can be asked about it, and the copy stops claiming
-two channels. Nothing maps a transcript into `messages` yet, deliberately —
-**nobody has seen one.**
+webhook, `/api/meetings/bot`, and a `/meetings` screen with a consent gate); 7B's
+affiliation extraction is built and backfilled. **A recorded meeting now becomes
+one message** (`18f6c23`, `packages/adapters/meeting`, `meeting-sweep.ts`), and
+**every contact has a brief** — who they are, what is open, where they write
+(`042696f`). Both are built; neither is live until the worker deploy below.
 
-> ⚠⚠ **THE WORKER IN AZURE IS RUNNING BROKEN CODE.** Groq decommissioned every
-> Llama model the project used; the fix (`35f65c7`) is built into an image and
-> **not deployed**, so extraction and summaries are dead in production. The
-> deploy is blocked on an expired `az` login, not on code. **Read
-> `correspondence/2026-09-22-phase-7-handoff.md` before doing anything else** —
-> it is newer than this file and newer than everything in `docs/`.
+> ⚠⚠ **READ `correspondence/2026-09-24-pipeline-repair.md` BEFORE ANYTHING ELSE.**
+> It is newer than this file and newer than everything in `docs/`.
+>
+> **The AI half of the pipeline had quietly stopped.** Measured 2026-09-24: no
+> summary written since **14 August**, **183 of 393** messages never extracted,
+> 36 never embedded, and **27 queue events stuck in `processing`** since as far
+> back as 4 August — while mail kept arriving the whole time. A stranded event
+> had switched the extraction catch-up off; summaries and embeddings had no
+> catch-up at all; and summaries (and, unmeasured, the console assistant) asked
+> the gpt-oss reasoning model for 160 tokens, which its thinking alone uses up.
+>
+> **All of it is fixed on branch `claude/dreamy-wozniak-lexzju`, migration 0018
+> is applied, and the image is built** —
+> `sha256:0e6bad966a9347d203d7bc0155e6f262b53696c91a2a0055257dad48a6d19c65`.
+> **What is left is the Azure deploy, which needs Yuri's `az` login**, plus
+> giving the worker `RECALL_API_KEY` — it has only ever been on Vercel, and
+> without it no meeting reaches the timeline. The commands are in the note.
+>
+> ~~The worker in Azure is running broken code~~ — deployed 2026-09-24
+> (revision 0000016, `305cd0a`), so extraction and summaries CAN run; the note
+> above is why they still were not.
 
 ### Ms. Maria's review landed 2026-08-06 — six things a console session must know
 
@@ -274,10 +289,13 @@ these notes is a DOM measurement. `localhost:3100/welcome`, `/login` and
 it carries the verified numbers and the next action. Read that, then come back.
 
 > **Joining cold? Read these in order after this file:**
-> `correspondence/2026-09-22-phase-7-handoff.md` — **most recent, and the one
-> to read first.** Where Phase 7 stands, the two things blocked on Yuri, the
-> uncommitted work in the tree, and why the worker deploy must NOT go through
-> bicep. Newer than every doc in `docs/`.
+> `correspondence/2026-09-24-pipeline-repair.md` — **most recent, and the one
+> to read first.** The stranded queue, the summaries that stopped on 14 August,
+> the per-person brief, and the exact deploy commands. Newer than every doc in
+> `docs/`.
+> `correspondence/2026-09-22-phase-7-handoff.md` — Phase 7 up to 2026-09-23:
+> the transcript shape, RA 4200, and why the worker deploy must NOT go through
+> bicep.
 > `correspondence/2026-09-10-voice-integration-plan.md` — the voice build.
 > `correspondence/2026-08-09-design-revisions.md` — **the console's most
 > recent design pass.** Yuri's
@@ -839,14 +857,22 @@ are all settled — see the resolved list in `docs/06-OPEN-QUESTIONS.md`.
   Stays warm because it holds ONNX embedding weights in memory.
 - **Database:** Postgres + pgvector + Realtime + Auth + RLS → **Supabase**
 - **Object storage:** attachments → **Azure Blob Storage**
-- **Assistant Q&A:** **Groq `llama-3.3-70b-versatile`** — CAUTION: **not Gemini.**
-  ADR-003 said Gemini 2.5 Flash on the strength of 250 requests/day; measured
-  2026-08-02 that free tier is **20 per day**. Groq gives 1,000/day, though the
-  binding limit is ~100K tokens/day ≈ **30 questions/day**. Amended in
-  `packages/ai/src/assistant-provider.ts`; `ASSISTANT_PROVIDER=gemini` reverts.
-- **Summaries:** **Groq `llama-3.1-8b-instant`** — 14,400 req/day. A *different
-  model* from the assistant on purpose: Groq's limits are per-model, so heavy
-  assistant use can never stop mail being summarised.
+- **Assistant Q&A:** **Groq `openai/gpt-oss-120b`** — CAUTION: **not Gemini, and
+  not Llama any more.** Groq removed every Llama model this project used on
+  2026-09-20 (`35f65c7`); limits read from live headers that day were 1,000
+  requests/day and 8,000 tokens/minute **per model**. ADR-003 said Gemini 2.5
+  Flash on 250 requests/day; measured 2026-08-02 that free tier is **20 per
+  day**. `ASSISTANT_PROVIDER=gemini` reverts.
+- **Summaries + extraction:** **Groq `openai/gpt-oss-20b`** — a *different model*
+  from the assistant on purpose: Groq's limits are per-model, so heavy assistant
+  use can never stop mail being summarised.
+- CAUTION: **Both gpt-oss models are REASONING models**, and their thinking is
+  billed out of the same `max_tokens` as the answer. A request with no options
+  gets `groq.ts`'s default of 160 tokens and comes back EMPTY. Every call site
+  passes `reasoningEffort: 'low'` and a real ceiling —
+  `SUMMARY_COMPLETION_OPTIONS`, `ASSISTANT_COMPLETION_OPTIONS`,
+  `EXTRACTION_MAX_TOKENS`. A new call site that forgets is the same outage
+  again. The `llama-*` numbers elsewhere in this file are historical.
 - **Embeddings:** **local**, Transformers.js, `Xenova/multilingual-e5-small`
   (384d, 129 MB). Free, unlimited, cannot fail mid-demo. **Must be multilingual
   — the corpus is Taglish**, and it is measurably doing that job (a Tagalog
@@ -1206,6 +1232,12 @@ the other way.
   thing to run when a case fails.
 
 ---
+
+*Last updated: **2026-09-24** · §5 rewritten for the pipeline repair (migration
+0018, the reaper, three catch-ups, the gpt-oss token trap) and the per-person
+brief; §6's models corrected to gpt-oss. See
+`correspondence/2026-09-24-pipeline-repair.md`. The paragraph below is the
+2026-08-09 footer, kept.*
 
 *Last updated: **2026-08-09** · Two rounds of design work on top of Phase 5.
 Ms. Maria's 2026-08-05 review is built (landing page, the attention board,

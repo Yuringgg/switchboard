@@ -205,6 +205,24 @@ them."*
 > every one of them into "+0". It now falls through to the last-two-digits rule.
 > Found here, where a column of them is visible at once.
 
+### The brief (Phase 7B)
+
+`/contacts/[id]` opens with a **Brief** — who the person is (company, role,
+relationship, whether they make the call), what is open with them, and where
+they write. `lib/brief.ts`, `components/contact-brief.tsx`.
+
+> CAUTION: **A fact lands on a person only when the extraction's title names
+> them** (ADR-028). The only affiliation row in production when this was built
+> sat in a message the reader sent and named somebody else — attributed by
+> sender, it would have put a stranger's employer on the reader's own contact.
+> Everything that does not name them is shown under "Also mentioned", never
+> rolled up.
+
+> CAUTION: **Every fact carries its quote**, and facts stated by one sentence
+> share one quote rather than printing it three times. And the brief says how
+> much of the conversation is still unread by the extraction pass — a brief built
+> from half of somebody's mail otherwise looks complete.
+
 ### Needs attention
 
 `/attention` is the Phase 5 queue (US-9) — meetings, commitments, requests and
@@ -328,6 +346,10 @@ over fixture rows.
 | `/preview?screen=contacts&state=single` | the same list as the data actually is today: one handle each |
 | `/preview?screen=contacts&state=empty` | "no contacts yet" — a channel is connected, nothing has arrived |
 | `/preview?screen=contacts&state=unconnected` | "no channels connected". Must never converge with the above |
+| `/preview?screen=contact` | **the brief** — facts with their quotes, open items, lines, one "also mentioned" |
+| `/preview?screen=contact&state=unread` | the brief before any of the conversation has been read |
+| `/preview?screen=contact&state=empty` | read, and nothing says who they are. Must never converge with the above |
+| `/preview?screen=meetings` | **the consent gate** on sending a notetaker, and a sent link with its `?pwd=` stripped |
 | `/preview?screen=proposal` | a meeting proposal, editable, before confirming |
 | `/preview?screen=proposal&state=confirmed` | **"On your calendar"** — no form, no button. The state that was invisible until 2026-08-03 |
 

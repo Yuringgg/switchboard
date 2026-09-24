@@ -1140,10 +1140,11 @@ several people talking, once, after it has ended. **ADR-026.**
 | The webhook | `/api/webhooks/recall` | **done — stores, does not parse** |
 | Sending the bot | `/api/meetings/bot` | **built and deployed — a real bot joined a real Zoom call** |
 | Polling probe | `apps/worker/scripts/probe-recall.ts` | **done, run, answered its question** |
-| Requesting a transcript | `apps/worker/scripts/fetch-transcript.ts` | **written, never run** — no API key on disk |
+| Requesting a transcript | `apps/worker/scripts/fetch-transcript.ts` | **run 2026-09-23** — shape read off a real transcript |
 | Meetings visible in the console | split timeline, third lane at a wide measure | **done 2026-09-23** |
 | Meetings reachable by Uriel | `lib/voice/tools.ts`, agent prompt | **done 2026-09-23** — ⚠ prompt still to be pasted into Vapi |
-| Transcript → `messages` | — | **not built, deliberately** |
+| Transcript → `messages` | `packages/adapters/meeting`, `meeting-sweep.ts` | **built 2026-09-24** (`18f6c23`), one message per meeting — ⚠ not live until the worker image is deployed AND the worker has `RECALL_API_KEY` |
+| A screen to send a notetaker | `/meetings`, consent checkbox | **shipped** (`3bb2ff0`) |
 
 **⚠ The last two rows are the point, not a gap.** The webhook verifies, resolves
 the tenant, and files the payload into `raw_events` **untouched**. That is the
@@ -1208,7 +1209,7 @@ they flow into extraction that already works.
 | Prompt rules and four worked examples | `EXTRACTION_SYSTEM_PROMPT` | **done** |
 | 7 tests | `packages/ai/test/extract.test.ts` | **635 passing** |
 | Backfill over the existing corpus | — | **run** |
-| Per-person roll-up | — | **not built** — needs no Recall, no Azure, no key |
+| Per-person roll-up | `/contacts/[id]` Brief, `lib/brief.ts` | **built 2026-09-24** (`042696f`) — a fact lands on a person only when the extraction names them (ADR-028) |
 
 **⚠ Why an extraction and not a column on `contacts`.** A
 `contacts.relationship` column can say "client" and can never say *why*. Stored
@@ -1232,8 +1233,8 @@ it to 51 for the same output. And every affiliation field came back null despite
 a perfect job title, because the prompt's shape block only ever showed a
 `meeting` example: **a model follows the example over the prose.**
 
-**Next:** build the per-person roll-up on `/contacts`. It is the actual "brief"
-view, and the only Phase 7 work that is not waiting on somebody else.
+**Built 2026-09-24:** the per-person roll-up on `/contacts/[id]` — see *Pipeline
+repair* below and ADR-028.
 
 ### The console caught up 2026-09-23
 
@@ -1289,6 +1290,43 @@ puts a second transcription pipeline in the codebase.
 ⚠ Check first whether iOzera already records to **Zoom cloud**. If so, Zoom's own
 API returns the transcript for free and the bot is unnecessary. Recall's value is
 joining live across Zoom, Meet *and* Teams.
+
+---
+
+## Pipeline repair — 2026-09-24
+
+Not a phase. Found while planning the next build, by counting rows rather than
+reading code, and it had to come first: the brief below it would have had
+nothing to show. Full note: `correspondence/2026-09-24-pipeline-repair.md`.
+
+Measured on the live database, 2026-09-24:
+
+| | |
+|---|---|
+| Last summary written | **2026-08-14** — 153 eligible messages with none |
+| Never extracted | **183 of 393** |
+| Never embedded | 36 |
+| Stuck in `processing` | **27**, the oldest since 2026-08-04 |
+
+- [x] **Stranded events are reclaimed** — migration **0018** (`raw_events.claimed_at`,
+      applied), `apps/worker/src/queue.ts`. A stuck row switched the extraction
+      catch-up off for seven weeks because the idle check counted it as busy.
+      **ADR-027.**
+- [x] **Summaries and embeddings get a catch-up**, beside extraction's, in one
+      loop so the two Groq steps cannot contend.
+- [x] **Summaries and the assistant get room to answer on gpt-oss** —
+      `SUMMARY_COMPLETION_OPTIONS`, `ASSISTANT_COMPLETION_OPTIONS`. Both were
+      sending the 160-token default, which a reasoning model's thinking uses up.
+- [x] **The worker image rebuilt** — the `18f6c23` build had failed on an npm
+      download timeout, not on code.
+- [x] **`infra/main.bicep` declares the Recall key** — the worker never had it.
+- [ ] ★ **Deploy** — `az containerapp update` with the new digest and the Recall
+      key. **Yuri**; the commands are in the note.
+- [ ] **Measure the assistant and summaries on gpt-oss** — `eval-assistant.ts`,
+      `eval-summaries.ts`. The 6/6 · 7/7 on record are Llama numbers.
+
+**Done when:** the three backlog numbers above are falling in production and
+the stuck count is 0.
 
 ---
 

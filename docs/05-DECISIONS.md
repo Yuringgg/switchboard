@@ -1394,9 +1394,6 @@ does for free.
 
 ---
 
-## Template for new ADRs
-
-```markdown
 ## ADR-023 — Voice runs on Vapi, and the browser microphone was removed
 
 **Date:** 2026-09-11 · **Status:** Accepted
@@ -1593,6 +1590,100 @@ meeting is Ms. Maria's and iOzera's decision, not one to settle by shipping.
 
 ---
 
+## ADR-027 — A stranded queue event is reclaimed by claim time, not by restart
+
+**Date:** 2026-09-24 · **Status:** Accepted · *Migration 0018*
+
+**Context.** `claimNextEvent` flips a `raw_events` row to `processing` as it
+claims it. A worker that dies before `markDone` — a deploy outliving the
+10-second SIGTERM grace, an OOM, a restart — leaves the row there, and the claim
+only ever selects `pending`, so nothing looks at it again. Measured on the live
+database: **27 such rows, the oldest from 2026-08-04.**
+
+The leak was small. What it switched off was not: `extract-catchup.ts` ran only
+when the queue was idle and counted `processing` as busy, so the first stranded
+row disabled it for seven weeks with nothing in any log — **183 of 393 messages
+never extracted.**
+
+**Decision.** `raw_events.claimed_at`, set in the claim statement. A reaper at
+startup and every five minutes returns rows `processing` for over **30 minutes**
+to `pending`, keeping the attempt they spent. One idle check, in
+`apps/worker/src/queue.ts`, ignores stale claims and is shared by every catch-up.
+
+**Why claim time.** The obvious fix — reset everything in `processing` when the
+worker starts — is wrong at exactly the moment stranding happens: during a
+deploy the old revision is still finishing its event, and a blanket reset from
+the new one would pull that live event back and process it twice, concurrently.
+Only a timestamp can tell "died an hour ago" from "being worked on now".
+
+**Consequences.**
+
+- 30 minutes is far longer than any real event (the slowest is a Gmail history
+  replay, minutes at worst). A stranded row waits a little longer; a live one is
+  never taken.
+- **The spent attempt is kept.** A payload that kills the worker every time
+  still runs out of attempts and parks as `failed`, rather than being reclaimed
+  into a crash loop.
+- Rows claimed before 0018 fall back to `received_at`, which is always earlier
+  than the claim — so the fallback can only make an old row staler, never a live
+  one stale.
+- The idle check and the reaper share one SQL predicate. If they ever disagreed
+  about "stale", a row the reaper ignores would hold the catch-ups off again.
+
+**Rejected:** the startup reset (above); a visibility timeout that re-queues on
+every claim (a broker's job — ADR-005 chose a table); ignoring `processing` in
+the idle check without a reaper (the catch-up would run, but 27 events would
+stay unprocessed forever).
+
+---
+
+## ADR-028 — A brief attributes a fact to a person only when the extraction names them
+
+**Date:** 2026-09-24 · **Status:** Accepted
+
+**Context.** Phase 7B extracts `affiliation` rows — company, role,
+relationship, decision-maker — each with a verbatim quote (migration 0017). The
+per-person brief on `/contacts/[id]` rolls them up. The obvious attribution is
+by **sender**: a row from a message Maria sent is about Maria.
+
+**Checked against the live database before building it:** the only affiliation
+row in production sits in a message **the reader sent**, and its title names
+somebody else. By sender, that person's company would have been printed on the
+reader's own contact as a fact. An affiliation is about whoever the sentence is
+about — the sender, the recipient, or someone copied in — and `messages`
+records no recipients at all.
+
+**Decision.** The brief reads every conversation the contact is in, both
+directions, and rolls a row up into their facts **only when the row's title
+names them** — a whole-word match on any word of three letters or more from
+their display name or their handles' names. Every other row is shown under
+"Also mentioned in these conversations": visible, never attributed.
+
+**Why.** The `relationship` enum's own note sets the bar: *"a confident wrong
+'partner' about a real person is worse than a null."* A name match can miss
+(a nickname, a contact known only by a number); it cannot put a stranger's
+employer on this person. Missing is visible and recoverable — the row is still
+on screen underneath. A wrong attribution looks exactly like a right one.
+
+**Consequences.**
+
+- A contact known only by a phone number or an address gets **no** facts rolled
+  up. Everything found in their conversations appears as "also mentioned".
+- Every fact carries its quote and a link to its message, so a wrong-looking fact
+  can always be checked against what was actually said.
+- The newest row wins per fact; a later row that is silent on a fact never
+  erases it.
+
+**Rejected:** attribution by sender (the live case above); asking the model to
+emit a contact id (the model cannot know our ids, and would have to guess);
+matching on company domain (two people at one company share a domain, not a
+job — the same reason Q3 refuses to merge on a handle).
+
+---
+
+## Template for new ADRs
+
+```markdown
 ## ADR-00N — <decision in one line>
 
 **Status:** Proposed | Accepted | Superseded by ADR-00M · YYYY-MM-DD

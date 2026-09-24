@@ -76,6 +76,17 @@ started, never from the request. Unknown call id, no answer. See
 [ADR-023](./docs/05-DECISIONS.md) and ADR-024, and
 [`correspondence/2026-09-10-voice-integration-plan.md`](./correspondence/2026-09-10-voice-integration-plan.md).
 
+**Phase 7 — meetings. Built, deploy pending.** A named, visible notetaker joins
+a Zoom, Meet or Teams call from `/meetings` — only after a box confirming
+everyone agreed to be recorded (RA 4200) — and the finished meeting arrives on
+the timeline as one message, summarised and searchable like an email. Every
+contact now has a **brief**: company, role, relationship and whether they make
+the call, each shown with the sentence it came from, plus what is open with
+them. See
+[`correspondence/2026-09-24-pipeline-repair.md`](./correspondence/2026-09-24-pipeline-repair.md),
+which also records the repair to summaries and extraction that had quietly
+stopped in August.
+
 Remaining Phase 5 polish: an error-handling audit, timeline virtualization, and
 a demo rehearsal on the deployed infrastructure. *(The daily digest was **cut** —
 `/attention` already is it, and there is no delivery channel, so "daily" would
@@ -111,8 +122,8 @@ channels → ingest (verify, queue, ack fast) → worker (normalize, embed, extr
 | Worker | Node · TypeScript, containerized, always warm | Azure Container Apps |
 | Database | Postgres · pgvector · Realtime · Auth · RLS | Supabase |
 | Attachments | Blob storage | Azure |
-| Assistant Q&A | **Groq `llama-3.3-70b-versatile`** — CAUTION: not Gemini | — |
-| Summaries · extraction | **Groq `llama-3.1-8b-instant`** — a different model on purpose | — |
+| Assistant Q&A | **Groq `openai/gpt-oss-120b`** — CAUTION: not Gemini, and not Llama since 2026-09-20 | — |
+| Summaries · extraction | **Groq `openai/gpt-oss-20b`** — a different model on purpose | — |
 | Embeddings | Transformers.js, local in-worker, multilingual | — |
 | Calendar | Google Calendar (write, confirmed only) | — |
 | **Voice call** | **Vapi** — hosts mic, STT, model, TTS, interruption | ~$0.09/min |
@@ -181,7 +192,7 @@ Takes about a minute. It also installs the pre-commit secret scan via
 pnpm check
 ```
 
-Expect **496 tests passing** and a clean typecheck. This is the furthest you can
+Expect **700 tests passing** (as of 2026-09-24) and a clean typecheck. This is the furthest you can
 get on a clean clone with nothing configured, and it is a real check — the
 adapters, the refusal logic, the extraction validator and the RLS boundary test
 all run here.
