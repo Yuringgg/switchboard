@@ -152,11 +152,24 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
           name: 'worker'
           image: workerImage
           resources: {
-            // Container Apps only permits specific cpu/memory pairs; 0.25/0.5Gi
-            // is the smallest. Raise this in Phase 4 — ONNX embedding weights
-            // will not fit comfortably in 0.5 GiB.
-            cpu: json('0.25')
-            memory: '0.5Gi'
+            // ⚠⚠ 0.5 / 1Gi, AND THIS TEMPLATE SAID 0.25 / 0.5Gi UNTIL 2026-09-24.
+            //
+            // The live app was raised by hand in Phase 4B after the worker
+            // crashlooped on exit code 137 — a 129 MB quantised ONNX model needs
+            // far more than its own size once the runtime and Node's heap are
+            // counted. The comment here said "raise this in Phase 4"; Phase 4
+            // shipped, the live app was raised, and this file was not.
+            //
+            // So a `az deployment group create` would have SHRUNK the running
+            // worker back to 0.5 GiB and reproduced that crashloop — and
+            // graceful degradation cannot save it, because the kernel SIGKILLs
+            // the process, so no handler runs and nothing is logged.
+            //
+            // Read off the live revision on 2026-09-24 rather than assumed.
+            // ADR-011 amended: this roughly doubles the running cost to
+            // ~$20-30/month, which is what the Azure credit is for.
+            cpu: json('0.5')
+            memory: '1Gi'
           }
           env: concat(
             empty(databaseUrl) ? [] : [{ name: 'DATABASE_URL', secretRef: 'database-url' }],
