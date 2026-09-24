@@ -85,6 +85,25 @@ param groqApiKey string = ''
 @secure()
 param embedApiSecret string = ''
 
+// ⚠ Added 2026-09-24, before anything depended on it rather than after.
+//
+// The meeting sweep (apps/worker/src/meeting-sweep.ts) needs Recall's key, and
+// until today the key existed only in Vercel — the console uses it to SEND a
+// bot. The worker needs it to FETCH what the bot recorded. Without it the sweep
+// logs "[meeting] sweep disabled" once at startup and meetings never reach the
+// timeline, which looks exactly like Recall not having finished yet.
+//
+// Same value as Vercel's RECALL_API_KEY. The region must match too: a key from
+// one Recall region is rejected by every other with a 401 that reads like a
+// wrong key. The worker defaults to ap-northeast-1, as the console does.
+
+@description('Recall.ai API key — the same value as RECALL_API_KEY on Vercel. Without it the worker never fetches a meeting transcript.')
+@secure()
+param recallApiKey string = ''
+
+@description('Recall.ai region. Must match the region the key was issued in, or every request 401s.')
+param recallRegion string = 'ap-northeast-1'
+
 var logAnalyticsName = '${namePrefix}-logs'
 var environmentName = '${namePrefix}-env'
 var workerAppName = '${namePrefix}-worker'
@@ -143,7 +162,8 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
         empty(channelCredentialsKey) ? [] : [{ name: 'channel-credentials-key', value: channelCredentialsKey }],
         empty(googleClientSecret) ? [] : [{ name: 'google-client-secret', value: googleClientSecret }],
         empty(groqApiKey) ? [] : [{ name: 'groq-api-key', value: groqApiKey }],
-        empty(embedApiSecret) ? [] : [{ name: 'embed-api-secret', value: embedApiSecret }]
+        empty(embedApiSecret) ? [] : [{ name: 'embed-api-secret', value: embedApiSecret }],
+        empty(recallApiKey) ? [] : [{ name: 'recall-api-key', value: recallApiKey }]
       )
     }
     template: {
@@ -183,7 +203,10 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
             // Both fail soft — see the parameter note above. A missing key here
             // is a worker that ingests and never extracts, with no error.
             empty(groqApiKey) ? [] : [{ name: 'GROQ_API_KEY', secretRef: 'groq-api-key' }],
-            empty(embedApiSecret) ? [] : [{ name: 'EMBED_API_SECRET', secretRef: 'embed-api-secret' }]
+            empty(embedApiSecret) ? [] : [{ name: 'EMBED_API_SECRET', secretRef: 'embed-api-secret' }],
+            // Phase 7. Fails soft like the two above: no key, no meetings.
+            empty(recallApiKey) ? [] : [{ name: 'RECALL_API_KEY', secretRef: 'recall-api-key' }],
+            empty(recallApiKey) ? [] : [{ name: 'RECALL_REGION', value: recallRegion }]
           )
           probes: [
             {
