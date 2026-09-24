@@ -7,6 +7,7 @@ import { MeetingsPanel } from '@/components/meetings-panel';
 import { AssistantPanel } from '@/components/assistant-panel';
 import { AttentionBoard, AttentionEmpty } from '@/components/attention-board';
 import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
+import { ContactBrief } from '@/components/contact-brief';
 import { ContactList, ContactsEmpty } from '@/components/contact-list';
 import { MeetingProposal } from '@/components/meeting-proposal';
 import { SearchForm } from '@/components/search-form';
@@ -25,6 +26,7 @@ import {
 import { TimelineFilter } from '@/components/timeline-filter';
 import type { AssistantAnswer } from '@/lib/assistant';
 import type { AttentionItem } from '@/lib/attention';
+import type { ContactBrief as ContactBriefData } from '@/lib/brief';
 import type { ChannelRow } from '@/lib/channels';
 import type { ContactSummary } from '@/lib/contacts';
 import type { ConfirmResult } from '@/lib/proposals';
@@ -405,6 +407,120 @@ function attentionFixtures(): AttentionItem[] {
  * `merged: false` renders the state the real data is in today, so the two can
  * be compared side by side.
  */
+/**
+ * The brief's three states. Invented people and an invented company — a
+ * fixture is a shape to review, not a record of anybody.
+ */
+function contactBriefFixture(state: string): ContactBriefData {
+  const day = (offset: number, hour = 10) => {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + offset);
+    d.setUTCHours(hour - 8, 0, 0, 0);
+    return d.toISOString();
+  };
+  const lines = [
+    { channelId: 'ch-gmail', count: 12, lastAt: day(-1, 16) },
+    { channelId: 'ch-whatsapp', count: 4, lastAt: day(-3, 9) },
+  ];
+
+  if (state === 'unread') {
+    return {
+      facts: { company: null, role: null, relationship: null, decisionMaker: null },
+      about: [],
+      others: [],
+      open: [],
+      lines,
+      unread: 31,
+      total: 31,
+      models: [],
+    };
+  }
+
+  if (state === 'empty') {
+    return {
+      facts: { company: null, role: null, relationship: null, decisionMaker: null },
+      about: [],
+      others: [],
+      open: [],
+      lines,
+      unread: 0,
+      total: 31,
+      models: ['openai/gpt-oss-20b'],
+    };
+  }
+
+  const procurement = {
+    extractionId: 'ex-aff-1',
+    messageId: 'msg-aff-1',
+    sentAt: day(-6, 14),
+    title: 'Maria Santos — head of procurement at Acme Logistics',
+    quote: 'I head procurement at Acme Logistics, so the contract lands on my desk and the sign-off is mine.',
+  };
+  const client = {
+    extractionId: 'ex-aff-2',
+    messageId: 'msg-aff-2',
+    sentAt: day(-2, 11),
+    title: 'Maria Santos — Acme is coming on as a client',
+    quote: 'Acme is coming on as a client for the Q4 rollout, starting with the Manila warehouses.',
+  };
+
+  return {
+    facts: {
+      company: { value: 'Acme Logistics', source: procurement },
+      role: { value: 'Head of procurement', source: procurement },
+      relationship: { value: 'client', source: client },
+      decisionMaker: { value: true, source: procurement },
+    },
+    about: [
+      { source: client, company: 'Acme Logistics', role: null, relationship: 'client', decisionMaker: null },
+      { source: procurement, company: 'Acme Logistics', role: 'Head of procurement', relationship: null, decisionMaker: true },
+    ],
+    others: [
+      {
+        source: {
+          extractionId: 'ex-aff-3',
+          messageId: 'msg-aff-3',
+          sentAt: day(-4, 9),
+          title: 'Luis Reyes — accounting at Acme Logistics',
+          quote: 'Copying Luis from accounting, he handles the purchase orders on our side.',
+        },
+        company: 'Acme Logistics',
+        role: 'Accounting',
+        relationship: null,
+        decisionMaker: null,
+      },
+    ],
+    open: [
+      {
+        id: 'ex-open-1',
+        kind: 'meeting',
+        status: 'not_started',
+        title: 'Go through the landing page changes',
+        quote: 'I can do 3pm Thursday to go through both, or Friday morning if that is easier.',
+        when: day(2, 15),
+        owedBy: null,
+        messageId: 'msg-open-1',
+        channelId: 'ch-gmail',
+      },
+      {
+        id: 'ex-open-2',
+        kind: 'action_item',
+        status: 'in_progress',
+        title: 'Send the revised hero line',
+        quote: 'Can you send me the revised hero line before Friday?',
+        when: day(3, 17),
+        owedBy: 'me',
+        messageId: 'msg-open-2',
+        channelId: 'ch-whatsapp',
+      },
+    ],
+    lines,
+    unread: 4,
+    total: 31,
+    models: ['openai/gpt-oss-20b'],
+  };
+}
+
 function contactFixtures(merged: boolean): ContactSummary[] {
   const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
 
@@ -531,6 +647,49 @@ export default async function PreviewPage({
         ) : (
           <ContactList contacts={contactFixtures(state !== 'single')} />
         )}
+      </AppShell>
+    );
+  }
+
+  if (screen === 'contact') {
+    /*
+     * ⚠ Here because the brief cannot be looked at any other way yet.
+     *
+     * On 2026-09-24 the live database held ONE affiliation row, and 183 of 393
+     * messages had never been through extraction — so a real contact page
+     * shows the "not read yet" state and nothing else until the catch-up has
+     * worked through the backlog. This renders all three states the brief has:
+     *
+     *   (default)        facts, open items, lines, and one "also mentioned"
+     *   ?state=unread    nothing in these conversations has been read yet
+     *   ?state=empty     everything was read, and nothing says who they are
+     *
+     * The last two must never converge — the same rule the timeline's two empty
+     * states and the board's two empty states already follow.
+     *
+     * The header above the brief is a stand-in for the real page's identity
+     * list, kept deliberately plain: the brief is what this screen is for.
+     */
+    const brief = contactBriefFixture(state);
+    return (
+      <AppShell
+        title="Maria Santos"
+        description="Every conversation with this person, across every channel."
+        userEmail="preview@switchboard.local"
+        userId={PREVIEW_USER_ID}
+        activeHref="/contacts"
+        channels={channels}
+      >
+        <h2 className="text-heading font-semibold">Maria Santos</h2>
+        <ul className="mt-2 grid gap-1 font-mono text-label uppercase text-muted-foreground">
+          <li>Gmail · <span className="normal-case">maria@iozera.example</span></li>
+          <li>WhatsApp · <span className="normal-case">+63 917 000 0001</span></li>
+        </ul>
+        <ContactBrief
+          name="Maria Santos"
+          brief={brief}
+          channelTypeById={{ 'ch-gmail': 'gmail', 'ch-whatsapp': 'whatsapp' }}
+        />
       </AppShell>
     );
   }
