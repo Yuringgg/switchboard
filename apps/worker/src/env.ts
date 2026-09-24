@@ -46,3 +46,29 @@ export const GROQ_API_KEY = process.env.GROQ_API_KEY ?? '';
  * is the failure mode where a misconfiguration silently publishes a service.
  */
 export const EMBED_API_SECRET = process.env.EMBED_API_SECRET ?? '';
+
+/**
+ * Recall.ai REST key (Phase 7).
+ *
+ * ⚠ Optional, and absent means the meeting sweep simply does not run. Mail
+ * ingests exactly as before — the same contract `GROQ_API_KEY` has, and for the
+ * same reason: a channel nobody has configured must not be able to stop the
+ * ones that are.
+ *
+ * ⚠ This is an APPLICATION-level key, not per-tenant. Gmail and WhatsApp each
+ * hold an encrypted per-user credential in `channels.credentials`; meetings
+ * hold an empty blob there because there is genuinely nothing per-user to
+ * store. Which is exactly why the tenant can never come from anything Recall
+ * returns — see `meeting-sweep.ts` and ADR-026.
+ */
+export const RECALL_API_KEY = process.env.RECALL_API_KEY ?? '';
+
+/**
+ * Which Recall region the workspace lives in.
+ *
+ * ⚠ Tokyo, and it is not cosmetic. A key issued in one region is rejected by
+ * every other with a 401 that reads exactly like a wrong key — their own error
+ * text even suggests the wrong cause first. Defaults to match
+ * `apps/console/src/lib/meetings/bot-session.ts`; the two must agree.
+ */
+export const RECALL_REGION = process.env.RECALL_REGION ?? 'ap-northeast-1';

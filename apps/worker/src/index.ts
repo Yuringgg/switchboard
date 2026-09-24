@@ -22,9 +22,13 @@ import {
   IDLE_POLL_MS,
   MAX_ATTEMPTS,
   PORT,
+  RECALL_API_KEY,
+  RECALL_REGION,
 } from './env';
 import { ingestGmailEvent } from './gmail-ingest';
 import { readGmailWatchConfig, renewExpiringWatches } from './gmail-watch';
+import { ingestMeetingEvent } from './meeting-ingest';
+import { sweepMeetings } from './meeting-sweep';
 import { summariseBatch } from './summarize';
 import { ingestWhatsAppEvent } from './whatsapp-ingest';
 
@@ -252,6 +256,21 @@ async function processOne(): Promise<boolean> {
       console.info(
         `[worker] event=${event.id} created=${outcome.created} skipped=${outcome.skipped}`,
       );
+    } else if (event.channelType === 'meeting') {
+      /*
+       * Like WhatsApp, not like Gmail: no config gate and no fetch.
+       *
+       * `meeting-sweep.ts` already did the fetching and wrote a payload that is
+       * self-sufficient — transcript plus the recording's start time, which the
+       * transcript itself does not carry. ADR-014's rule from Phase 2's
+       * refactor checkpoint, applied deliberately this time rather than
+       * discovered afterwards.
+       */
+      const outcome = await ingestMeetingEvent(db, event);
+      createdIds = outcome.createdIds;
+      console.info(
+        `[worker] event=${event.id} created=${outcome.created} skipped=${outcome.skipped}`,
+      );
     } else {
       /*
        * A channel type the worker has no branch for.
@@ -461,6 +480,63 @@ const CATCH_UP_BATCH = 5;
 /** Comfortably under the ~1.7 requests/minute extraction actually sustains. */
 const CATCH_UP_DELAY_MS = 20_000;
 
+/**
+ * ── Phase 7: pulling meeting transcripts in ─────────────────────────────────
+ *
+ * ⚠ A POLL, because Recall cannot push. Their webhook portal cannot create an
+ * endpoint on this account and there is no webhook path in their public API —
+ * `meeting-sweep.ts` has the full account. `/api/webhooks/recall` stays built
+ * and tested for the day that changes.
+ *
+ * Five minutes rather than the extraction sweep's fifteen: a meeting ends and
+ * somebody wants the brief, whereas a missed extraction is read hours later on
+ * another screen. Recall's read endpoints run at 300/min, so a handful of
+ * requests every five minutes is nothing.
+ *
+ * ⚠ Unlike `extractionCatchUpLoop` this does NOT wait for an idle queue. It
+ * spends no LLM tokens — the shared 6,000/minute window it would be competing
+ * for is not a resource this touches at all.
+ */
+const MEETING_SWEEP_MS = 5 * 60 * 1000;
+
+/** Bounded so one tenant's busy day cannot make one pass unbounded. */
+const MEETING_SWEEP_BATCH = 10;
+
+async function meetingSweepLoop(): Promise<void> {
+  if (!RECALL_API_KEY) {
+    console.info('[meeting] sweep disabled: RECALL_API_KEY is not set. Mail still ingests.');
+    return;
+  }
+
+  while (running) {
+    // Short sleeps so SIGTERM is not waited out, and sleeping first keeps the
+    // sweep clear of startup.
+    const wakeAt = Date.now() + MEETING_SWEEP_MS;
+    while (running && Date.now() < wakeAt) await sleep(1_000);
+    if (!running) return;
+
+    try {
+      const result = await sweepMeetings(db, RECALL_API_KEY, RECALL_REGION, MEETING_SWEEP_BATCH);
+
+      // Silent when there was nothing to do, which is the healthy steady state.
+      // A line every five minutes saying "0" trains people to skim.
+      if (result.requested > 0 || result.queued > 0 || result.failed > 0) {
+        console.info(
+          `[meeting] sweep: considered=${result.considered} requested=${result.requested} ` +
+            `queued=${result.queued} pending=${result.pending} failed=${result.failed}`,
+        );
+      }
+    } catch (error) {
+      // Must never take the worker down. Meetings are additive and mail
+      // ingests perfectly well without them.
+      console.error(
+        '[meeting] sweep errored:',
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+}
+
 async function extractionCatchUpLoop(): Promise<void> {
   while (running) {
     // Broken into short sleeps so SIGTERM is not waited out. Sleeping FIRST
@@ -557,3 +633,4 @@ void warmEmbedder().then((result) => {
 void loop();
 void watchRenewalLoop();
 void extractionCatchUpLoop();
+void meetingSweepLoop();

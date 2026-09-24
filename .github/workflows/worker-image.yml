@@ -17,6 +17,16 @@ on:
       - 'packages/ai/**'
       - 'packages/core/**'
       - 'packages/db/**'
+      # ⚠ MISSING UNTIL 2026-09-24, and it was the exact failure the note above
+      # describes. The worker depends on all three adapters — gmail, whatsapp
+      # and now meeting — and a change to any of them did not rebuild the
+      # image. A Gmail normalisation fix could have been committed, pushed,
+      # gone green, and never reached production.
+      #
+      # The whole directory rather than three entries: every adapter is an
+      # ingest path and the worker ingests all of them, so a fourth belongs
+      # here the day it exists rather than the day somebody notices.
+      - 'packages/adapters/**'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'tsconfig.base.json'

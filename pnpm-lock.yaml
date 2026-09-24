@@ -102,6 +102,9 @@ importers:
       '@switchboard/adapter-gmail':
         specifier: workspace:*
         version: link:../../packages/adapters/gmail
+      '@switchboard/adapter-meeting':
+        specifier: workspace:*
+        version: link:../../packages/adapters/meeting
       '@switchboard/adapter-whatsapp':
         specifier: workspace:*
         version: link:../../packages/adapters/whatsapp
@@ -142,6 +145,12 @@ importers:
       google-auth-library:
         specifier: ^10.9.1
         version: 10.9.1
+
+  packages/adapters/meeting:
+    dependencies:
+      '@switchboard/core':
+        specifier: workspace:*
+        version: link:../../core
 
   packages/adapters/whatsapp:
     dependencies:

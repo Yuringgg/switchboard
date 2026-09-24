@@ -1,0 +1,19 @@
+{
+  "name": "@switchboard/adapter-meeting",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Recall.ai meeting channel adapter: transcript payload types and normalize.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./normalize": "./src/normalize.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@switchboard/core": "workspace:*"
+  }
+}
