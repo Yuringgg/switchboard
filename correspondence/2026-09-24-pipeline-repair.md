@@ -241,3 +241,93 @@ A second split messages by week and found summaries flat at zero from
 mid-August. A third, before the brief was built, found that attributing by
 sender would have been wrong. None of it needed the model or a key, and none
 of it would have come out of the code alone.
+
+---
+
+## ⚠⚠ ADDENDUM 2026-09-25 — the reaper treats a symptom, and here is the disease
+
+Written after merging this branch to `main` (`f87faad`), deploying it
+(revision **0000017**, with `RECALL_API_KEY` finally on the worker) and watching
+what it did.
+
+**It works.** Measured on the live database two hours after the deploy:
+
+| | before | after |
+|---|---|---|
+| events stuck in `processing` | 27 | **0** |
+| summaries written in the previous 2h | 0 | **12** |
+| queue pending | — | 0 |
+
+And from the worker's own log:
+
+```
+[reclaim] 27 event(s) stuck in processing for over 30 minutes returned to the queue
+[summary-catchup] sweep: considered=5 written=5 skipped=0 failed=0
+[summary-catchup] sweep: considered=5 written=5 skipped=0 failed=0
+```
+
+`written=5 failed=0`, twice, is the gpt-oss token fix doing exactly what this
+note predicted. Summaries had been impossible since 14 August.
+
+### But the worker is OOM-killing every ~17 minutes
+
+`[summary] enabled` appearing three times in forty minutes is not three
+deploys — it is three **starts**. Exit code **137** twice, each preceded by
+`Probe of Liveness failed with timeout in 1 seconds`: the process was too
+memory-starved to answer its own health endpoint.
+
+`WorkingSetBytes` off the live app, one-minute maximums:
+
+```
+baseline    ~725 MiB
+sweep peak   1016 MiB     <-- against a 1024 MiB limit
+after OOM     422 MiB
+```
+
+**This is the root cause of the stranded events.** A worker killed mid-event
+leaves its row in `processing` forever, because `claimNextEvent` only selects
+`pending`. Twenty-seven rows accumulated from 4 August precisely because this
+kept happening silently. ADR-027's reaper is the right safety net and it is
+still right — it is just treating the symptom.
+
+⚠ It is also, in part, *caused by this branch*: 1 GiB was sized in Phase 4B for
+the ONNX model plus one catch-up. Three catch-ups now run in one loop. The peak
+grew; the limit did not.
+
+### The one command left, and it costs money
+
+```bash
+az containerapp update -g rg-switchboard -n switchboard-worker \
+  --cpu 0.75 --memory 1.5Gi
+```
+
+`infra/main.bicep` is already updated to match, so the template stays the whole
+truth either way.
+
+⚠ **0.75 / 1.5Gi, not 1.0 / 2Gi.** 1.5 GiB clears the measured peak by about
+half again; doubling buys headroom nothing has asked for at twice the price.
+ADR-011's budget is real — roughly $30–45/month against a $100 credit that is
+four months in.
+
+⚠ **If cost bites before headroom does**, the knob is the embed catch-up's batch
+of 20 per pass in `apps/worker/src/index.ts`. Lowering it cuts the peak and
+slows the backlog. It does not change the 725 MiB baseline.
+
+### Still draining
+
+183 messages have never been extracted. The catch-up does 5 per 15 minutes only
+while the queue is idle, so that is roughly nine hours — correct, and slow on
+purpose, because it shares a per-minute token window with live mail.
+
+### The injection regression, found by running the eval this branch could not
+
+`eval-summaries.ts` had never been run against the real model — no Groq key in
+that session. Run here, `openai/gpt-oss-20b` obeyed a forged
+`-----END MESSAGE-----` plus a fake `SYSTEM:` turn and summarised a
+400-character quotation as **"Nothing important."**
+
+Four rounds of prompt rewording each moved *which* fixture failed and none
+stopped it; the same fixture passed and failed across runs with identical code.
+**Prompt wording is not a control here.** Fixed with a deterministic
+groundedness floor instead — `validateSummary` now refuses a summary sharing no
+content word with its message. `b7a34ba`.

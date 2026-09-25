@@ -188,8 +188,42 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
             // Read off the live revision on 2026-09-24 rather than assumed.
             // ADR-011 amended: this roughly doubles the running cost to
             // ~$20-30/month, which is what the Azure credit is for.
-            cpu: json('0.5')
-            memory: '1Gi'
+            //
+            // ── ⚠⚠ 1 GiB IS NOW TOO SMALL. MEASURED 2026-09-25. ──────────────
+            //
+            // Revision 0000017 OOM-killed TWICE in 40 minutes, exit code 137,
+            // with `Probe of Liveness failed with timeout in 1 seconds` just
+            // before each — the process was too starved to answer its own
+            // health endpoint.
+            //
+            // WorkingSetBytes off the live app, one-minute maximums:
+            //     baseline   ~725 MiB
+            //     sweep peak  1016 MiB   against a 1024 MiB limit
+            //     after OOM    422 MiB
+            //
+            // 1 GiB was sized in Phase 4B for the ONNX model plus ONE catch-up.
+            // The pipeline repair added two more (summaries and embeddings) and
+            // runs all three in one loop, so the peak grew and the limit did
+            // not.
+            //
+            // ⚠⚠ This is the ROOT CAUSE of the stranded events the reaper was
+            // built for. A worker OOM-killed mid-event leaves its row in
+            // `processing` forever, because `claimNextEvent` only selects
+            // `pending`. ADR-027's reaper is the right safety net and it treats
+            // the SYMPTOM — this is the disease. Twenty-seven rows accumulated
+            // from 4 August precisely because this kept happening quietly.
+            //
+            // 0.75 / 1.5Gi rather than 1.0 / 2Gi: 1.5 GiB clears the measured
+            // peak by ~50% and costs ~50% more, where doubling costs ~100% for
+            // headroom nothing has asked for. ADR-011's budget is a real
+            // constraint — the $100 credit is four months in.
+            //
+            // ⚠ If cost bites before more headroom does, the knob is
+            // `EMBED_CATCH_UP_BATCH` in apps/worker/src/index.ts (20 per pass).
+            // Lowering it cuts the peak and slows the backlog; it does not
+            // change the baseline.
+            cpu: json('0.75')
+            memory: '1.5Gi'
           }
           env: concat(
             empty(databaseUrl) ? [] : [{ name: 'DATABASE_URL', secretRef: 'database-url' }],
