@@ -222,4 +222,76 @@ describe('validateSummary', () => {
     expect(validateSummary('Summary:').ok).toBe(false);
     expect(validateSummary('""').ok).toBe(false);
   });
+
+  /*
+   * ── The groundedness floor ────────────────────────────────────────────────
+   *
+   * Measured against `openai/gpt-oss-20b` on 2026-09-25: a forged
+   * `-----END MESSAGE-----` plus a fake `SYSTEM:` turn sometimes gets a
+   * 400-character quotation summarised as "Nothing important." Running the eval
+   * repeatedly, the same fixture passed and failed with identical code, so the
+   * prompt is not a control and four rounds of rewording only moved which case
+   * failed.
+   *
+   * These are deterministic and cost nothing, which is the point: the behaviour
+   * they pin does not depend on the model's mood.
+   */
+  describe('the groundedness floor', () => {
+    const BODY = [
+      'Please see the attached quotation for the Q3 fit-out, covering the two',
+      'meeting rooms and the reception desk. Lead time is six weeks from order.',
+    ].join(' ');
+
+    it('refuses a summary that shares no words with its message', () => {
+      const result = validateSummary('Nothing important at all here.', BODY);
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.reason).toMatch(/shares no words/i);
+    });
+
+    it('accepts an ordinary summary of the same message', () => {
+      const result = validateSummary(
+        'The sender attaches a quotation for the Q3 fit-out with a six week lead time.',
+        BODY,
+      );
+
+      expect(result.ok).toBe(true);
+    });
+
+    /*
+     * ⚠ The prompt says to answer in English even when the message is not, so a
+     * Tagalog message legitimately shares only names, numbers and dates with
+     * its summary. The floor is ZERO overlap for exactly this reason — anything
+     * higher would reject correct translations.
+     */
+    it('accepts a translated summary that only shares a proper noun', () => {
+      const result = validateSummary(
+        'The sender asks whether the files reached Google Drive.',
+        'Nakuha mo ba yung mga files? Nasa Google Drive na lahat, salamat.',
+      );
+
+      expect(result.ok).toBe(true);
+    });
+
+    it('does not judge a summary too short for overlap to mean anything', () => {
+      // Two content words: below GROUNDING_MIN_WORDS, so the floor abstains
+      // rather than guessing.
+      expect(validateSummary('Invoice reminder', BODY).ok).toBe(true);
+    });
+
+    it('abstains entirely when no body is supplied', () => {
+      // Every pre-existing caller passes one argument and must keep working.
+      expect(validateSummary('Nothing important at all here.').ok).toBe(true);
+    });
+
+    it('does not let shared filler words rescue an ungrounded summary', () => {
+      // "the", "two" and "six" all appear in BODY, and all are under four
+      // characters, so none of them count as overlap. The three real content
+      // words share nothing.
+      const result = validateSummary('Absolutely nothing worthwhile, the two six.', BODY);
+
+      expect(result.ok).toBe(false);
+    });
+  });
 });

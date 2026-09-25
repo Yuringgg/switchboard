@@ -131,7 +131,9 @@ export async function summariseMessage(
       };
     }
 
-    const validated = validateSummary(completion.text);
+    // ⚠ The body is passed so the groundedness floor can run — a summary
+    // sharing no words with its message is refused. See `validateSummary`.
+    const validated = validateSummary(completion.text, message.body_text);
     if (!validated.ok) {
       // Not retryable: the model answered, we just could not use the answer.
       // Retrying an identical prompt at temperature 0.2 mostly reproduces it.

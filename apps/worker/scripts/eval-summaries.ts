@@ -272,7 +272,9 @@ async function main(): Promise<void> {
       continue;
     }
 
-    const validated = validateSummary(completion.text);
+    // Same call production makes, body included, so the eval measures the
+    // groundedness floor too rather than only the model.
+    const validated = validateSummary(completion.text, testCase.body);
     if (!validated.ok) {
       report(testCase.name, [`validation rejected it: ${validated.reason}`], '');
       failed += 1;
