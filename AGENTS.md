@@ -102,7 +102,7 @@ webhook, `/api/meetings/bot`, and a `/meetings` screen with a consent gate); 7B'
 affiliation extraction is built and backfilled. **A recorded meeting now becomes
 one message** (`18f6c23`, `packages/adapters/meeting`, `meeting-sweep.ts`), and
 **every contact has a brief** — who they are, what is open, where they write
-(`042696f`). Both are built; neither is live until the worker deploy below.
+(`042696f`). **Both are merged and deployed** — see below.
 
 > ⚠⚠ **READ `correspondence/2026-09-24-pipeline-repair.md` BEFORE ANYTHING ELSE.**
 > It is newer than this file and newer than everything in `docs/`.
@@ -115,16 +115,88 @@ one message** (`18f6c23`, `packages/adapters/meeting`, `meeting-sweep.ts`), and
 > catch-up at all; and summaries (and, unmeasured, the console assistant) asked
 > the gpt-oss reasoning model for 160 tokens, which its thinking alone uses up.
 >
-> **All of it is fixed on branch `claude/dreamy-wozniak-lexzju`, migration 0018
-> is applied, and the image is built** —
-> `sha256:0e6bad966a9347d203d7bc0155e6f262b53696c91a2a0055257dad48a6d19c65`.
-> **What is left is the Azure deploy, which needs Yuri's `az` login**, plus
-> giving the worker `RECALL_API_KEY` — it has only ever been on Vercel, and
-> without it no meeting reaches the timeline. The commands are in the note.
+> ✅ **MERGED AND DEPLOYED 2026-09-25.** The branch was reviewed against the
+> live system rather than its own note (every load-bearing claim held), merged
+> as `f87faad`, and deployed as **revision 0000017** — the first revision ever
+> to carry `RECALL_API_KEY`, which until then existed only on Vercel.
+>
+> **It works.** Measured on the live database two hours later:
+> stuck events **27 → 0**, summaries in the previous 2h **0 → 12**, queue
+> pending 0. The worker's own log shows `[reclaim] 27 event(s) … returned to the
+> queue` and `[summary-catchup] sweep: considered=5 written=5 failed=0` twice.
+>
+> ⚠⚠ **ONE THING IS LEFT AND IT NEEDS YURI, BECAUSE IT COSTS MONEY.** The worker
+> is **OOM-killed roughly every 17 minutes** — exit code 137, twice in forty
+> minutes, each preceded by a liveness-probe timeout. Measured `WorkingSetBytes`:
+> baseline ~725 MiB, sweep peak **1016 MiB against a 1024 MiB limit**.
+>
+> **This is the ROOT CAUSE of the stranded events.** A worker killed mid-event
+> leaves its row in `processing` forever, because `claimNextEvent` only selects
+> `pending`. The 27 rows accumulated from 4 August precisely because this kept
+> happening silently. ADR-027's reaper is the right safety net and stays — it
+> treats the symptom; this is the disease. It is also partly caused by the
+> repair itself: 1 GiB was sized in Phase 4B for the ONNX model plus ONE
+> catch-up, and three now run in one loop.
+>
+> ```bash
+> az containerapp update -g rg-switchboard -n switchboard-worker >   --cpu 0.75 --memory 1.5Gi
+> ```
+>
+> `infra/main.bicep` already says 0.75/1.5Gi, so the template stays the whole
+> truth either way. ⚠ 1.5 GiB, not 2 GiB: it clears the measured peak by about
+> half again where doubling costs twice as much for headroom nothing has asked
+> for. ~$30–45/month against a $100 credit four months in (ADR-011). If cost
+> bites first, the knob is the embed catch-up's batch of 20 per pass — it cuts
+> the peak and slows the backlog without touching the 725 MiB baseline.
+>
+> ⚠ **183 messages are still unextracted** and draining at 5 per 15 minutes,
+> roughly nine hours, and only while the queue is idle. Slow on purpose: it
+> shares a per-minute token window with live mail.
 >
 > ~~The worker in Azure is running broken code~~ — deployed 2026-09-24
-> (revision 0000016, `305cd0a`), so extraction and summaries CAN run; the note
-> above is why they still were not.
+> (revision 0000016, `305cd0a`), then again 2026-09-25 (revision 0000017).
+
+### Two things that are NOT bugs, and have already cost time
+
+**1. The empty ring where Uriel's orb should be is the FALLBACK, not a break.**
+Reported 2026-09-25 as *"what the heck happened to Uriel"*. `VoicePoweredOrb`
+(`components/ui/voice-powered-orb.tsx`) is WebGL, and `voice-call.tsx` passes it
+a `fallback` — `size-40 rounded-full border-2 border-primary/50` — that still
+scales with the caller's voice, so the centre of the screen keeps its signal
+instead of holding a hole. **A plain ring means the browser refused WebGL**,
+usually Brave's fingerprinting shield or graphics acceleration being off. The
+component has not changed since `6a097d1`, `ogl` is still a dependency and still
+installed. ⚠ Check `brave://gpu` before touching a line of it.
+
+**2. `summary-eval`'s `direct instruction override` fixture FAILS ON PURPOSE.**
+The model refuses the injection correctly and then describes it, quoting the
+injected sentence inside an attributing clause. The eval's check is a forbidden
+**substring** match and cannot tell *asserting* a fact from *reporting that
+somebody demanded it*. ⚠ Do not loosen the check to get a clean score — ADR-017
+already records what that costs. Full reasoning at the top of `validateSummary`.
+
+### The summary injection fix, 2026-09-25 (`b7a34ba`)
+
+`eval-summaries.ts` had never been run against the real model — the session that
+wrote the pipeline repair had no Groq key. Run on 2026-09-25,
+`openai/gpt-oss-20b` obeyed a forged `-----END MESSAGE-----` followed by a fake
+`SYSTEM:` turn and summarised a 400-character quotation as **"Nothing
+important."** On Llama all three injection fixtures were resisted, so this
+arrived with the model switch in `35f65c7`.
+
+⚠⚠ **Prompt wording is not a control here, and that is the finding.** Four
+rewordings each moved *which* fixture failed and none stopped it; the same
+fixture passed and failed across runs with identical code. One attempt made it
+strictly worse — telling the model to report the injected instruction made it
+restate the injected claims.
+
+So the fix is deterministic: `validateSummary` now takes the body and refuses a
+summary sharing **no content word** with it. Not injection detection (an injected
+summary can be perfectly ordinary prose) but **groundedness** — is this summary
+about this message at all. Same shape as extraction's quote check. ⚠ The floor
+is ZERO overlap deliberately, because the prompt answers in English for a Tagalog
+message, so a correct translation shares only names, numbers and dates. It fails
+safe: no summary is written.
 
 ### Ms. Maria's review landed 2026-08-06 — six things a console session must know
 

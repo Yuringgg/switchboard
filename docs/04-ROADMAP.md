@@ -1091,7 +1091,7 @@ again.**
 
 ---
 
-## Phase 7 — Meetings PATHWAY PROVEN (2026-09-20)
+## Phase 7 — Meetings DEPLOYED (2026-09-25)
 
 Ms. Maria's research task 3, *"Meeting Brief Protocols"*, and the half of task 2
 that says **Zoom transcripts**. Recall.ai sends a bot into a meeting, records it,
@@ -1128,6 +1128,18 @@ extractions, the attention board, Uriel's five tools — works on it for free.
 It is not a *comfortable* fit and the union's comment says so: Gmail and WhatsApp
 deliver one message at a time from one person; a meeting delivers an hour of
 several people talking, once, after it has ended. **ADR-026.**
+
+### Live as of 2026-09-25
+
+Merged (`f87faad`) and deployed as revision **0000017**, the first to carry
+`RECALL_API_KEY`. A recorded meeting becomes one message; every contact has a
+brief; the stalled AI pipeline is repaired and draining.
+
+⚠ **One thing outstanding and it is not code.** The worker is OOM-killed every
+~17 minutes (exit 137; measured peak 1016 MiB against a 1024 MiB limit), which
+is the root cause of the stranded queue events ADR-027's reaper was built to
+catch. `az containerapp update … --cpu 0.75 --memory 1.5Gi` fixes it and raises
+the bill. See `correspondence/2026-09-24-pipeline-repair.md`.
 
 ### 7A — Meetings in, brief out
 

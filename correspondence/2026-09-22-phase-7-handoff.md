@@ -7,6 +7,13 @@ them, **this is right** — except where it says otherwise below.
 *Read `AGENTS.md` first, then this. This file is only the delta since
 2026-09-17.*
 
+> ⚠ **SUPERSEDED — read `2026-09-24-pipeline-repair.md` and its 2026-09-25
+> addendum first.** Everything below that says "blocked on Yuri" is done: the
+> worker is deployed (revision 0000017, with the Recall key), the branch is
+> merged, and the only open item is the memory resize.
+>
+> ⚠ Original banner follows.
+>
 > ⚠ **SUPERSEDED IN PART — read `2026-09-24-pipeline-repair.md` first.** Since
 > this was written: the worker WAS deployed (2026-09-24, revision 0000016); a
 > transcript DOES now map into `messages` (`18f6c23`); the per-person roll-up
