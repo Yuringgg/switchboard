@@ -7,6 +7,14 @@ them, **this is right** — except where it says otherwise below.
 *Read `AGENTS.md` first, then this. This file is only the delta since
 2026-09-17.*
 
+> ⚠ **SUPERSEDED IN PART — read `2026-09-24-pipeline-repair.md` first.** Since
+> this was written: the worker WAS deployed (2026-09-24, revision 0000016); a
+> transcript DOES now map into `messages` (`18f6c23`); the per-person roll-up
+> IS built (`042696f`); and the pipeline was found to have been quietly doing
+> almost nothing to mail since mid-August. The sections below marked "broken",
+> "not built" or "blocked on Yuri" are the state on 2026-09-23 and are kept as
+> the record, not as current instructions.
+
 ---
 
 ## The one-paragraph version

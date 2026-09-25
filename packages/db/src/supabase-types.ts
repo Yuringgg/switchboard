@@ -276,6 +276,7 @@ export type Database = {
         Row: {
           attempts: number;
           channel_id: string;
+          claimed_at: string | null;
           external_id: string | null;
           id: string;
           last_error: string | null;
@@ -287,6 +288,7 @@ export type Database = {
         Insert: {
           attempts?: number;
           channel_id: string;
+          claimed_at?: string | null;
           external_id?: string | null;
           id?: string;
           last_error?: string | null;
@@ -298,6 +300,7 @@ export type Database = {
         Update: {
           attempts?: number;
           channel_id?: string;
+          claimed_at?: string | null;
           external_id?: string | null;
           id?: string;
           last_error?: string | null;

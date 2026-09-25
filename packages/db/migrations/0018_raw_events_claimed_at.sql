@@ -1,0 +1,52 @@
+-- 0018_raw_events_claimed_at
+--
+-- When the worker claimed an event — so an event that never finished can be
+-- told apart from one that is being worked on right now.
+--
+-- ── ⚠ Why: 27 events were stranded in 'processing', some for seven weeks ───
+--
+-- `claimNextEvent` flips a row to 'processing' in the same statement that
+-- claims it. If the process then dies before `markDone` or `markFailed` — a
+-- deploy that outlives the 10-second SIGTERM grace, an OOM kill, a container
+-- restart — the row stays 'processing' forever. Nothing ever looked at it
+-- again: the claim query only selects 'pending'.
+--
+-- Measured against the live database on 2026-09-24: **27 rows in
+-- 'processing'**, the oldest received 2026-08-04, every one with attempts = 1.
+--
+-- That would be a small leak on its own. What made it an outage is that
+-- `extract-catchup.ts` only runs when the queue is idle, and counted
+-- 'processing' as busy. So the first stranded row on 4 August switched the
+-- catch-up sweep off for good, silently — and by 24 September 183 of 393
+-- messages had never been through extraction.
+--
+-- ── Why a column and not "reset everything in processing at startup" ───────
+--
+-- The startup reset is the obvious fix and it is wrong during a deploy, which
+-- is exactly when stranding happens: Container Apps starts the new revision
+-- while the old one is still finishing its current event. A blanket reset
+-- from the new process would pull that live event back to 'pending' and a
+-- second worker would process it concurrently. A timestamp lets the reaper
+-- reclaim only what has been 'processing' for far longer than any real event
+-- takes (`STALE_CLAIM_MINUTES` in apps/worker/src/queue.ts).
+--
+-- Rows claimed before this migration have no `claimed_at`. The reaper falls
+-- back to `received_at` for those, which is always earlier than the claim, so
+-- it can only make an old row look staler — never make a live one look stale.
+--
+-- ── No index, deliberately ────────────────────────────────────────────────
+--
+-- The table holds a few hundred rows and the reaper runs every five minutes.
+-- Postgres would not use an index to answer that, and it would be one more
+-- write on the ingest path. Revisit past tens of thousands of rows.
+--
+-- Additive and nullable: the worker image deployed today never reads it, so
+-- this can be applied ahead of the code that uses it. `raw_events` keeps its
+-- RLS policy unchanged — no new table, so `assert-rls.ts` needs no edit.
+--
+-- Applied by hand. ⚠ `drizzle-kit generate` is NOT used on this project.
+
+alter table raw_events add column if not exists claimed_at timestamptz;
+
+comment on column raw_events.claimed_at is
+  'When the worker last set status to processing. Null if never claimed, or last claimed before migration 0018.';

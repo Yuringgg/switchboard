@@ -283,6 +283,16 @@ disabled.**
 
 *Sources:* [Gemini free tier limits 2026](https://harboratory.com/gemini-api-free-tier-limits-in-2026-explained/) · [Gemini billing / free-tier trap](https://usagebox.com/articles/gemini-api-billing-free-tier-confusion)
 
+> ### CAUTION: SUPERSEDED 2026-09-20 — Groq removed every Llama model named below
+>
+> The assistant is now `openai/gpt-oss-120b` and summaries + extraction
+> `openai/gpt-oss-20b`: **1,000 requests/day and 8,000 tokens/minute, per
+> model**, read from live headers on 2026-09-20 (`packages/ai/src/groq.ts` has
+> the account). Both are **reasoning models** whose thinking is billed out of
+> `max_tokens` — a request sent with the 160-token default comes back empty,
+> which is how summaries stopped (`correspondence/2026-09-24-pipeline-repair.md`).
+> The tables below are the Llama-era measurements, kept for their reasoning.
+
 ### 4a-bis. What the assistant ACTUALLY runs on — Groq, measured 2026-08-02
 
 Both AI workloads are Groq now, on **two different models on purpose**: Groq's

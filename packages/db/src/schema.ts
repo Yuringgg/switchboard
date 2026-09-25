@@ -275,6 +275,11 @@ export const rawEvents = pgTable(
     attempts: integer('attempts').notNull().default(0),
     lastError: text('last_error'),
     receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * When the worker last claimed it (migration 0018). What lets the reaper
+     * tell an event that died mid-flight from one being worked on right now.
+     */
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
   },
   (t) => [
     index('raw_events_channel_idx').on(t.channelId),

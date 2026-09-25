@@ -217,3 +217,49 @@ describe('extraction catch-up sweep', () => {
     ).toBe(true);
   });
 });
+
+describe('extraction catch-up give-up set', () => {
+  /*
+   * ⚠ A failure records no run (ADR-019), so a message the model cannot handle
+   * is first in line again on every sweep. Five of them at the top and the sweep
+   * never reaches anything older, forever, while logging activity.
+   */
+  it('gives up on a non-retryable failure and skips it on the next sweep', async () => {
+    const giveUp = new Set<string>();
+    const answeredInProse = async () => ({
+      ok: false as const,
+      reason: 'answered in prose',
+      retryable: false,
+    });
+
+    const first = stubDb([[{ pending: 0 }], [{ id: 'bad' }], [], [candidateRow('bad')]]);
+    await catchUpExtractions(first.db, stubProvider(answeredInProse).provider, 5, 0, giveUp);
+    expect(giveUp.has('bad')).toBe(true);
+
+    const second = stubDb([
+      [{ pending: 0 }],
+      [{ id: 'bad' }, { id: 'next' }],
+      [],
+      [candidateRow('next')],
+    ]);
+    const { provider, calls } = stubProvider(answeredInProse);
+    const result = await catchUpExtractions(second.db, provider, 1, 0, giveUp);
+
+    expect(result.considered).toBe(1);
+    expect(calls()).toBe(1);
+  });
+
+  it('does NOT give up on a retryable failure — that one deserves the next sweep', async () => {
+    const giveUp = new Set<string>();
+    const { db } = stubDb([[{ pending: 0 }], [{ id: 'm1' }], [], [candidateRow('m1')]]);
+    const { provider } = stubProvider(async () => ({
+      ok: false as const,
+      reason: 'groq rate limit (per-minute window)',
+      retryable: true,
+    }));
+
+    await catchUpExtractions(db, provider, 5, 0, giveUp);
+
+    expect(giveUp.size).toBe(0);
+  });
+});

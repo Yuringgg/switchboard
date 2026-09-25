@@ -315,7 +315,13 @@ export function MeetingsPanel({ sessions }: { sessions: BotSessionRow[] }) {
                   key={row.recall_bot_id}
                   className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border bg-panel px-4 py-3"
                 >
-                  <span className="min-w-0 flex-1 truncate text-note font-medium">
+                  {/*
+                    ⚠ Its own line on a phone. Sharing a row with the status
+                    and the time left the link about seven characters wide at
+                    375px — "us05we…" — which says nothing about which meeting
+                    this was. From `sm` up there is room to share the row.
+                  */}
+                  <span className="min-w-0 basis-full truncate text-note font-medium sm:basis-0 sm:flex-1">
                     {displayMeetingUrl(row.meeting_url)}
                   </span>
 
@@ -358,14 +364,17 @@ export function MeetingsPanel({ sessions }: { sessions: BotSessionRow[] }) {
         )}
 
         {/*
-          ⚠ Said plainly rather than left as a gap somebody has to discover.
-          Nothing maps a transcript into `messages` yet, deliberately — see
-          `lib/meetings/payload.ts`. A page that implies otherwise would send
-          somebody hunting the timeline for a meeting that was never written.
+          ⚠ Says where the meeting goes and roughly when, so nobody hunts the
+          timeline for it the moment the call ends. Until 2026-09-24 this said a
+          recording did not reach the timeline at all, which was true until
+          `meeting-sweep.ts` shipped. The five minutes is `MEETING_SWEEP_MS` in
+          the worker; transcription itself is Recall's and is not promised here.
         */}
         <p className="mt-4 text-meta text-muted-foreground text-pretty">
-          A finished recording does not reach the timeline yet. Reading the
-          transcript back into your messages is the next piece of this.
+          Once a recording has been transcribed, the meeting arrives on your
+          timeline as one message — what was said, speaker by speaker — and is
+          summarised and searchable like an email. Switchboard checks for
+          finished recordings every five minutes.
         </p>
       </section>
     </div>

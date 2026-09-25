@@ -43,6 +43,21 @@ questions only — or nothing. **Yuri's call.**
 
 </details>
 
+### Q13 — Are the assistant and the summaries any good on gpt-oss?
+**Raised:** 2026-09-24 · **Relevant by:** before quoting any assistant score, or demoing it
+
+Groq removed the Llama models on 2026-09-20. Extraction was re-measured on
+`openai/gpt-oss-20b` (9/9). **Summaries and the assistant were not** — and both
+turned out to be sending a 160-token request that a reasoning model's thinking
+uses up entirely, so no summary had been written since 14 August. Both now send
+`reasoningEffort: 'low'` and a real ceiling, but **neither has been measured**:
+nothing in the session that fixed them holds a Groq key.
+
+The 6/6 · 7/7 on record (ADR-017, ADR-020) are **Llama numbers** and say
+nothing about `gpt-oss-120b`. Run `eval-assistant.ts` (both numbers, on a day
+the assistant is otherwise unused) and `eval-summaries.ts`. If the refusal score
+moves, that is the property the product is judged on — Q10's warning applies.
+
 ### Q11 — The assistant's ~30 questions/day is shared by all tenants. Fair?
 **Raised:** 2026-08-03 · **Relevant by:** the moment a second person at iOzera uses it
 

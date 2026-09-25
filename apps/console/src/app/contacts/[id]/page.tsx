@@ -6,8 +6,10 @@ import { notFound, redirect } from 'next/navigation';
 
 import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
+import { ContactBrief } from '@/components/contact-brief';
 import { MergeContact } from '@/components/merge-contact';
 import { MessageRow } from '@/components/message-row';
+import { fetchContactBrief } from '@/lib/brief';
 import { CHANNELS, CHANNEL_META, fetchChannels } from '@/lib/channels';
 import { fetchContactDetail, fetchContacts } from '@/lib/contacts';
 import { mergeContacts, suggestMerges, type MergeResult } from '@/lib/merge';
@@ -58,9 +60,10 @@ export default async function ContactPage({
   const changePoints = channelChangePoints(messages, channelTypeById);
 
   // For the merge control. Only names and ids — no identities, no messages.
-  const { contacts: allContacts } = contact
-    ? await fetchContacts(supabase)
-    : { contacts: [] };
+  // The brief is read alongside it rather than after: neither needs the other.
+  const [{ contacts: allContacts }, { brief, error: briefError }] = contact
+    ? await Promise.all([fetchContacts(supabase), fetchContactBrief(supabase, contact)])
+    : [{ contacts: [] }, { brief: null, error: null }];
 
   const candidates = allContacts
     .filter((c) => c.id !== contact?.id)
@@ -208,6 +211,30 @@ export default async function ContactPage({
                 action={merge}
               />
             </section>
+
+            {/*
+              ── The brief (Phase 7B) ───────────────────────────────────────────
+              Who they are, what is open with them, where they write. Every fact
+              carries the sentence it came from — see `lib/brief.ts`, including
+              why a fact only lands here when the extraction names this person.
+              A failure says so rather than disappearing: a missing brief and an
+              empty one must not look alike.
+            */}
+            {briefError ? (
+              <div className="mt-7">
+                <Callout tone="error" role="alert">
+                  Could not load the brief: {briefError}
+                </Callout>
+              </div>
+            ) : (
+              brief && (
+                <ContactBrief
+                  name={contact.displayName}
+                  brief={brief}
+                  channelTypeById={Object.fromEntries(channelTypeById)}
+                />
+              )
+            )}
 
             <section className="mt-7">
               <p className={cn(LABEL, 'mb-2')}>

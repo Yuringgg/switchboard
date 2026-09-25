@@ -12,11 +12,27 @@ Bicep for the Azure side. `main.bicep` is the whole thing.
 | Container App | `switchboard-worker` | Malaysia West |
 
 Subscription: **Azure for Students**, Mapúa tenant.
-Status: **Running**, `minReplicas: 1`, one replica, internal ingress only.
+Status: **Running**, `minReplicas: 1`, one replica, **external** ingress carrying only `POST /embed` (ADR-011 amendment), 0.5 vCPU / 1Gi.
 
 ```bash
 az deployment group create -g rg-switchboard -f infra/main.bicep
 ```
+
+## ⚠ Deploying a new worker image: `containerapp update`, not this template
+
+Updated 2026-09-24. The live app is **0.5 vCPU / 1Gi** and carries secrets set
+by hand; `main.bicep` now declares all of them (`groqApiKey`, `embedApiSecret`,
+`recallApiKey`) and the real size, but a bicep deployment replaces the whole env
+list, so for a routine image change use:
+
+```bash
+az containerapp update -g rg-switchboard -n switchboard-worker \
+  --image ghcr.io/yuringgg/switchboard-worker@sha256:<digest>
+```
+
+The worker needs **`RECALL_API_KEY`** (the same value as on Vercel) or the
+meeting sweep never runs. The exact first-time commands are in
+`correspondence/2026-09-24-pipeline-repair.md`.
 
 ## The region is not a preference — it is policy
 

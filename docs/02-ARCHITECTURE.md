@@ -397,7 +397,10 @@ raw_events (
   status        text default 'pending',  -- pending|processing|done|failed
   attempts      int default 0,
   last_error    text,
-  received_at   timestamptz default now()
+  received_at   timestamptz default now(),
+  -- Migration 0018 (ADR-027). When the worker last claimed it. What lets the
+  -- reaper tell an event that died mid-flight from one being worked on now.
+  claimed_at    timestamptz
 )
 
 -- Worker-only table (never read by the console), but carries owner_id anyway so
@@ -561,6 +564,8 @@ Every one of these has bitten someone. They are in the plan so they don't bite u
 | **Worker sets `owner_id` wrong** | **One tenant's messages appear in another's console.** RLS can't help — `service_role` bypasses it | Derive `owner_id` from the channel being processed, never from the provider payload. Write an explicit two-tenant isolation test. |
 | **Google OAuth app pushed to production with Gmail restricted scopes** | Triggers a CASA security assessment — expensive, weeks long | Stay in **testing mode** with manually allowlisted users (~100 cap). Ample for iOzera. Verify the exact cap before relying on it. |
 | **Duplicate calendar events from re-run extraction** | Same meeting created repeatedly on a real calendar | `calendar_event_id` on the extraction row, checked before every insert. |
+| **Worker killed mid-event strands a row in `processing`** | Found 2026-09-24: 27 rows, the oldest seven weeks old — and an idle check that counted them as busy had switched the extraction catch-up off the whole time | `claimed_at` (0018) + a reaper returning rows stuck over 30 minutes; one idle check that ignores stale claims. ADR-027 |
+| **A reasoning model asked for the default 160 tokens** | Its thinking uses the budget and the answer comes back EMPTY — every summary since the gpt-oss switch | Every call site passes `reasoningEffort: 'low'` and a real ceiling (`SUMMARY_COMPLETION_OPTIONS`, `ASSISTANT_COMPLETION_OPTIONS`) |
 | **Azure Speech F0 tier unavailable in some regions / on student subs** | Voice stretch goal blocked | It's a stretch goal. Try Central US or West US 2; if `RequestDisallowedByAzure`, drop it. Don't spend a week fighting this. |
 
 ---

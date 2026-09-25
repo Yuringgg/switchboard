@@ -11,6 +11,8 @@
  * with no key and no quota. Same reason every adapter's `normalize` is pure.
  */
 
+import type { CompletionOptions } from './provider';
+
 /** How long a body has to be before a summary is worth a request. */
 export const SUMMARY_MIN_BODY = 280;
 
@@ -41,6 +43,40 @@ export const SUMMARY_MAX_CHARS = 240;
  * approximately what a person opening the row reads.
  */
 export const SUMMARY_INPUT_LIMIT = 4000;
+
+/**
+ * What every summary request asks the provider for.
+ *
+ * ── ⚠ Without these, every summary on `openai/gpt-oss-20b` comes back EMPTY ──
+ *
+ * Summaries were written against `llama-3.1-8b-instant`, which answers
+ * directly, so the request took `groq.ts`'s defaults: 160 tokens and nothing
+ * else. On 2026-09-20 Groq decommissioned that model and summaries moved to
+ * `openai/gpt-oss-20b` — a REASONING model, whose thinking is billed out of the
+ * same `max_tokens` as the answer. Extraction met this the same day (298 of 355
+ * completion tokens were reasoning, and the content came back empty) and was
+ * fixed with `reasoningEffort: 'low'`. Summaries never were, because nothing
+ * re-ran them: the model switch was verified on `eval-extractions.ts` alone.
+ *
+ * At the default effort the thinking alone overruns 160, so the answer is empty
+ * and `groq.ts` reports "groq returned an empty completion" — retryable, so the
+ * batch stops. Measured on the live database on 2026-09-24: **no summary has
+ * been written since 2026-08-14**, and 153 eligible messages have none.
+ *
+ * `low` measured 51 reasoning tokens on an extraction prompt against 298 at
+ * `medium`, with equally complete content (see `CompletionOptions`). 400 then
+ * leaves room for that plus a two-line summary. It does not make summaries
+ * longer on screen: `validateSummary` still cuts at `SUMMARY_MAX_CHARS`, and
+ * `max_tokens` is a ceiling, not a reservation.
+ *
+ * ⚠ Exported, and used by BOTH the worker and `eval-summaries.ts`, so the eval
+ * measures the request production actually sends. Leaving the eval on the
+ * defaults is how an eval passes against a request nobody makes.
+ */
+export const SUMMARY_COMPLETION_OPTIONS = {
+  maxTokens: 400,
+  reasoningEffort: 'low',
+} as const satisfies CompletionOptions;
 
 export type SkipReason = 'empty' | 'already-short';
 

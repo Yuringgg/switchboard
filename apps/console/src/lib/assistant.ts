@@ -1,4 +1,5 @@
 import {
+  ASSISTANT_COMPLETION_OPTIONS,
   ASSISTANT_SYSTEM_PROMPT,
   buildAssistantPrompt,
   createAssistantProvider,
@@ -416,6 +417,9 @@ export async function askAssistant(
     // ⚠ `mode` reaches the prompt ONLY here. A text question builds the exact
     // array it built before voice existed — see buildAssistantPrompt.
     buildAssistantPrompt(trimmed, context, new Date(), mode),
+    // ⚠ Never the provider defaults: on the gpt-oss reasoning models they
+    // leave no room for the answer. See the note on the constant.
+    ASSISTANT_COMPLETION_OPTIONS,
   );
 
   if (!completion.ok) {

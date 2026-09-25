@@ -52,7 +52,10 @@ export async function claimNextEvent(db: Database): Promise<ClaimedEvent | null>
     )
     update raw_events re
        set status = 'processing',
-           attempts = re.attempts + 1
+           attempts = re.attempts + 1,
+           -- Migration 0018. What lets queue.ts tell an event that died
+           -- mid-flight from one that is being worked on right now.
+           claimed_at = now()
       from claimed c, channels ch
      where re.id = c.id
        and ch.id = re.channel_id
