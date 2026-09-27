@@ -139,7 +139,11 @@ one message** (`18f6c23`, `packages/adapters/meeting`, `meeting-sweep.ts`), and
 > MiB rise, same speed) and by moving the embed catch-up LAST in the loop so
 > the one step that can take the process down starves nothing. **The 0.75 /
 > 1.5Gi resize is no longer asked for, and was never applied** —
-> `infra/main.bicep` is back to the live 0.5 / 1Gi.
+> `infra/main.bicep` is back to the live 0.5 / 1Gi. **Deployed as revision
+> 0000018 and verified:** peak memory 530 MiB, the stuck embeddings 23 → 3 in
+> one pass. One restart followed, from a liveness-probe TIMEOUT while that
+> pass ran on 0.5 vCPU — not memory; see the note's last section before
+> reading a restart as the old crash coming back.
 >
 > **Why it mattered beyond the restarts:** a worker killed mid-event leaves
 > its row in `processing` forever, because `claimNextEvent` only selects

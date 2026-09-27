@@ -92,3 +92,30 @@ The summary and extraction catch-ups now fail mostly on
 daily token cap on Groq's free tier, shared with live mail. The backlog (126
 unextracted on 2026-09-27) drains at that pace. Faster would need a second key
 or a paid tier; nothing in the code is wrong.
+
+---
+
+## Deployed and verified, same evening
+
+Revision **0000018** (image `sha256:81e7914f…`, commit `69cd908`), deployed
+2026-09-27 13:08 UTC with `az containerapp update --image`. Size unchanged,
+0.5 vCPU / 1 GiB; every env var and secret carried over.
+
+| | before | after |
+|---|---|---|
+| Messages with a body and no embedding | 23 | **3** after one pass |
+| Peak memory (`WorkingSetBytes`, 1-min max) | ~1016 MiB, then OOM | **530 MiB** |
+| OOM kills | every ~16 min | none |
+
+⚠ **One restart, and it was NOT memory.** At 13:24–13:26 the embed catch-up
+worked through 20 long newsletters in one pass on 0.5 vCPU. The health endpoint
+answered its 1-second liveness probe too slowly five times in a row, and
+Container Apps restarted the container (`ProbeFailure`, not exit 137). Those
+20 messages were already written — embedding commits per message — so the
+restart cost nothing but the pass. With the backlog down to 3 the next passes
+are short, and live mail embeds one message at a time, far inside the probe's
+~2.5-minute failure window.
+
+If a large backlog ever builds up again, the cheap fixes, in order: lower
+`EMBED_CATCH_UP_BATCH` (20) so a pass is shorter, or give the liveness probe a
+longer timeout. Neither was needed tonight.
