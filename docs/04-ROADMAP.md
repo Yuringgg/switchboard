@@ -998,6 +998,9 @@ the archive Ms. Maria asked for. Full note:
 - [x] **The same backdrop behind every console page**, excluding the sidebar.
       Opacity derived from a contrast measurement, coverage from a 4x4 grid
       count — both recorded in the note.
+      ⚠ **Amended 2026-09-27:** the lines now cross a static jack field, and
+      the contrast measurement this item cites was linear-light arithmetic —
+      see the jack-field item under *Design pass, 2026-09-27* below.
 - [x] **A real date-time picker** on the meeting proposal, replacing two
       `datetime-local` inputs. Submits the identical string, so
       `manilaInputToRfc3339` and ADR-010 are untouched. Also fixed a live defect:
@@ -1341,6 +1344,27 @@ Measured on the live database, 2026-09-24:
 the stuck count is 0.
 
 ---
+
+## Design pass, 2026-09-27 — the jack field
+
+Not a phase. Yuri supplied a reference ("frosted glass cathedral at midnight":
+a faint blueprint grid fading at the edges under a conic spotlight) and asked
+for that background, blended into the console's own look. Three variants were
+prototyped and screenshotted; Yuri picked **"jackfield + today's lines"** for
+both schemes. Full note: `correspondence/2026-09-27-jackfield-backdrop.md`.
+
+- [x] **A static jack field** — patch-bay sockets on a 96px grid, one soft
+      overhead light — behind the console record, `/login` + `/signup` and the
+      `/welcome` hero. `components/ui/jackfield.tsx`, `.jackfield*` in
+      `globals.css`. The sidebar and header stay untextured.
+- [x] **The flowing lines kept over it** in the console and on the sign-in
+      panel; light-mode console lines at half their old strength. `AuthGlow`
+      removed.
+- [x] **Contrast measured on rendered pixels**, and the old linear-light table
+      corrected: muted text 6.49 dark / 6.10 light at rest, worst animation
+      frame 4.75 / 3.12 (was 1.04 in light as shipped before).
+- [ ] The timeline's sticky day heading hides the field behind it (a faint band
+      under "TODAY"). Left alone on purpose — see the note.
 
 ## Stretch — only after Phase 5 is solid
 

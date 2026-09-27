@@ -179,27 +179,7 @@ export function AppShell({
           </div>
         </aside>
 
-        {/*
-          ⚠ `relative isolate` is what makes the backdrop below work at all.
-
-          `ConsoleBackdrop` is `-z-10`, and a negative z-index only stays inside
-          its parent when that parent establishes a stacking context. Without
-          `isolate` it paints behind the ROOT's background — which is opaque —
-          and the lines disappear completely with nothing in the DOM to explain
-          it. `relative` alone does not establish one.
-        */}
-        <div className="relative isolate flex min-h-0 min-w-0 flex-1 flex-col">
-          {/*
-            The flowing lines, behind the content and NOT behind the sidebar.
-
-            ⚠ It sits on this wrapper rather than inside `<main>`, which is the
-            one element in the app that scrolls. Inside, it would scroll away
-            after one viewport and leave every page below the fold untextured.
-            Here it stays put and the record moves over it, which is also the
-            right reading: the lines are the board, not part of the record.
-          */}
-          <ConsoleBackdrop />
-
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="shrink-0 border-b border-border bg-panel">
             <div
               className={cn(
@@ -220,32 +200,57 @@ export function AppShell({
           </header>
 
           {/*
-            The one element that scrolls. `live.tsx` reads its offset by id to
-            decide whether an arriving message may be inserted above what you
-            are currently reading.
+            ⚠ `relative isolate` is what makes the backdrop below work at all.
 
-            `tabIndex={-1}` makes it the skip link's landing point, and gives a
-            keyboard user something to focus before pressing Page Down — a
-            scroll container that cannot take focus cannot be scrolled from the
-            keyboard alone. `live.tsx` also hands focus here when the
-            new-messages pill is dismissed, which is why it is worth naming:
-            focus landing on an unlabelled <main> announces only "main".
+            `ConsoleBackdrop` is `-z-10`, and a negative z-index only stays
+            inside its parent when that parent establishes a stacking context.
+            Without `isolate` it paints behind the ROOT's background — which is
+            opaque — and the jack field and its lines disappear completely with
+            nothing in the DOM to explain it. `relative` alone does not
+            establish one.
+
+            The backdrop lives on this wrapper, UNDER the header rather than
+            behind it (2026-09-27), so the header's own border is the jack
+            field's top edge and its light hangs from it. Behind the content and
+            NOT behind the sidebar or the header — the frame stays untextured.
+
+            ⚠ On this wrapper rather than inside `<main>`, which is the one
+            element in the app that scrolls. Inside, it would scroll away after
+            one viewport and leave every page below the fold bare. Here it stays
+            put and the record moves over it, which is also the right reading:
+            the backdrop is the instrument, not part of the record.
           */}
-          <main
-            id={SCROLLER_ID}
-            tabIndex={-1}
-            aria-label={title}
-            className="min-h-0 flex-1 overflow-y-auto outline-none"
-          >
-            <div
-              className={cn(
-                'mx-auto flex min-h-full w-full flex-col px-5 py-7 md:px-10 md:py-10',
-                measure,
-              )}
+          <div className="relative isolate flex min-h-0 flex-1 flex-col">
+            <ConsoleBackdrop />
+
+            {/*
+              The one element that scrolls. `live.tsx` reads its offset by id
+              to decide whether an arriving message may be inserted above what
+              you are currently reading.
+
+              `tabIndex={-1}` makes it the skip link's landing point, and gives
+              a keyboard user something to focus before pressing Page Down — a
+              scroll container that cannot take focus cannot be scrolled from
+              the keyboard alone. `live.tsx` also hands focus here when the
+              new-messages pill is dismissed, which is why it is worth naming:
+              focus landing on an unlabelled <main> announces only "main".
+            */}
+            <main
+              id={SCROLLER_ID}
+              tabIndex={-1}
+              aria-label={title}
+              className="min-h-0 flex-1 overflow-y-auto outline-none"
             >
-              {children}
-            </div>
-          </main>
+              <div
+                className={cn(
+                  'mx-auto flex min-h-full w-full flex-col px-5 py-7 md:px-10 md:py-10',
+                  measure,
+                )}
+              >
+                {children}
+              </div>
+            </main>
+          </div>
         </div>
 
         {/*

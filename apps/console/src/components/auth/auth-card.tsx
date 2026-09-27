@@ -5,7 +5,8 @@ import type { ReactNode } from 'react';
 import { Brand } from '@/components/brand';
 import { Callout } from '@/components/callout';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { AuthAside, AuthGlow } from '@/components/ui/flowing-paths';
+import { Jackfield } from '@/components/ui/jackfield';
+import { AuthAside } from '@/components/ui/flowing-paths';
 import { buttonClass } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
@@ -14,8 +15,9 @@ import { cn } from '@/lib/utils';
  *
  * ── The shape ────────────────────────────────────────────────────────────────
  *
- * Two panels. The left is the flowing-lines backdrop with the mark and one
- * sentence; the right is the form, centred, over a soft radial light. Below
+ * Two panels. The left is the jack field with the flowing lines across it,
+ * the mark and one sentence; the right is the form, centred, over the same
+ * jack field, which carries on across the border between them. Below
  * `lg` the left panel is not rendered at all — on a phone it would push the
  * form the visitor actually came for below the fold.
  *
@@ -72,8 +74,13 @@ export function AuthCard({
     <div className="grid min-h-dvh lg:grid-cols-[1fr_minmax(0,32rem)]">
       <AuthAside />
 
-      <main className="relative flex flex-col justify-center px-5 py-14 sm:px-10">
-        <AuthGlow />
+      {/* `isolate`, so the board's `-z-10` stays inside this column instead of
+          painting behind the page's opaque background. */}
+      <main className="relative isolate flex flex-col justify-center px-5 py-14 sm:px-10">
+        {/* Below `lg` this column is the whole screen and carries the light;
+            at `lg` the aside owns it and this field only continues the board
+            across the border (see `.board--form` in globals.css). */}
+        <Jackfield surface="form" className="-z-10" />
 
         {/* The way back out. A visitor who arrived from a bookmark or a `next=`
             redirect has no other route to the page that explains what this is. */}

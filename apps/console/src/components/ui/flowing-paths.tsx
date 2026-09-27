@@ -1,4 +1,5 @@
 import { Brand } from '@/components/brand';
+import { Jackfield } from '@/components/ui/jackfield';
 import { LABEL } from '@/lib/ui';
 import { cn } from '@/lib/utils';
 
@@ -196,31 +197,42 @@ export function FlowingPaths({
 }
 
 /**
- * The same lines behind the console's own pages (Yuri, 2026-08-06).
+ * The console's backdrop: the jack field, with these same lines crossing it
+ * (Yuri, 2026-08-06 for the lines; 2026-09-27 for the field under them —
+ * "jackfield + today's lines", in both schemes).
  *
- * ── ⚠ Why it is far fainter here, with numbers ──────────────────────────────
+ * ── ⚠ Why the lines are so faint here, with numbers ─────────────────────────
  *
  * The auth panel carries one heading and one sentence. These pages carry a
  * timeline of 14px body text, and a line passing behind a glyph composites into
  * its background — which is a contrast reduction WCAG has no clean way to
  * express and a reader notices immediately.
  *
- * Worked from the tokens, for a line at opacity `a` over the page background,
- * under `--muted-foreground` (the quietest text the console permits):
+ * ⚠⚠ The table that used to sit here was WRONG, and the lesson is the method.
+ * It was worked from the tokens in linear light (dark 0.03 → 4.8:1, dark 0.12
+ * → 2.8:1, light 0.12 → 6.5:1). Browsers composite in gamma sRGB, and the
+ * numbers below are read off RENDERED PIXELS instead: the backdrop drawn with no
+ * text on it, headless Chrome at 1440 wide, the worst pixel found, then its
+ * contrast against `--muted-foreground` (the quietest text the console
+ * permits). Re-measure the same way after any change — scripts and method are
+ * in `correspondence/2026-09-27-jackfield-backdrop.md`.
  *
- * | scheme | line opacity | effective contrast |
+ * | muted text over… | dark | light |
  * |---|---|---|
- * | dark | 0.12 | **2.8 : 1** — fails |
- * | dark | 0.045 | **4.1 : 1** — fails |
- * | dark | 0.03 | 4.8 : 1 — passes |
- * | light | 0.12 | 6.5 : 1 — passes |
+ * | bare background | 7.44 : 1 | 7.32 : 1 |
+ * | the field + light, lines at rest | 6.49 : 1 | 6.10 : 1 |
+ * | worst moment of 8 animation frames | **4.75 : 1** | **3.12 : 1** |
+ * | the same, as shipped before 2026-09-27 (lines only, light at full strength) | — | **1.04 : 1** |
  *
- * Light-on-dark washes out far faster than dark-on-light, which is why the two
- * schemes cannot share one cap. The ramp tops out at 0.12 and the container is
- * scaled to a quarter of that in dark — 0.03 — which is the largest value that
- * still clears AA where a stroke crosses behind the faintest text on the page.
- * **Do not raise `dark:opacity-25` to make the effect more visible.** It is
- * sized to a measurement, and it is verified in the DOM rather than by eye.
+ * The worst moments are a few pixels where several moving dashes bunch up at
+ * the neck of the two families, for a fraction of a second. Light still dips
+ * under AA there; halving the lines in light (`opacity-50`) is what took it from
+ * 1.04 to 3.12. If it ever needs to clear 4.5 at every instant, lower the light
+ * opacity further rather than touching `--muted-foreground`.
+ *
+ * **Do not raise either opacity to make the effect more visible** without
+ * re-measuring the rendered pixels. Light-on-dark and dark-on-light do not wash
+ * out at the same rate, which is why the two schemes cannot share one value.
  *
  * ⚠ The COUNT is not part of that budget and was wrongly cut once. Thinning to
  * 14 curves per family made the field mostly empty — two strokes in a corner —
@@ -235,19 +247,22 @@ export function FlowingPaths({
  * frame-versus-record distinction the whole console is built on.
  */
 export function ConsoleBackdrop() {
+  // ⚠ `-z-10` works only because the parent carries `isolate`. Without a
+  // stacking context between here and the root, a negative z-index paints
+  // behind the ROOT's background — which is opaque — and the backdrop
+  // vanishes entirely with nothing to debug.
+  //
+  // The alternative, plain `z-0`, is worse: a positioned element paints above
+  // non-positioned in-flow content at the same level, so the field would
+  // render over the content it sits behind.
   return (
-    <FlowingPaths
-      tone="ambient"
-      // ⚠ `-z-10` works only because the parent carries `isolate`. Without a
-      // stacking context between here and the root, a negative z-index paints
-      // behind the ROOT's background — which is opaque — and the backdrop
-      // vanishes entirely with nothing to debug.
-      //
-      // The alternative, plain `z-0`, is worse: a positioned element paints
-      // above non-positioned in-flow content at the same level, so the lines
-      // would render over the header's own background.
-      className="-z-10 opacity-100 dark:opacity-25"
-    />
+    <>
+      <Jackfield surface="console" className="-z-10" />
+      {/* Over the jack field, under the record. Half their old strength in
+          light (the field now carries some of the texture); unchanged in
+          dark. See the table above for what that costs muted text. */}
+      <FlowingPaths tone="ambient" className="-z-10 opacity-50 dark:opacity-25" />
+    </>
   );
 }
 
@@ -268,7 +283,10 @@ export function ConsoleBackdrop() {
 export function AuthAside() {
   return (
     <aside className="relative hidden flex-col justify-between overflow-hidden border-r border-border bg-panel p-10 lg:flex">
-      <FlowingPaths />
+      {/* Paint order: panel, jack field, lines, scrim, text. The lines are the
+          one moving thing on this screen, crossing the field at 65%. */}
+      <Jackfield surface="aside" />
+      <FlowingPaths className="opacity-65" />
 
       {/* Fades the lines out under the text so the copy never has to compete
           with a stroke passing behind it. */}
@@ -291,26 +309,5 @@ export function AuthAside() {
         </p>
       </div>
     </aside>
-  );
-}
-
-/**
- * The soft light behind the form column, so the right-hand side is not a flat
- * field of background colour.
- *
- * ⚠ `-z-10` and `contain: strict`. Without containment these are three large
- * blurred gradients that the browser will happily re-rasterise on every scroll
- * of the page behind them.
- */
-export function AuthGlow() {
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-0 -z-10 isolate opacity-70 [contain:strict]"
-    >
-      <div className="auth-glow absolute -top-40 -right-24 h-[38rem] w-[26rem] rounded-full" />
-      <div className="auth-glow absolute top-1/3 -left-32 h-[30rem] w-[22rem] rounded-full" />
-      <div className="auth-glow absolute -bottom-40 right-1/4 h-[26rem] w-[30rem] rounded-full" />
-    </div>
   );
 }

@@ -146,6 +146,13 @@ which Google rejects with a 400 naming neither field. Verified in the DOM:
 
 ## 3. The flowing-line backdrop
 
+> ⚠ **Superseded in part, 2026-09-27** — see
+> `correspondence/2026-09-27-jackfield-backdrop.md`. The lines now cross a
+> static jack field and start under the console header, not behind it. The
+> contrast figures below were computed in linear light and are wrong; read off
+> rendered pixels, muted text over bare background is 7.44 dark / 7.32 light.
+> Kept as written because it is the record of that round.
+
 The auth screens got a two-panel layout with the flowing lines behind the left
 panel. Yuri then asked for the same behind every console page, excluding the
 sidebar.

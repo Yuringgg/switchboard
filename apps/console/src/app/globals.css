@@ -135,6 +135,23 @@
    * every call site.
    */
   --faint: oklch(0.795 0.007 250);
+
+  /*
+   * The jack field's overhead light — see `.jackfield` below. Daylight in the
+   * light scheme: it can only lift the page toward the card white, never past
+   * it.
+   *
+   * ⚠ This lifts the RECORD, never the frame, so the frame-versus-record step
+   * the light-ramp note above protects gets wider under it, not narrower —
+   * unlike pushing `--background` itself toward 1.0, which is what it forbids.
+   * The one surface where the light falls on `--panel` (the sign-in aside) is
+   * capped for exactly that reason.
+   *
+   * ⚠ Not the amber `--live`, and deliberately not called a "lamp": in this
+   * product a lamp is a signal (`animate-lamp`, the jack and row lamps), and
+   * amber means "the board is receiving" and nothing else.
+   */
+  --overhead-source: var(--card);
 }
 
 /*
@@ -176,6 +193,9 @@
   --panel: oklch(0.192 0.007 265);
   --live: oklch(0.82 0.15 74);
   --faint: oklch(0.36 0.008 262);
+
+  /* At night the light is the foreground itself, held to a few percent. */
+  --overhead-source: var(--foreground);
 }
 
 @theme inline {
@@ -613,7 +633,7 @@
  */
 
 /*
- * ── The auth backdrop's flowing lines — components/ui/auth-backdrop.tsx ──────
+ * ── The flowing lines — components/ui/flowing-paths.tsx ──────────────────────
  *
  * Adapted from a `FloatingPaths` component that animated `pathLength` and
  * `pathOffset` on 72 `motion.path`s through framer-motion. Two problems with
@@ -653,25 +673,6 @@
   /* Negative, so each path starts mid-cycle instead of every one of them
      setting off from the same point on the first frame. */
   animation-delay: calc(var(--flow-delay, 0) * -1s);
-}
-
-/*
- * The soft light behind the form column.
- *
- * ⚠ `color-mix`, not the snippet's `--theme(--color-foreground/.06)`. That
- * function is Tailwind-v4-only sugar that resolves at build time and reads as
- * valid CSS while doing nothing if the arbitrary-value parser ever changes.
- * `color-mix` is the actual platform feature and it composes against whatever
- * `--foreground` currently is — so this glow inverts with the theme for free
- * instead of needing a `dark:` twin.
- */
-@utility auth-glow {
-  background: radial-gradient(
-    closest-side,
-    color-mix(in oklch, var(--foreground) 7%, transparent) 0%,
-    color-mix(in oklch, var(--foreground) 2%, transparent) 55%,
-    transparent 100%
-  );
 }
 
 /*
@@ -1053,6 +1054,233 @@
     border-radius: 1px;
     background: currentColor;
     opacity: 0.5;
+  }
+
+  /*
+   * ───────────────────────────────────────────────────────────────────────────
+   * THE JACK FIELD — components/ui/jackfield.tsx
+   *
+   * The backdrop behind the console's record, the auth screens and the landing
+   * hero: a faint field of patch-bay sockets — hollow rings joined by hairline
+   * rails — under one soft overhead light. The grid-and-spotlight atmosphere is
+   * borrowed from a reference Yuri supplied (2026-09-27); the socket is this
+   * product's own glyph, which is what keeps a plain blueprint grid (the 2024–26
+   * generated-hero default, and exactly what "halatang ginawa mo sa AI" was
+   * about) from reading as one. On the console and the sign-in panel the
+   * flowing lines still cross over it — "many lines in" — see flowing-paths.tsx.
+   *
+   * ⚠ Every colour is `--foreground` or `--overhead-source` mixed toward
+   * transparent. Never `--live`, never a channel colour: both are meanings.
+   *
+   * ⚠ The field itself is static, so its resting frame IS the frame — the rule
+   * this stylesheet keeps re-learning. Only the lines over it move.
+   *
+   * ⚠ `in srgb` in the color-mixes: the mix only changes alpha, and Chromium
+   * serialises an oklch mix toward `transparent` with a `none` hue.
+   *
+   * Three layers, and the field is masked TWICE on purpose: the tile mask
+   * draws the sockets, the wrapper's radial mask fades them out. Nesting the
+   * two avoids `mask-composite`, whose support is patchier than either mask.
+   * ───────────────────────────────────────────────────────────────────────────
+   */
+  .jackfield {
+    /* One tile, one path per rail, so a crossing is never painted twice. The
+       rails are .55 of the ring's ink and the centre pin .7. */
+    --jackfield-tile: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96'%3E%3Cpath d='M0 48.5H42M55 48.5H96M48.5 0V42M48.5 55V96' stroke='%23000' stroke-opacity='.55'/%3E%3Ccircle cx='48.5' cy='48.5' r='3.5' fill='none' stroke='%23000'/%3E%3Ccircle cx='48.5' cy='48.5' r='1.25' fill-opacity='.7'/%3E%3C/svg%3E");
+    /* The ring's alpha of --foreground, the same in both schemes. */
+    --jackfield-ink: 7%;
+    /* A socket column on the box's centre axis; the first rail row lands 48px
+       under the top edge, so no rail doubles the frame's own border. */
+    --jackfield-pos: 50% 0;
+    --jackfield-fade: radial-gradient(
+      ellipse 100% 120% at 50% 0%,
+      #000 0%,
+      #000 30%,
+      rgb(0 0 0 / 0.4) 70%,
+      transparent 100%
+    );
+    --overhead-x: 50%;
+    /* The apex sits just above the box: the light hangs from the frame edge. */
+    --overhead-apex: -1.5rem;
+    --overhead-half: 0.1turn;
+    --overhead-size: 70% 75%;
+    --overhead-core: 100%;
+    --overhead-edge: 60%;
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    contain: strict;
+  }
+
+  /*
+   * In dark the console's light is 3% at the core. Sized to the contrast of
+   * muted text on its brightest point — light plus a ring — and measured in the
+   * rendered pixels, not by eye: 6.49:1 dark and 6.10:1 light with the lines at
+   * rest over it (bare background 7.44 / 7.32). The full table, including the
+   * moving lines, is on `ConsoleBackdrop` in flowing-paths.tsx. Surfaces below
+   * override these values.
+   */
+  .dark .jackfield {
+    --overhead-core: 3%;
+    --overhead-edge: 2%;
+  }
+
+  .jackfield__light,
+  .jackfield__fade,
+  .jackfield__field {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* The reference's conic spotlight, pointing straight down. */
+  .jackfield__light {
+    background: conic-gradient(
+      at var(--overhead-x) var(--overhead-apex),
+      transparent calc(0.5turn - var(--overhead-half)),
+      color-mix(in srgb, var(--overhead-source) var(--overhead-edge), transparent)
+        calc(0.5turn - var(--overhead-half) * 0.25),
+      color-mix(in srgb, var(--overhead-source) var(--overhead-core), transparent) 0.5turn,
+      color-mix(in srgb, var(--overhead-source) var(--overhead-edge), transparent)
+        calc(0.5turn + var(--overhead-half) * 0.25),
+      transparent calc(0.5turn + var(--overhead-half))
+    );
+    -webkit-mask-image: radial-gradient(
+      ellipse var(--overhead-size) at var(--overhead-x) 0%,
+      #000 0%,
+      rgb(0 0 0 / 0.45) 50%,
+      transparent 100%
+    );
+    mask-image: radial-gradient(
+      ellipse var(--overhead-size) at var(--overhead-x) 0%,
+      #000 0%,
+      rgb(0 0 0 / 0.45) 50%,
+      transparent 100%
+    );
+  }
+
+  .jackfield__fade {
+    -webkit-mask-image: var(--jackfield-fade);
+    mask-image: var(--jackfield-fade);
+  }
+
+  .jackfield__field {
+    background-color: color-mix(in srgb, var(--foreground) var(--jackfield-ink), transparent);
+    -webkit-mask-image: var(--jackfield-tile);
+    mask-image: var(--jackfield-tile);
+    -webkit-mask-size: 96px 96px;
+    mask-size: 96px 96px;
+    -webkit-mask-repeat: repeat;
+    mask-repeat: repeat;
+    -webkit-mask-position: var(--jackfield-pos);
+    mask-position: var(--jackfield-pos);
+  }
+
+  /* Surfaces. ⚠ Keep these AFTER `.jackfield` and `.dark .jackfield` in source
+     order. */
+
+  /*
+   * Behind the console's record, with the flowing lines crossing over it
+   * (`ConsoleBackdrop`, Yuri's choice on 2026-09-27: "jackfield + today's
+   * lines"). The ink is a point lower than on the other surfaces because the
+   * lines add their own.
+   *
+   * ⚠ `will-change: transform` is load-bearing, not a hint for speed's sake.
+   * The lines animate `stroke-dashoffset`, which Chromium repaints on the main
+   * thread every frame; a layer of its own is what keeps this masked field
+   * from being re-rasterised with them.
+   */
+  .jackfield--console {
+    --jackfield-ink: 6%;
+    will-change: transform;
+  }
+
+  /* The landing hero: the light hangs over the patch field's jack board. */
+  .jackfield--hero {
+    --jackfield-ink: 8%;
+    --overhead-x: 38%;
+    --overhead-apex: -6rem;
+    --overhead-half: 0.075turn;
+    --overhead-size: 60% 90%;
+    --jackfield-fade: radial-gradient(
+      ellipse 80% 100% at 38% 0%,
+      #000 0%,
+      #000 22%,
+      rgb(0 0 0 / 0.45) 62%,
+      transparent 100%
+    );
+  }
+
+  .dark .jackfield--hero {
+    --overhead-core: 8%;
+    --overhead-edge: 5%;
+  }
+
+  /*
+   * The sign-in panel. In light the light is capped at 60% so lit `--panel`
+   * never gets brighter than the page's own background — the frame must not
+   * outshine the record.
+   */
+  .jackfield--aside {
+    --jackfield-ink: 9%;
+    --jackfield-pos: 100% 0;
+    --overhead-apex: -3rem;
+    --overhead-half: 0.07turn;
+    --overhead-size: 80% 80%;
+    --overhead-core: 60%;
+    --overhead-edge: 35%;
+    --jackfield-fade: radial-gradient(
+      ellipse 110% 110% at 50% 0%,
+      #000 0%,
+      #000 35%,
+      rgb(0 0 0 / 0.4) 75%,
+      transparent 100%
+    );
+  }
+
+  .dark .jackfield--aside {
+    --overhead-core: 8%;
+    --overhead-edge: 5%;
+  }
+
+  .jackfield--form {
+    --jackfield-ink: 6%;
+    --overhead-apex: -3rem;
+    --overhead-half: 0.08turn;
+    --overhead-size: 80% 70%;
+  }
+
+  .dark .jackfield--form {
+    --overhead-core: 5%;
+    --overhead-edge: 3%;
+  }
+
+  /*
+   * At `lg` the aside is on screen and owns the one light. The form's field
+   * then starts at its left edge, so the socket columns sit either side of the
+   * shared border and the rows line up across it.
+   */
+  @media (width >= 64rem) {
+    .jackfield--form {
+      --jackfield-pos: 0 0;
+      --jackfield-fade: radial-gradient(
+        ellipse 110% 100% at 0% 0%,
+        #000 0%,
+        #000 30%,
+        rgb(0 0 0 / 0.4) 70%,
+        transparent 100%
+      );
+    }
+
+    .jackfield--form .jackfield__light {
+      display: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .jackfield {
+      display: none;
+    }
   }
 }
 

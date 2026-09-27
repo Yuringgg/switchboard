@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Brand } from '@/components/brand';
 import { PatchField } from '@/components/marketing/patch-field';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { Jackfield } from '@/components/ui/jackfield';
 import { createClient } from '@/lib/supabase/server';
 import { buttonClass, LABEL } from '@/lib/ui';
 import { cn } from '@/lib/utils';
@@ -95,7 +96,14 @@ export default async function WelcomePage() {
         </div>
       </header>
 
-      <main>
+      {/*
+        `isolate` so the board's `-z-10` stays on this page rather than behind
+        its opaque background. The board covers the hero only — 56rem, then the
+        page is plain background as before — and its light hangs over the patch
+        field's jack board (`.board--hero` in globals.css).
+      */}
+      <main className="relative isolate">
+        <Jackfield surface="hero" className="-z-10 bottom-auto h-[56rem]" />
         {/*
           ── Hero ─────────────────────────────────────────────────────────────
 

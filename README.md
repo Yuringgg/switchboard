@@ -64,6 +64,10 @@ landing page at `/welcome`, both typefaces replaced, the light theme rebuilt so
 its surfaces are actually distinguishable, auto-sync so a dropped connection
 recovers itself, and an animated backdrop across the console. See
 [`correspondence/2026-08-09-design-revisions.md`](./correspondence/2026-08-09-design-revisions.md).
+Since 2026-09-27 that backdrop is a **jack field** — a faint grid of patch-bay
+sockets under one soft overhead light, with the flowing lines still crossing
+it — behind the console, sign-in and the landing hero. See
+[`correspondence/2026-09-27-jackfield-backdrop.md`](./correspondence/2026-09-27-jackfield-backdrop.md).
 
 **Phase 6 — voice. Shipped 2026-09-11.** You can **call** Switchboard and ask it
 things out loud. It answers from your real messages, in about **1,900ms** end to

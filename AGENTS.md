@@ -299,15 +299,16 @@ Full note: `correspondence/2026-08-09-design-revisions.md`.
 1. **The auth screens are two panels with an animated backdrop**, and the same
    flowing lines sit behind every console page. `components/ui/flowing-paths.tsx`
    serves both through a `tone` prop. **CAUTION: the two tones are not
-   interchangeable.** `ambient` runs at a quarter of `panel`'s opacity in dark,
-   and that number is derived from a contrast measurement — a line crossing
-   behind 14px muted text measures 4.97:1 dark and 6.47:1 light as shipped, and
-   2.8:1 at the panel's own opacity. Do not raise it to make the effect more
-   visible.
-2. **The backdrop is on the content wrapper, never inside `<main>`**, and the
+   interchangeable.** ⚠ **Amended 2026-09-27:** the lines now cross a static
+   **jack field** (see the 2026-09-27 block below), and the contrast figures
+   this item used to quote (4.97 dark / 6.47 light / 2.8) were computed in
+   linear light and were wrong. The rendered-pixel table is on
+   `ConsoleBackdrop`. Do not raise either opacity without re-measuring.
+2. **The backdrop is on a wrapper around `<main>`, never inside it**, and that
    wrapper carries `isolate`. A negative z-index without a stacking context
    paints behind the opaque root background and vanishes with nothing in the DOM
-   to explain it. It is deliberately absent from the sidebar.
+   to explain it. It is deliberately absent from the sidebar — and, since
+   2026-09-27, from the header too: it starts under the header's border.
 3. **`/attention` has archive (migration 0013), and it is NOT a delete.** See
    ADR-021. `archived_at` is one nullable column; `status` is untouched so
    Restore returns a card to the column it came from. `fetchAttention` defaults
@@ -351,11 +352,41 @@ comment banners, and added a BOM — turning a 5-line change into 115. `tsc` and
 Use the editing tool; if PowerShell must touch a source file, verify with
 `[System.IO.File]::ReadAllBytes` afterwards.
 
-**Nobody has LOOKED at any of it.** This environment has no screenshot
-capability and the browser pane does not composite — `computer{action:
-"screenshot"}` errors rather than returning a blank image. Every visual claim in
-these notes is a DOM measurement. `localhost:3100/welcome`, `/login` and
-`/preview?screen=attention` are where to look before showing Ms. Maria.
+**Nobody has LOOKED at any of it** — true as of 2026-08-09, when this
+environment had no screenshot capability and the browser pane did not
+composite. ⚠ **Superseded 2026-09-27: screenshots work now.** Headless Chrome
+(`chrome.exe --headless=new --screenshot`, a throwaway profile on D:) gives real
+1440×900 pixels of `/preview`, `/login` and `/welcome` in both schemes, and the
+jack-field backdrop was chosen from exactly those. The browser pane also
+screenshots, but it is narrow — use its `mobile` preset for phone checks, not
+headless Chrome, which will not go below ~500px wide and silently crops. The
+recipe is in `correspondence/2026-09-27-jackfield-backdrop.md`.
+
+### The console backdrop became a jack field, 2026-09-27 — three things to know
+
+Full note: `correspondence/2026-09-27-jackfield-backdrop.md`.
+
+1. **Behind the console record, `/login` + `/signup` and the `/welcome` hero is
+   a static jack field** — a faint grid of patch-bay sockets under one soft
+   overhead light (`components/ui/jackfield.tsx`, the `.jackfield*` rules in
+   `globals.css`). Yuri supplied a "blueprint grid + spotlight" reference and
+   picked **"jackfield + today's lines"**: in the console and on the sign-in
+   panel the flowing lines still cross it (light-mode console lines at half
+   their old strength). `AuthGlow` and `@utility auth-glow` are gone.
+2. **CAUTION: it is called a jack field and its light is `--overhead-*`, never
+   "board" or "lamp".** On this console the board is `/attention`, "the board is
+   live" is what amber means, and a lamp is a signal. Colour comes only from
+   `--foreground` and `--overhead-source`, never `--live` or a channel.
+3. **CAUTION: contrast was measured on rendered pixels, and the old figures were
+   wrong.** Muted text over the field is 6.49 dark / 6.10 light with the lines
+   at rest; the worst animation frame dips to 4.75 dark / 3.12 light where
+   dashes bunch for a moment — up from **1.04** in light as shipped before. The
+   earlier 4.97 / 6.47 / 2.8 table was linear-light arithmetic. Table and
+   method: `ConsoleBackdrop` in `flowing-paths.tsx`.
+
+Known and left alone: the timeline's sticky day heading is `bg-background`, so
+the field is hidden behind it — a faint band under "TODAY". Making it
+translucent would let the rows scrolling beneath show through.
 
 **§7 at the bottom of this file is the fastest way to know where things stand** —
 it carries the verified numbers and the next action. Read that, then come back.
@@ -369,11 +400,14 @@ it carries the verified numbers and the next action. Read that, then come back.
 > the transcript shape, RA 4200, and why the worker deploy must NOT go through
 > bicep.
 > `correspondence/2026-09-10-voice-integration-plan.md` — the voice build.
-> `correspondence/2026-08-09-design-revisions.md` — **the console's most
-> recent design pass.** Yuri's
+> `correspondence/2026-09-27-jackfield-backdrop.md` — **the console's most
+> recent design pass.** The jack-field backdrop, why it is not a plain grid,
+> the rendered-pixel contrast method, and the screenshot recipe.
+> `correspondence/2026-08-09-design-revisions.md` — the design pass before
+> that. Yuri's
 > screenshot review, three third-party components adopted rather than pasted,
-> the flowing-line backdrop, and archive (migration 0013). Read it before
-> touching `apps/console`.
+> the flowing-line backdrop (⚠ its §3 contrast figures are superseded), and
+> archive (migration 0013). Read it before touching `apps/console`.
 > `correspondence/2026-08-06-maria-changes.md` — Ms. Maria's five changes from
 > the 2026-08-05 meeting: the landing page, the Kanban board (migration 0012),
 > the timeline's channel filter, the light-mode rebuild, the font replacement,
@@ -1304,6 +1338,13 @@ the other way.
   thing to run when a case fails.
 
 ---
+
+*Last updated: **2026-09-27** · the console backdrop became a jack field with
+the flowing lines kept over it (Yuri's pick from screenshots), the old
+linear-light contrast figures replaced by rendered-pixel ones, and the
+"nobody can screenshot" note superseded. See
+`correspondence/2026-09-27-jackfield-backdrop.md`. The footer below is the
+2026-09-24 one, kept.*
 
 *Last updated: **2026-09-24** · §5 rewritten for the pipeline repair (migration
 0018, the reaper, three catch-ups, the gpt-oss token trap) and the per-person
