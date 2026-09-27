@@ -560,8 +560,8 @@ const embedGiveUp = new Set<string>();
 const extractGiveUp = new Set<string>();
 
 /**
- * One loop for all three catch-ups, in the same order ingest runs them:
- * summaries, then embeddings, then extraction.
+ * One loop for all three catch-ups: summaries, then extraction, then
+ * embeddings.
  *
  * ⚠ One loop, not three, because summaries and extraction share a model and so
  * a per-minute token window. Three independent loops would wake together and
@@ -569,7 +569,16 @@ const extractGiveUp = new Set<string>();
  * with live ingest, recreated between themselves. Sequential, they cannot.
  *
  * ⚠ Each step is wrapped separately. A summary sweep that throws must not cost
- * the embedding and extraction sweeps behind it their turn.
+ * the steps behind it their turn.
+ *
+ * ⚠⚠ Embeddings go LAST, and that is deliberate (2026-09-27). A `try` cannot
+ * catch the kernel: from 2026-09-25 the embed sweep OOM-killed the worker on
+ * the same long newsletter every ~16 minutes, and because it sat between
+ * summaries and extraction, extraction lost its turn on nearly every pass. The
+ * root cause is fixed (`EMBED_BATCH_SIZE` in @switchboard/ai), but the one step
+ * that loads a model into memory is the one step that can take the process
+ * down with it, so it runs where it can starve nothing. It is also the only
+ * one that costs no quota, so it loses nothing by waiting.
  */
 async function catchUpLoop(): Promise<void> {
   while (running) {
@@ -604,6 +613,34 @@ async function catchUpLoop(): Promise<void> {
       }
     }
 
+    if (extractor) {
+      try {
+        const result = await catchUpExtractions(
+          db,
+          extractor,
+          CATCH_UP_BATCH,
+          CATCH_UP_DELAY_MS,
+          extractGiveUp,
+        );
+
+        if (result.considered > 0) {
+          console.info(
+            `[extract-catchup] sweep: considered=${result.considered} ` +
+              `written=${result.written} rows=${result.rows} ` +
+              `skipped=${result.skipped} failed=${result.failed}`,
+          );
+        }
+      } catch (error) {
+        // Must never take the worker down: this is a repair loop for an
+        // additive feature, and mail ingests perfectly well without it.
+        console.error(
+          '[extract-catchup] sweep errored:',
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+
+    // Last on purpose — see the note on this function.
     try {
       const result = await catchUpEmbeddings(db, EMBED_CATCH_UP_BATCH, embedGiveUp);
       if (result.considered > 0) {
@@ -616,33 +653,6 @@ async function catchUpLoop(): Promise<void> {
     } catch (error) {
       console.error(
         '[embed-catchup] sweep errored:',
-        error instanceof Error ? error.message : error,
-      );
-    }
-
-    if (!extractor) continue;
-
-    try {
-      const result = await catchUpExtractions(
-        db,
-        extractor,
-        CATCH_UP_BATCH,
-        CATCH_UP_DELAY_MS,
-        extractGiveUp,
-      );
-
-      if (result.considered > 0) {
-        console.info(
-          `[extract-catchup] sweep: considered=${result.considered} ` +
-            `written=${result.written} rows=${result.rows} ` +
-            `skipped=${result.skipped} failed=${result.failed}`,
-        );
-      }
-    } catch (error) {
-      // Must never take the worker down: this is a repair loop for an additive
-      // feature, and mail ingests perfectly well without it.
-      console.error(
-        '[extract-catchup] sweep errored:',
         error instanceof Error ? error.message : error,
       );
     }

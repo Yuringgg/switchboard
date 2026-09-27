@@ -246,6 +246,11 @@ of it would have come out of the code alone.
 
 ## ⚠⚠ ADDENDUM 2026-09-25 — the reaper treats a symptom, and here is the disease
 
+> ✅ **Resolved 2026-09-27 without the resize** — see
+> `correspondence/2026-09-27-worker-oom-fix.md`. The OOM was one model call
+> carrying every chunk of a long newsletter, not the three catch-ups sharing a
+> loop. The section below is kept as the record of the diagnosis at the time.
+
 Written after merging this branch to `main` (`f87faad`), deploying it
 (revision **0000017**, with `RECALL_API_KEY` finally on the worker) and watching
 what it did.

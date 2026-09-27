@@ -78,8 +78,10 @@ export async function embedMessage(
       return { status: 'skipped', reason: 'no text to embed' };
     }
 
-    // One batched call: the model is far more efficient over a batch than over
-    // a loop, and a long email is a dozen chunks.
+    // One call for the whole message, but `embedPassages` feeds the model one
+    // chunk at a time inside it (`EMBED_BATCH_SIZE`). Batching every chunk of a
+    // long newsletter into one model call is what OOM-killed the worker from
+    // 2026-09-25; it was also no faster.
     const vectors = await embedPassages(chunks.map((chunk) => chunk.content));
 
     if (vectors.length !== chunks.length) {

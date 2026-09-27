@@ -135,20 +135,57 @@ export async function warmEmbedder(): Promise<{ ok: boolean; ms: number; reason?
   }
 }
 
+/**
+ * How many texts go through the model in ONE call. One.
+ *
+ * ⚠⚠ This is the fix for the worker being OOM-killed every ~16 minutes from
+ * 2026-09-25 (197 restarts in two days, exit 137). Every chunk of a message
+ * used to go into a single call, and a call's working memory grows with the
+ * batch — padded to its longest chunk, with an attention matrix per chunk —
+ * while onnxruntime keeps its arena at the high-water mark afterwards. The 23
+ * messages the embed catch-up could never finish were 10–22k-character
+ * newsletters, ~26 chunks each, and the first of them took the worker from its
+ * ~725 MiB baseline past the 1 GiB limit. The catch-up then restarted with an
+ * empty give-up list and tried the same message again, forever — and extraction,
+ * which ran after it in the same loop, only got a turn when it was deferred.
+ *
+ * Measured 2026-09-27 on one 22,478-character message (26 chunks), rise in RSS
+ * over the warm model, one process per size because the arena never shrinks:
+ *
+ * | chunks per call | rise | time |
+ * |---|---|---|
+ * | all 26 (as shipped) | ~330 MiB | ~4.3 s |
+ * | 8 | ~242 MiB | ~4.1 s |
+ * | 4 | ~133 MiB | ~4.5 s |
+ * | 2 | ~75 MiB | ~4.2 s |
+ * | **1** | **~51 MiB** | ~4.0 s |
+ *
+ * Batching bought NO speed on this model — a batch pads every chunk to its
+ * longest — so one at a time costs nothing and bounds the peak by the longest
+ * single chunk, whatever the size of the message. Do not raise it for speed
+ * without re-measuring; the script is in
+ * `correspondence/2026-09-27-worker-oom-fix.md`.
+ */
+export const EMBED_BATCH_SIZE = 1;
+
 async function embedWithPrefix(prefix: string, texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
   const extract = await getPipeline();
+  const vectors: number[][] = [];
 
-  const output = await extract(
-    texts.map((text) => prefix + text),
-    // Mean pooling and L2 normalisation are what e5 expects. Normalised vectors
-    // make cosine distance and inner product equivalent, which is why the SQL
-    // side can use `<=>` and read the result as a similarity.
-    { pooling: 'mean', normalize: true },
-  );
+  for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
+    const output = await extract(
+      texts.slice(i, i + EMBED_BATCH_SIZE).map((text) => prefix + text),
+      // Mean pooling and L2 normalisation are what e5 expects. Normalised
+      // vectors make cosine distance and inner product equivalent, which is why
+      // the SQL side can use `<=>` and read the result as a similarity.
+      { pooling: 'mean', normalize: true },
+    );
+    vectors.push(...output.tolist());
+  }
 
-  return output.tolist();
+  return vectors;
 }
 
 /** Embed text to be STORED. Applies `passage: `. */

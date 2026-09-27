@@ -125,33 +125,32 @@ one message** (`18f6c23`, `packages/adapters/meeting`, `meeting-sweep.ts`), and
 > pending 0. The worker's own log shows `[reclaim] 27 event(s) … returned to the
 > queue` and `[summary-catchup] sweep: considered=5 written=5 failed=0` twice.
 >
-> ⚠⚠ **ONE THING IS LEFT AND IT NEEDS YURI, BECAUSE IT COSTS MONEY.** The worker
-> is **OOM-killed roughly every 17 minutes** — exit code 137, twice in forty
-> minutes, each preceded by a liveness-probe timeout. Measured `WorkingSetBytes`:
-> baseline ~725 MiB, sweep peak **1016 MiB against a 1024 MiB limit**.
+> ✅ **THE OOM CRASH LOOP IS FIXED IN CODE, 2026-09-27 — NO RESIZE.** See
+> `correspondence/2026-09-27-worker-oom-fix.md`. The worker was OOM-killed every
+> ~16 minutes from 2026-09-25 (197 restarts in two days, exit 137). The cause
+> was not "three catch-ups in one loop", as first read: it was **one model call
+> carrying every chunk of a long newsletter at once**. The 23 messages the embed
+> catch-up could never finish are 10–22k characters, ~26 chunks each; batched,
+> one of them rose ~330 MiB over a ~725 MiB baseline. The give-up list is in
+> memory, so every restart retried the same message — and extraction, which
+> ran after embeddings in the loop, lost its turn on most passes.
 >
-> **This is the ROOT CAUSE of the stranded events.** A worker killed mid-event
-> leaves its row in `processing` forever, because `claimNextEvent` only selects
-> `pending`. The 27 rows accumulated from 4 August precisely because this kept
-> happening silently. ADR-027's reaper is the right safety net and stays — it
-> treats the symptom; this is the disease. It is also partly caused by the
-> repair itself: 1 GiB was sized in Phase 4B for the ONNX model plus ONE
-> catch-up, and three now run in one loop.
+> Fixed by `EMBED_BATCH_SIZE = 1` (`packages/ai/src/embed.ts`, measured: ~51
+> MiB rise, same speed) and by moving the embed catch-up LAST in the loop so
+> the one step that can take the process down starves nothing. **The 0.75 /
+> 1.5Gi resize is no longer asked for, and was never applied** —
+> `infra/main.bicep` is back to the live 0.5 / 1Gi.
 >
-> ```bash
-> az containerapp update -g rg-switchboard -n switchboard-worker >   --cpu 0.75 --memory 1.5Gi
-> ```
+> **Why it mattered beyond the restarts:** a worker killed mid-event leaves
+> its row in `processing` forever, because `claimNextEvent` only selects
+> `pending`. This was the ROOT CAUSE of the 27 stranded events; ADR-027's
+> reaper stays as the safety net.
 >
-> `infra/main.bicep` already says 0.75/1.5Gi, so the template stays the whole
-> truth either way. ⚠ 1.5 GiB, not 2 GiB: it clears the measured peak by about
-> half again where doubling costs twice as much for headroom nothing has asked
-> for. ~$30–45/month against a $100 credit four months in (ADR-011). If cost
-> bites first, the knob is the embed catch-up's batch of 20 per pass — it cuts
-> the peak and slows the backlog without touching the 725 MiB baseline.
->
-> ⚠ **183 messages are still unextracted** and draining at 5 per 15 minutes,
-> roughly nine hours, and only while the queue is idle. Slow on purpose: it
-> shares a per-minute token window with live mail.
+> ⚠ **The backlog drains at the speed of Groq's free tier, not ours.** The
+> summary and extraction catch-ups now mostly fail on
+> `groq rate limit (daily allowance …)` for `openai/gpt-oss-20b` — the
+> model's daily token cap, shared with live mail. That is expected and slow,
+> not a bug. 126 messages were still unextracted on 2026-09-27.
 >
 > ~~The worker in Azure is running broken code~~ — deployed 2026-09-24
 > (revision 0000016, `305cd0a`), then again 2026-09-25 (revision 0000017).

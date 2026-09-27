@@ -1138,11 +1138,11 @@ Merged (`f87faad`) and deployed as revision **0000017**, the first to carry
 `RECALL_API_KEY`. A recorded meeting becomes one message; every contact has a
 brief; the stalled AI pipeline is repaired and draining.
 
-⚠ **One thing outstanding and it is not code.** The worker is OOM-killed every
-~17 minutes (exit 137; measured peak 1016 MiB against a 1024 MiB limit), which
-is the root cause of the stranded queue events ADR-027's reaper was built to
-catch. `az containerapp update … --cpu 0.75 --memory 1.5Gi` fixes it and raises
-the bill. See `correspondence/2026-09-24-pipeline-repair.md`.
+~~⚠ **One thing outstanding and it is not code.** The worker is OOM-killed every
+~17 minutes … `az containerapp update … --cpu 0.75 --memory 1.5Gi` fixes it and
+raises the bill.~~ ✅ **Fixed in code 2026-09-27, no resize** — it was one model
+call carrying every chunk of a long newsletter. See
+`correspondence/2026-09-27-worker-oom-fix.md`.
 
 ### 7A — Meetings in, brief out
 
@@ -1335,8 +1335,12 @@ Measured on the live database, 2026-09-24:
 - [x] **The worker image rebuilt** — the `18f6c23` build had failed on an npm
       download timeout, not on code.
 - [x] **`infra/main.bicep` declares the Recall key** — the worker never had it.
-- [ ] ★ **Deploy** — `az containerapp update` with the new digest and the Recall
-      key. **Yuri**; the commands are in the note.
+- [x] ★ **Deploy** — `az containerapp update` with the new digest and the Recall
+      key. Done 2026-09-25, revision 0000017.
+- [x] **The OOM crash loop** (2026-09-27) — the worker restarted every ~16
+      minutes from that deploy on. Embedding now sends the model one chunk at a
+      time (`EMBED_BATCH_SIZE`), and the embed catch-up runs last. No resize.
+      `correspondence/2026-09-27-worker-oom-fix.md`.
 - [ ] **Measure the assistant and summaries on gpt-oss** — `eval-assistant.ts`,
       `eval-summaries.ts`. The 6/6 · 7/7 on record are Llama numbers.
 

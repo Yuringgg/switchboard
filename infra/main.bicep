@@ -218,12 +218,23 @@ resource worker 'Microsoft.App/containerApps@2024-03-01' = {
             // headroom nothing has asked for. ADR-011's budget is a real
             // constraint — the $100 credit is four months in.
             //
-            // ⚠ If cost bites before more headroom does, the knob is
-            // `EMBED_CATCH_UP_BATCH` in apps/worker/src/index.ts (20 per pass).
-            // Lowering it cuts the peak and slows the backlog; it does not
-            // change the baseline.
-            cpu: json('0.75')
-            memory: '1.5Gi'
+            // ── ✅ FIXED IN CODE 2026-09-27, AND THE SIZE STAYS 0.5 / 1Gi. ────
+            //
+            // The reading above was right about the symptom and wrong about
+            // the cause. The peak was not "three catch-ups in one loop"; it
+            // was ONE model call carrying every chunk of a 10–22k-character
+            // newsletter at once. Measured on a 22k-character message: ~330
+            // MiB rise all at once, ~51 MiB one chunk at a time, same speed.
+            // `EMBED_BATCH_SIZE = 1` in packages/ai/src/embed.ts is the fix;
+            // the resize this block used to ask for was never applied, and
+            // this template said 1.5Gi while the live app ran 1Gi. It says
+            // what is live again, so a bicep deploy cannot raise the bill
+            // behind anyone's back.
+            //
+            // ⚠ If the worker ever loads a SECOND model, size it before
+            // deploying — graceful degradation cannot survive OOM.
+            cpu: json('0.5')
+            memory: '1Gi'
           }
           env: concat(
             empty(databaseUrl) ? [] : [{ name: 'DATABASE_URL', secretRef: 'database-url' }],
