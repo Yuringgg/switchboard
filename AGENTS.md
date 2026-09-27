@@ -387,6 +387,18 @@ Known and left alone: the timeline's sticky day heading is `bg-background`, so
 the field is hidden behind it — a faint band under "TODAY". Making it
 translucent would let the rows scrolling beneath show through.
 
+**Uriel in light mode is GRAPHITE, not gold (2026-09-27).** On the light page
+the gold constellation read as "really bright and pointy" (Yuri). The light
+scheme now draws it in the console's own ink, densest at the core, points
+rounded a little, no bloom, and the amber glow behind it is dark-only.
+`voice-powered-orb.tsx` mixes the two looks by a `light` uniform that follows
+`.dark` on `<html>` live. ⚠ The dark scheme's gold is untouched — it is the
+approved version. ⚠ On graphite the speaking hue shift barely shows; the
+"Speaking" / "Listening" line under the orb carries it in words. Chosen from
+three rendered candidates; see the jack-field note.
+`/preview?screen=assistant` now renders the orb, so it can be looked at
+without signing in.
+
 **§7 at the bottom of this file is the fastest way to know where things stand** —
 it carries the verified numbers and the next action. Read that, then come back.
 

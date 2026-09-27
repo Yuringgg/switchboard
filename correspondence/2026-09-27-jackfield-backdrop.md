@@ -107,3 +107,34 @@ light opacity further; never touch `--muted-foreground`.
   retires AGENTS.md's old "nobody can screenshot" note. ⚠ It will not make a
   window narrower than ~500px, so phone-width shots come out cropped and
   look like overflow. Use the browser pane's `mobile` preset for phones.
+
+---
+
+## Addendum, same day — Uriel in light mode is graphite
+
+Yuri, on the live `/assistant` in light mode: *"looks really bright and
+pointy"*. The orb (`components/ui/voice-powered-orb.tsx`) was drawn as a
+light source for a black background — white-hot core, gold, amber, bronze,
+sharp outlined triangles, a bloom and an amber glow. On a near-white page the
+core vanished into the page, the bronze rim became dark specks, and the
+triangles read as glitter.
+
+Three light-scheme candidates were built and rendered beside today's (headless
+Chrome with SwiftShader, which does run WebGL): **brass** triangles,
+**graphite**, and **soft gold dots**. Yuri chose **graphite** — the console's
+own ink, densest at the core, points slightly rounded, less alpha, no bloom,
+the outer drifting field held back hardest, and the amber glow behind the orb
+switched to dark-only.
+
+How it works: a second colour per particle (`colorLight`) is uploaded beside
+the first, and the shader mixes both — colour, shape, stroke, alpha, bloom — by
+a `light` uniform that follows the `.dark` class on `<html>` through a
+`MutationObserver` and eases across a theme change. **The dark scheme is
+byte-for-byte the approved gold look.**
+
+The trade, accepted: the hue rotation that marks who is speaking barely shows
+on ink this neutral. The status line under the orb says it in words.
+
+`/preview?screen=assistant` now renders the same stage as `/assistant` (orb,
+call button, composer), so the orb can be checked in both schemes without
+signing in. Nothing on it starts a call unless the button is pressed.

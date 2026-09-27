@@ -1369,6 +1369,11 @@ both schemes. Full note: `correspondence/2026-09-27-jackfield-backdrop.md`.
       frame 4.75 / 3.12 (was 1.04 in light as shipped before).
 - [ ] The timeline's sticky day heading hides the field behind it (a faint band
       under "TODAY"). Left alone on purpose — see the note.
+- [x] **Uriel in light mode is graphite** — the gold constellation was "really
+      bright and pointy" on the light page. Chosen from three rendered
+      candidates (brass, graphite, soft gold dots); dark stays gold.
+- [x] **The worker's OOM crash loop** fixed in code, no resize — see
+      *Pipeline repair* above and `correspondence/2026-09-27-worker-oom-fix.md`.
 
 ## Stretch — only after Phase 5 is solid
 

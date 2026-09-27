@@ -24,6 +24,7 @@ import {
   TimelineSplit,
 } from '@/components/timeline';
 import { TimelineFilter } from '@/components/timeline-filter';
+import { VoiceCall } from '@/components/voice-call';
 import type { AssistantAnswer } from '@/lib/assistant';
 import type { AttentionItem } from '@/lib/attention';
 import type { ContactBrief as ContactBriefData } from '@/lib/brief';
@@ -932,16 +933,27 @@ export default async function PreviewPage({
         userId={PREVIEW_USER_ID}
         activeHref="/assistant"
         channels={channels}
+        width="wide"
       >
-        <AssistantPanel
-          action={answerFromFixture}
-          suggestions={[
-            'Did any deployment or build fail?',
-            'What kinds of roles have I been sent job alerts about?',
-            'Did I receive any money or payments?',
-            'Do I have any upcoming meetings?',
-          ]}
-        />
+        {/*
+          The same stage as `app/assistant/page.tsx`: Uriel's orb and the call
+          controls on the left, the composer beside them — so the orb can be
+          looked at in both schemes without signing in. Nothing here starts a
+          call unless the button is pressed.
+        */}
+        <div className="py-4">
+          <VoiceCall>
+            <AssistantPanel
+              action={answerFromFixture}
+              suggestions={[
+                'Did any deployment or build fail?',
+                'What kinds of roles have I been sent job alerts about?',
+                'Did I receive any money or payments?',
+                'Do I have any upcoming meetings?',
+              ]}
+            />
+          </VoiceCall>
+        </div>
       </AppShell>
     );
   }

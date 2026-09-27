@@ -100,13 +100,15 @@ const GRADIENT: { at: number; rgb: [number, number, number] }[] = [
  */
 const RIM_TEAL: [number, number, number] = [0.18, 0.62, 0.54];
 
-function colorAtRadius(r: number): [number, number, number] {
-  if (r <= GRADIENT[0]!.at) return GRADIENT[0]!.rgb;
+type Stop = { at: number; rgb: [number, number, number] };
 
-  for (let i = 1; i < GRADIENT.length; i += 1) {
-    const hi = GRADIENT[i]!;
+function colorAtRadius(r: number, gradient: Stop[] = GRADIENT): [number, number, number] {
+  if (r <= gradient[0]!.at) return gradient[0]!.rgb;
+
+  for (let i = 1; i < gradient.length; i += 1) {
+    const hi = gradient[i]!;
     if (r > hi.at) continue;
-    const lo = GRADIENT[i - 1]!;
+    const lo = gradient[i - 1]!;
     const t = (r - lo.at) / (hi.at - lo.at);
     return [
       lo.rgb[0] + (hi.rgb[0] - lo.rgb[0]) * t,
@@ -115,13 +117,67 @@ function colorAtRadius(r: number): [number, number, number] {
     ];
   }
 
-  return GRADIENT[GRADIENT.length - 1]!.rgb;
+  return gradient[gradient.length - 1]!.rgb;
 }
+
+/**
+ * ── Uriel in LIGHT mode: graphite ───────────────────────────────────────────
+ *
+ * The gradient above is a light source: white-hot core, gold, amber, bronze,
+ * drawn on black. On the light scheme's near-white page it inverted badly —
+ * the white core vanished into the page (a hole where the light should be),
+ * the bronze rim became a scatter of dark specks, and thousands of sharp
+ * orange triangles at full strength read as a busy, glittering pattern that is
+ * tiring to look at. Yuri's words: "really bright and pointy".
+ *
+ * On paper, light does not glow; density does the work. So the light scheme
+ * has its OWN palette and drawing: the console's own ink (the cool near-black
+ * of `--foreground`), darkest at the core where the particles are thickest,
+ * softer at the rim, the triangles' points rounded a little, less alpha, no
+ * bloom, and the drifting field outside the sphere held back hardest — it was
+ * the "pointy" part. The dark scheme is untouched: it is the gold version Yuri
+ * approved, and the shader mixes between the two by the `light` uniform.
+ *
+ * Chosen by Yuri on 2026-09-27 from three rendered candidates — muted brass
+ * triangles, this graphite, and soft gold dots — for blending into the light
+ * console completely rather than standing out of it.
+ *
+ * ⚠ The trade that came with it: the hue shift that marks who is speaking
+ * (`hue`, rotated 200° while Uriel talks) is nearly invisible on ink this
+ * neutral. The status line under the orb still says "Speaking" / "Listening"
+ * in words, which was always the accessible carrier; do not add colour back
+ * here to restore the cue without asking — neutrality was the point.
+ */
+const LIGHT_GRADIENT: Stop[] = [
+  { at: 0.0, rgb: [0.12, 0.14, 0.19] },
+  { at: 1.0, rgb: [0.18, 0.2, 0.26] },
+  { at: 1.6, rgb: [0.42, 0.45, 0.5] },
+];
+
+/** The rim's sparse green, cooled and darkened to sit in graphite. */
+const LIGHT_RIM: [number, number, number] = [0.22, 0.38, 0.42];
+
+/** The light scheme's drawing, as shader uniforms. None of it reaches dark. */
+const LIGHT_DRAW = {
+  /** 0 = the dark scheme's triangle, 1 = a circle. A little rounder. */
+  shape: 0.25,
+  /** The outline's soft edge; the dark scheme's is 0.26. */
+  stroke: 0.28,
+  /** Multiplies every particle's alpha. */
+  alpha: 0.85,
+  /** Multiplies the halo. On a light page it only adds haze. */
+  bloom: 0,
+  /** Further alpha for the drifting field outside the sphere. */
+  ambient: 0.5,
+} as const;
 
 function buildParticles() {
   const total = CORE_COUNT + SHELL_COUNT + AMBIENT_COUNT;
   const position = new Float32Array(total * 3);
   const color = new Float32Array(total * 3);
+  // The same particles' colours on the light scheme. Both are uploaded once and
+  // the shader mixes between them, so switching theme never rebuilds anything.
+  const colorLight = new Float32Array(total * 3);
   const seed = new Float32Array(total);
   const scale = new Float32Array(total);
 
@@ -176,16 +232,24 @@ function buildParticles() {
 
     const r = Math.sqrt(x * x + y * y + z * z);
     let rgb = colorAtRadius(r);
+    let lightRgb = colorAtRadius(r, LIGHT_GRADIENT);
 
     // The rim's green, only out past the shell, and only sometimes.
-    if (r > 1.05 && Math.random() > 0.86) rgb = RIM_TEAL;
+    if (r > 1.05 && Math.random() > 0.86) {
+      rgb = RIM_TEAL;
+      lightRgb = LIGHT_RIM;
+    }
     // A rare white spark anywhere, so the field has highlights rather than a
-    // perfectly smooth ramp.
+    // perfectly smooth ramp. Dark scheme only: on a white page a white spark
+    // is a hole.
     else if (Math.random() > 0.975) rgb = [1.0, 0.99, 0.94];
 
     color[i * 3] = rgb[0];
     color[i * 3 + 1] = rgb[1];
     color[i * 3 + 2] = rgb[2];
+    colorLight[i * 3] = lightRgb[0];
+    colorLight[i * 3 + 1] = lightRgb[1];
+    colorLight[i * 3 + 2] = lightRgb[2];
 
     seed[i] = Math.random();
     // Core particles are small and dense; ambient ones small and sparse; the
@@ -197,7 +261,7 @@ function buildParticles() {
         : 3.2 + Math.random() * 1.6;
   }
 
-  return { position, color, seed, scale };
+  return { position, color, colorLight, seed, scale };
 }
 
 const vert = /* glsl */ `
@@ -205,6 +269,7 @@ const vert = /* glsl */ `
 
   attribute vec3 position;
   attribute vec3 color;
+  attribute vec3 colorLight;
   attribute float seed;
   attribute float scale;
 
@@ -213,9 +278,13 @@ const vert = /* glsl */ `
   uniform float rot;
   uniform float dpr;
   uniform vec2 iResolution;
+  // 0 on the dark scheme, 1 on light, eased between when the theme changes.
+  uniform float light;
 
   varying vec3 vColor;
   varying float vFade;
+  // 1 for the drifting field outside the sphere, 0 for the sphere itself.
+  varying float vAmbient;
 
   void main() {
     // Spin around Y, then tilt slowly around X so the shape never presents the
@@ -237,7 +306,8 @@ const vert = /* glsl */ `
     // turns a flat scatter into something with a near side and a far side.
     float depth = clamp((p.z + 1.8) / 3.6, 0.0, 1.0);
     vFade = 0.18 + depth * 0.82;
-    vColor = color;
+    vColor = mix(color, colorLight, light);
+    vAmbient = step(1.2, length(position));
 
     // Correct for a non-square canvas, or the sphere renders as an ellipse.
     float aspect = iResolution.x / max(iResolution.y, 1.0);
@@ -253,9 +323,18 @@ const frag = /* glsl */ `
 
   uniform float level;
   uniform float hue;
+  uniform float light;
+  // The light scheme's drawing — see LIGHT_DRAW. None of these touch the
+  // dark scheme: every one is mixed in by \`light\`.
+  uniform float uShape;
+  uniform float uStroke;
+  uniform float uAlpha;
+  uniform float uBloom;
+  uniform float uAmbient;
 
   varying vec3 vColor;
   varying float vFade;
+  varying float vAmbient;
 
   vec3 rgb2yiq(vec3 c) {
     return vec3(
@@ -298,22 +377,31 @@ const frag = /* glsl */ `
     vec2 p = (gl_PointCoord - 0.5) * 2.2;
     p.y = -p.y;
 
-    float d = sdTriangle(p, 0.85);
+    // On light the triangle can round off toward a circle — the points are
+    // what read as "pointy" on a bright page.
+    float d = mix(sdTriangle(p, 0.85), length(p) - 0.62, uShape * light);
 
     /*
-     * ⚠ OUTLINED, not filled. The reference is explicit: 1-2px stroked
-     * triangles. Filling them turns the constellation into confetti and loses
-     * the drawn, technical quality entirely.
+     * ⚠ OUTLINED, not filled, on the dark scheme. The reference is explicit:
+     * 1-2px stroked triangles. Filling them turns the constellation into
+     * confetti and loses the drawn, technical quality entirely.
      */
-    float edge = 1.0 - smoothstep(0.0, 0.26, abs(d));
+    float edge = 1.0 - smoothstep(0.0, mix(0.26, uStroke, light), abs(d));
     // A little bloom outside the stroke, so a dense cluster glows rather than
-    // reading as a mesh.
-    float bloom = exp(-4.0 * max(d, 0.0)) * 0.3;
+    // reading as a mesh. On a light page there is nothing to glow against, and
+    // it only adds haze.
+    float bloom = exp(-4.0 * max(d, 0.0)) * 0.3 * mix(1.0, uBloom, light);
 
     float alpha = (edge + bloom) * vFade;
+    alpha *= mix(1.0, uAlpha * mix(1.0, uAmbient, vAmbient), light);
     if (alpha < 0.012) discard;
 
-    vec3 col = adjustHue(vColor, hue) * (0.85 + level * 0.7);
+    // Louder speech brightens the particles on dark. On light, brightening
+    // moves them toward the page and they fade out as Uriel talks, so the
+    // colour holds and the size and alpha carry the level instead.
+    float gain = mix(0.85 + level * 0.7, 1.0, light);
+    alpha *= mix(1.0, 1.0 + level * 0.35, light);
+    vec3 col = adjustHue(vColor, hue) * gain;
     gl_FragColor = vec4(col, clamp(alpha, 0.0, 1.0));
   }
 `;
@@ -388,9 +476,25 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
     const geometry = new Geometry(gl, {
       position: { size: 3, data: particles.position },
       color: { size: 3, data: particles.color },
+      colorLight: { size: 3, data: particles.colorLight },
       seed: { size: 1, data: particles.seed },
       scale: { size: 1, data: particles.scale },
     });
+
+    /*
+     * Which scheme is showing. `lib/theme.ts` writes `.dark` on <html> and is
+     * the only thing that does, so that class is the truth — including for
+     * "system", which it has already resolved. Watched rather than read once:
+     * the toggle is on this same screen, and the orb must follow it live.
+     */
+    const readLight = () => (document.documentElement.classList.contains('dark') ? 0 : 1);
+    let lightTarget = readLight();
+    // Starts where it should be, then eases on a change rather than snapping.
+    let lightMix = lightTarget;
+    const themeWatch = new MutationObserver(() => {
+      lightTarget = readLight();
+    });
+    themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
 
     const program = new Program(gl, {
       vertex: vert,
@@ -404,6 +508,12 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
         hue: { value: hue },
         dpr: { value: window.devicePixelRatio || 1 },
         iResolution: { value: [1, 1] },
+        light: { value: lightMix },
+        uShape: { value: LIGHT_DRAW.shape },
+        uStroke: { value: LIGHT_DRAW.stroke },
+        uAlpha: { value: LIGHT_DRAW.alpha },
+        uBloom: { value: LIGHT_DRAW.bloom },
+        uAmbient: { value: LIGHT_DRAW.ambient },
       },
     });
 
@@ -460,6 +570,9 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
       program.uniforms.iTime.value = t * 0.001;
       program.uniforms.hue.value = hueRef.current;
       program.uniforms.level.value = eased;
+      // ~0.3 s across a theme change; exact at rest either way.
+      lightMix += (lightTarget - lightMix) * Math.min(dt * 10, 1);
+      program.uniforms.light.value = lightMix;
 
       if (!reduceMotion) {
         // Idle turns slower than a call: present, but not asking for attention.
@@ -476,6 +589,7 @@ export const VoicePoweredOrb: FC<VoicePoweredOrbProps> = ({
 
     return () => {
       cancelAnimationFrame(raf);
+      themeWatch.disconnect();
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', onVisibility);
 

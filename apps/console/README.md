@@ -350,6 +350,7 @@ over fixture rows.
 | `/preview?screen=contact&state=unread` | the brief before any of the conversation has been read |
 | `/preview?screen=contact&state=empty` | read, and nothing says who they are. Must never converge with the above |
 | `/preview?screen=meetings` | **the consent gate** on sending a notetaker, and a sent link with its `?pwd=` stripped |
+| `/preview?screen=assistant` | **Uriel's orb** and the composer — the same stage as `/assistant`. Gold in dark, graphite in light; `&state=answered\|refused\|error\|spoken` walks the composer through an answer |
 | `/preview?screen=proposal` | a meeting proposal, editable, before confirming |
 | `/preview?screen=proposal&state=confirmed` | **"On your calendar"** — no form, no button. The state that was invisible until 2026-08-03 |
 

@@ -338,7 +338,9 @@ export function VoiceCall({
               'blur-3xl transition-colors duration-700 sm:size-[26rem]',
               // Warm, to sit under gold. A cool glow behind an amber
               // constellation reads as two light sources disagreeing.
-              live ? 'bg-amber-400/12' : 'bg-amber-400/[0.06]',
+              // ⚠ Dark scheme only. On a light page an amber blur is a yellow
+              // stain, and the light-scheme orb draws by density, not light.
+              live ? 'dark:bg-amber-400/12' : 'dark:bg-amber-400/[0.06]',
             )}
           />
 
