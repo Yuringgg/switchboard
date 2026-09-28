@@ -114,7 +114,7 @@ on successful verification. Ample for iOzera.
 > | Route | Who can connect | Manual list | Weekly reconnect | Cost |
 > |---|---|---|---|---|
 > | **Testing** (today) | the allowlisted, ≤100 | yes | **yes** | free |
-> | **Published, unverified** | any Google account, 100 new users lifetime | no | no | free — "unverified app" screen stays |
+> | **Published, unverified** — ✅ **CURRENT since 2026-09-28** | any Google account, 100 new users lifetime | no | no | free — "unverified app" screen stays |
 > | **Internal** | every account in one Google Workspace org, no cap | no | no | free, but the Cloud project must be **owned by that org** (iOzera's), and personal @gmail.com accounts cannot connect |
 > | **Published + verified** | anyone | no | no | Google review + CASA: paid, weeks. Not for an OJT |
 >
@@ -122,6 +122,12 @@ on successful verification. Ample for iOzera.
 > the docs, not observed. If Google asks for a privacy-policy URL or insists on
 > submitting for verification when publishing, stop and record what it said.
 > Switching back is *Audience → Back to testing*.
+>
+> ✅ **PUBLISHED 2026-09-28 by Yuri** (unverified). Anyone with a Google account
+> can now sign up and connect Gmail — no allowlist — through Google's
+> "unverified app" screen, up to 100 users in total. Tokens minted from now on
+> are not on the Testing 7-day clock; **a channel connected before today still
+> carries its old token until it is reconnected once.**
 >
 > **Seen 2026-09-28:** *Publish app* is greyed out until the Branding page has
 > an **Application home page** and an **Application privacy policy link** —

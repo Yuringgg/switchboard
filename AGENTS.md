@@ -418,8 +418,9 @@ who is this?" (`contacts.notes`, no migration).
    The text is in the note. Until then the live agent never sends a hint.
 2. **CAUTION: the voice fetch and the list fetch are separate on purpose** —
    owner-filtered by hand vs RLS. Only the deciding in `tell-apart.ts` is shared.
-3. **Only Yuri's Gmail can connect because OAuth is in testing mode with one
-   allowlisted user.** More users: add them as test users (≤100), OR publish
+3. ✅ **Published 2026-09-28 — anyone can now connect Gmail** (unverified app
+   screen, 100 users lifetime, no weekly reconnect). Before that, only Yuri's
+   Gmail could, because OAuth was in testing mode with one allowlisted user. More users: add them as test users (≤100), OR publish
    without verifying (anyone, 100 lifetime, "unverified app" screen, no weekly
    reconnect), OR Internal under iOzera's Workspace. ⚠ The old "never publish,
    it triggers CASA" was wrong — only *verification* does. Route table:
@@ -1162,8 +1163,10 @@ extensionless imports. Neither had been executed. Both are fixed above.
 
 **Standing obligations, easy to forget:**
 
-1. **Reconnect Gmail every 7 days** and on the morning of any demo. Last
-   reconnect 2026-08-01; next lapse **2026-08-08**.
+1. ~~**Reconnect Gmail every 7 days**~~ — **retired 2026-09-28: the consent
+   screen was published** (unverified, `docs/03-RESOURCES.md` §2), so new tokens
+   do not expire weekly. Reconnect once after that date; after that, only if
+   `/channels` says *Needs attention*.
 2. ~~Ask Ms. Maria for her recommendations / the BRD.~~ **Withdrawn by Yuri
    2026-08-03 — stop chasing it (R22).** CAUTION: Note what that does *not* mean:
    `docs/00-CONTEXT.md` §7's open-scope risk is now **accepted**, not resolved.
