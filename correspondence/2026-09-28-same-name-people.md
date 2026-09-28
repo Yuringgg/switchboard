@@ -101,7 +101,15 @@ Then publish, and test with a call: *"What did Google send me?"*
 Only Yuri's Gmail can connect because the Google OAuth app is in **testing
 mode** with one allowlisted user (`docs/03-RESOURCES.md` §2). To add people:
 <https://console.cloud.google.com/auth/audience?project=switchboard-503613> →
-*Test users* → *Add users* (up to 100). **Never press Publish** — Gmail's
-restricted scope in production means a paid CASA assessment. Each person then
-signs up at `/signup` and connects Gmail on `/channels`, clicks through
-Google's "unverified app" screen, and reconnects every 7 days.
+*Test users* → *Add users* (up to 100). Each person then signs up at
+`/signup` and connects Gmail on `/channels`, clicks through Google's
+"unverified app" screen, and reconnects every 7 days.
+
+**Asked next: is a hand-kept list the only way? No.** Google's help pages
+(read 2026-09-28) say an app under 100 users needs no verification, and an
+unverified app *in production* is not blocked — it shows an "unverified app"
+screen and caps at 100 new users in total. So *Publish app* would let anyone
+connect with no list and no 7-day expiry; CASA comes only with verification.
+The real fix for iOzera is **Internal** under their own Google Workspace. The
+old "never publish" in these docs was wrong and is corrected — route table in
+`docs/03-RESOURCES.md` §2.

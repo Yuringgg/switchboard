@@ -419,8 +419,11 @@ who is this?" (`contacts.notes`, no migration).
 2. **CAUTION: the voice fetch and the list fetch are separate on purpose** —
    owner-filtered by hand vs RLS. Only the deciding in `tell-apart.ts` is shared.
 3. **Only Yuri's Gmail can connect because OAuth is in testing mode with one
-   allowlisted user.** More users = Google Cloud → Audience → Test users (≤100).
-   Never publish (CASA). Steps in the note.
+   allowlisted user.** More users: add them as test users (≤100), OR publish
+   without verifying (anyone, 100 lifetime, "unverified app" screen, no weekly
+   reconnect), OR Internal under iOzera's Workspace. ⚠ The old "never publish,
+   it triggers CASA" was wrong — only *verification* does. Route table:
+   `docs/03-RESOURCES.md` §2.
 
 **§7 at the bottom of this file is the fastest way to know where things stand** —
 it carries the verified numbers and the next action. Read that, then come back.

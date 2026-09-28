@@ -91,12 +91,37 @@ Not a channel — the one place Switchboard writes outward.
 - Request the narrowest scopes that work: broader scopes add consent-screen
   friction and lengthen any future Google review.
 
-**CAUTION: OAuth mode is the real multi-tenancy ceiling.** Gmail's restricted scopes in
-**production** trigger a Google CASA security assessment — expensive and slow. In
-**testing mode** there's no assessment, but every user must be manually
-allowlisted. **Verified 2026-08-02: the cap is exactly 100 test users, and it is
-hard** — the 101st gets an error, and the cap lifts only on successful
-verification. Ample for iOzera.
+**CAUTION: OAuth mode is the real multi-tenancy ceiling.** In **testing mode** every
+user must be manually allowlisted. **Verified 2026-08-02: the cap is exactly 100
+test users, and it is hard** — the 101st gets an error, and the cap lifts only
+on successful verification. Ample for iOzera.
+
+> **CORRECTED 2026-09-28 — publishing does not by itself trigger CASA.** This
+> file used to say it did, and that "Never publish" followed. Google's own help
+> pages, read 2026-09-28, say otherwise:
+>
+> - *"If the app is for your personal use (fewer than 100 users), you and your
+>   limited number of users can continue using the app without going through
+>   verification."* — [When is verification not needed](https://support.google.com/cloud/answer/13464323)
+> - An unverified app **in production** that requests sensitive or restricted
+>   scopes shows an *"unverified app"* screen and is capped at **"100 new users
+>   in total"** — it is not blocked. [Unverified apps](https://support.google.com/cloud/answer/7454865)
+> - The 7-day refresh-token expiry below is for **External + Testing** only.
+>
+> CASA is part of *verification*, which is needed only to pass 100 users or to
+> remove the warning. So there are four routes, and the choice is Yuri's:
+>
+> | Route | Who can connect | Manual list | Weekly reconnect | Cost |
+> |---|---|---|---|---|
+> | **Testing** (today) | the allowlisted, ≤100 | yes | **yes** | free |
+> | **Published, unverified** | any Google account, 100 new users lifetime | no | no | free — "unverified app" screen stays |
+> | **Internal** | every account in one Google Workspace org, no cap | no | no | free, but the Cloud project must be **owned by that org** (iOzera's), and personal @gmail.com accounts cannot connect |
+> | **Published + verified** | anyone | no | no | Google review + CASA: paid, weeks. Not for an OJT |
+>
+> ⚠ Not yet tried on this project — the published-unverified route is read from
+> the docs, not observed. If Google asks for a privacy-policy URL or insists on
+> submitting for verification when publishing, stop and record what it said.
+> Switching back is *Audience → Back to testing*.
 
 ### The one that will interrupt a demo — verified 2026-08-02
 
@@ -130,10 +155,11 @@ Gmail *and* Calendar — because `exchangeCode` refuses a partial grant outright
 
 - **Before any demo to Ms. Maria, reconnect Gmail that morning.** A token that
   expires mid-presentation looks exactly like a broken pipeline.
-- **Do not "solve" this by publishing the consent screen.** `gmail.readonly` is
-  a restricted scope, so publishing triggers the CASA assessment this project
-  chose testing mode specifically to avoid. The weekly reconnect is the price of
-  that decision, and it is the cheaper side of the trade.
+- ~~**Do not "solve" this by publishing the consent screen.**~~ **Corrected
+  2026-09-28:** publishing *without* submitting for verification is allowed
+  under 100 users and ends the 7-day expiry, at the price of Google's
+  "unverified app" screen — see the route table above. CASA comes only with
+  verification.
 - Check when it will next lapse:
   `select display_name, status, last_error from channels;` — and the connect
   time is `channels.created_at`, unchanged by reconnects, so use the worker log
@@ -779,8 +805,9 @@ Phase 4's AI keys.*
 - [x] ★ Google Cloud project; **Gmail API and Calendar API** both enabled —
       `switchboard-503613`, number `468794256088`
 - [x] ★ OAuth consent screen (**External, testing mode**, `leiruychua@gmail.com`
-      allowlisted) + OAuth client. **Never publish it** — Gmail restricted scopes
-      trigger a CASA assessment.
+      allowlisted) + OAuth client. ~~**Never publish it**~~ — corrected 2026-09-28:
+      publishing unverified is allowed under 100 users; only *verification*
+      brings CASA. See the route table in §2.
 - [x] ★ Scopes: `gmail.readonly` + `https://www.googleapis.com/auth/calendar.events`
 - [x] ★ Pub/Sub topic `gmail-push` + push subscription `gmail-push-sub` →
       `/api/webhooks/gmail`, OIDC-authenticated as
