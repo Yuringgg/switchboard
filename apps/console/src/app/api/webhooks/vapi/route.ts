@@ -298,7 +298,9 @@ async function runTool(
   try {
     switch (name) {
       case 'resolve_person':
-        return await resolvePerson(supabase, ownerId, asString(args.name));
+        return await resolvePerson(supabase, ownerId, asString(args.name), {
+          hint: asString(args.hint),
+        });
 
       case 'get_attention_items':
         return await getAttentionItems(supabase, ownerId);

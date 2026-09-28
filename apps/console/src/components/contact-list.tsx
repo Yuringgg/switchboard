@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { CHANNEL_META } from '@/lib/channels';
 import type { ContactSummary } from '@/lib/contacts';
+import { phraseClue } from '@/lib/tell-apart';
 import { initials } from '@/lib/timeline';
 import { LABEL } from '@/lib/ui';
 import { cn } from '@/lib/utils';
@@ -83,6 +84,8 @@ export function ContactList({ contacts }: { contacts: ContactSummary[] }) {
                     );
                   })}
                 </span>
+
+                {contact.sameName && <SameName name={contact.displayName} {...contact.sameName} />}
               </span>
 
               <span className={cn(LABEL, 'shrink-0 text-right')}>
@@ -96,6 +99,46 @@ export function ContactList({ contacts }: { contacts: ContactSummary[] }) {
         ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * "1 of 3 named Maria · at Acme" — shown only when the name is shared.
+ *
+ * Ms. Maria's research task 4. The handles above already differ, but an
+ * address is not how anyone remembers a person; a company, a topic or a note
+ * is. The clue is the same one Uriel says aloud (`lib/tell-apart.ts`), so the
+ * screen and the voice never describe the same person two different ways.
+ *
+ * ⚠ When nothing tells them apart, it SAYS so and names the fix, rather than
+ * showing a clue that is technically unique and useless.
+ */
+function SameName({
+  name,
+  count,
+  clue,
+}: NonNullable<ContactSummary['sameName']> & { name: string }) {
+  const phrase = clue
+    ? phraseClue(clue, {
+        channelLabel: (type) => CHANNEL_META[type as keyof typeof CHANNEL_META]?.label ?? type,
+        day: (iso) => `on ${formatDay(iso)}`,
+      })
+    : null;
+
+  return (
+    // ⚠ The count stays at LABEL's muted colour, not `text-faint`: it carries
+    // information, and at 10px faint text measured unreadable in dark mode.
+    <span className={cn(LABEL, 'mt-1 block truncate normal-case')}>
+      1 of {count} named {name}
+      <span aria-hidden className="text-faint">
+        {' · '}
+      </span>
+      {phrase ? (
+        <span className="text-foreground/80">{phrase}</span>
+      ) : (
+        <span>nothing tells these apart yet — add a note</span>
+      )}
+    </span>
   );
 }
 

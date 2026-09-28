@@ -1,6 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelType } from '@switchboard/core';
 
+import { AFFILIATION_KIND, type BriefRow } from '../brief';
+import {
+  assembleClues,
+  hintWords,
+  narrowByHint,
+  phraseClue,
+  tellApart,
+  type PersonClues,
+} from '../tell-apart';
+
 /**
  * The five tools the Vapi agent can call.
  *
@@ -149,8 +159,8 @@ function spokenWhen(iso: string | null, now: Date = new Date()): string {
   return parts;
 }
 
-/** "three things" — spelled out, because a numeral gets read inconsistently. */
-function count(n: number, singular: string, plural = `${singular}s`): string {
+/** "three" — spelled out, because a numeral gets read inconsistently. */
+function spell(n: number): string {
   const words = [
     'no',
     'one',
@@ -164,8 +174,12 @@ function count(n: number, singular: string, plural = `${singular}s`): string {
     'nine',
     'ten',
   ];
-  const word = n < words.length ? words[n] : String(n);
-  return `${word} ${n === 1 ? singular : plural}`;
+  return n < words.length ? words[n]! : String(n);
+}
+
+/** "three things". */
+function count(n: number, singular: string, plural = `${singular}s`): string {
+  return `${spell(n)} ${n === 1 ? singular : plural}`;
 }
 
 /**
@@ -187,23 +201,49 @@ function speakable(text: string, max = 200): string {
 export interface ResolvedPerson {
   personId: string;
   name: string;
-  /** "Gmail and WhatsApp" — what the agent can say to tell two people apart. */
+  /**
+   * What tells this one apart from the others with the name — "at Acme",
+   * "emails from mapua.edu.ph", "last wrote about “Q3 budget”". Empty when the
+   * full name already does it; null when nothing does.
+   */
+  tellApart: string | null;
+  /** "Gmail and WhatsApp". */
   seenOn: string;
   lastHeardFrom: string;
 }
 
+/** Past this many, reading the list aloud loses the caller; ask for a hint. */
+const READ_OUT_MAX = 3;
+
+/** The most contacts one name can resolve to before the answer says "at least". */
+const MATCH_LIMIT = 10;
+
 /**
- * Turn a spoken name into a specific person.
+ * Turn a spoken name into a specific person — and when several share it, say
+ * what tells each one apart (Ms. Maria's research task 4).
  *
  * ⚠ Returning MORE THAN ONE is a correct and expected outcome, not a failure.
- * Ms. Maria's requirement is that two people with the same first name are told
- * apart, and the agent's prompt says never to pick one silently. This returns
- * every match and lets the agent ask.
+ * The agent's prompt says never to pick one silently. What changed is what it
+ * can ASK: it used to have only "Gmail" and a date for each, so two Marias on
+ * Gmail were "the one from Tuesday or the one from last month". Now each carries
+ * the one clue nobody else in the group has — see `lib/tell-apart.ts`.
+ *
+ * `hint` is whatever the caller said back ("the one from Acme", "about the
+ * website"). It narrows the group on what is known about each person AND on
+ * words in their conversations, so project context works even when no company
+ * was ever extracted.
+ *
+ * ── ⚠ Every query below filters on owner_id — see the top of this file ──────
+ *
+ * Six reads at most, none of them per person. The version this replaced ran two
+ * queries per match, sequentially; ten Marias was twenty-one round trips while
+ * a caller waited in silence.
  */
 export async function resolvePerson(
   supabase: SupabaseClient,
   ownerId: string,
   name: string,
+  { hint }: { hint?: string } = {},
 ): Promise<ToolResult> {
   const needle = name.trim();
   if (!needle) return { summary: 'No name was given.', matches: [] };
@@ -218,76 +258,301 @@ export async function resolvePerson(
 
   const { data, error } = await supabase
     .from('contacts')
-    .select('id, display_name')
+    .select('id, display_name, notes')
     // ⚠ THE TENANT FILTER. Without it this returns every user's contacts.
     .eq('owner_id', ownerId)
     .ilike('display_name', `%${escaped}%`)
-    .limit(10);
+    .limit(MATCH_LIMIT);
 
   if (error) {
     return { summary: 'TOOL_ERROR: could not look that person up.', matches: [] };
   }
 
-  const contacts = (data ?? []) as { id: string; display_name: string }[];
+  const contacts = ((data ?? []) as { id: string; display_name: string; notes?: string | null }[])
+    .filter((row) => row?.id)
+    .map((row) => ({ id: row.id, displayName: row.display_name, notes: row.notes ?? null }));
   if (contacts.length === 0) {
     return { summary: `No one called ${needle} is in the messages.`, matches: [] };
   }
 
-  const matches: ResolvedPerson[] = [];
-  for (const contact of contacts) {
-    const { data: identityRows } = await supabase
-      .from('contact_identities')
-      .select('channel_type')
-      .eq('owner_id', ownerId)
-      .eq('contact_id', contact.id);
+  /*
+   * The clues. Each side query failing costs a clue, never the answer: the
+   * name was found, and "I found three Marias but can't say more" is better
+   * than a TOOL_ERROR about somebody the caller can hear exists.
+   */
+  const contactIds = contacts.map((c) => c.id);
+  const { data: identityRows } = await supabase
+    .from('contact_identities')
+    .select('id, contact_id, channel_type, external_id, display_name')
+    .eq('owner_id', ownerId)
+    .in('contact_id', contactIds);
 
-    /*
-     * ⚠ A LOOKUP, not a ternary.
-     *
-     * This was `type === 'gmail' ? 'Gmail' : 'WhatsApp'`, which was correct
-     * while there were exactly two channels and became a lie the moment
-     * `meeting` was added in Phase 7 — it would have said "WhatsApp" about a
-     * meeting, out loud, with no screen to catch it on.
-     *
-     * A map falls back to the raw value for anything unknown, so the next
-     * channel added reads as unpolished rather than as wrong.
-     */
-    const channels = [
-      ...new Set(
-        ((identityRows ?? []) as { channel_type: string }[]).map(
-          (row) => CHANNEL_SPEECH[row.channel_type as ChannelType]?.label ?? row.channel_type,
-        ),
-      ),
-    ];
+  const identities = ((identityRows ?? []) as {
+    id: string;
+    contact_id: string | null;
+    channel_type: string;
+    external_id: string;
+    display_name: string | null;
+  }[]).map((row) => ({
+    id: row.id,
+    contactId: row.contact_id,
+    channelType: row.channel_type,
+    externalId: row.external_id,
+    displayName: row.display_name,
+  }));
+  const identityIds = identities.map((i) => i.id).filter(Boolean);
 
-    const { data: lastRows } = await supabase
-      .from('messages')
-      .select('sent_at, sender_identity!inner(contact_id)')
-      .eq('owner_id', ownerId)
-      .eq('sender_identity.contact_id', contact.id)
-      .order('sent_at', { ascending: false })
-      .limit(1);
+  // ⚠ No body — a subject and a time are all a clue needs.
+  const { data: sentRows } = identityIds.length
+    ? await supabase
+        .from('messages')
+        .select('sender_identity, subject, sent_at, conversation_id')
+        .eq('owner_id', ownerId)
+        .in('sender_identity', identityIds)
+        .order('sent_at', { ascending: false })
+        .limit(500)
+    : { data: [] };
 
-    const last = (lastRows ?? [])[0] as { sent_at: string } | undefined;
+  const sent = ((sentRows ?? []) as {
+    sender_identity: string | null;
+    subject: string | null;
+    sent_at: string;
+    conversation_id: string | null;
+  }[]).map((row) => ({
+    senderIdentity: row.sender_identity,
+    subject: row.subject,
+    sentAt: row.sent_at,
+    conversationId: row.conversation_id,
+  }));
 
-    matches.push({
-      personId: contact.id,
-      name: contact.display_name,
-      seenOn: channels.join(' and ') || 'no channel',
-      lastHeardFrom: last ? spokenWhen(last.sent_at) : 'never',
-    });
+  const affiliations = await affiliationsForVoice(supabase, ownerId);
+  const everyone = assembleClues({ contacts, identities, sent, affiliations });
+
+  /* ── Narrow by what the caller said, if they said anything ── */
+
+  const words = hintWords(hint);
+  let group = everyone;
+  if (words.length > 0 && everyone.length > 1) {
+    const conversationsOf = new Map<string, Set<string>>();
+    for (const message of sent) {
+      const contactId = identities.find((i) => i.id === message.senderIdentity)?.contactId;
+      if (!contactId || !message.conversationId) continue;
+      conversationsOf.set(contactId, (conversationsOf.get(contactId) ?? new Set()).add(message.conversationId));
+    }
+    const conversationIds = [...new Set([...conversationsOf.values()].flatMap((s) => [...s]))];
+
+    const inMessages = new Map<string, Set<string>>();
+    for (const word of words) {
+      const matched = new Set<string | null>();
+      // Bounded at five slices (500 conversations) per word: a hint is a
+      // follow-up question, and a caller is waiting on it.
+      for (const slice of slices(conversationIds)) {
+        // ⚠ `word` is letters and digits only (`hintWords`), so it cannot close
+        // the `or()` group or add a filter of its own.
+        const { data: hitRows } = await supabase
+          .from('messages')
+          .select('conversation_id')
+          .eq('owner_id', ownerId)
+          .in('conversation_id', slice)
+          .or(`subject.ilike.%${word}%,body_text.ilike.%${word}%`)
+          .limit(200);
+        for (const row of (hitRows ?? []) as { conversation_id: string | null }[]) {
+          matched.add(row.conversation_id);
+        }
+      }
+      const hits = new Set<string>();
+      for (const [contactId, theirs] of conversationsOf) {
+        if ([...theirs].some((id) => matched.has(id))) hits.add(contactId);
+      }
+      inMessages.set(word, hits);
+    }
+
+    const narrowed = narrowByHint(everyone, words, inMessages);
+    if (narrowed.length === 0) {
+      return {
+        summary:
+          `None of the ${spell(everyone.length)} people called ${needle} match ` +
+          `"${hint!.trim()}". ` +
+          describeGroup(everyone) +
+          ' Ask for something else that tells them apart.',
+        matches: toMatches(everyone, identities),
+      };
+    }
+    group = narrowed;
   }
 
+  const matches = toMatches(group, identities);
+  const atLeast = contacts.length === MATCH_LIMIT ? 'At least ' : '';
+
   if (matches.length === 1) {
-    return { summary: `One match: ${matches[0]!.name}.`, matches };
+    const [only] = matches as [ResolvedPerson];
+    return {
+      summary: `One match: ${only.name}${only.tellApart ? `, ${only.tellApart}` : ''}.`,
+      matches,
+    };
+  }
+
+  if (matches.length > READ_OUT_MAX) {
+    return {
+      summary:
+        `${atLeast}${count(matches.length, 'person', 'people')} match that name — too many to read out. ` +
+        'Ask for something that tells them apart: a company, what it was about, or when they ' +
+        'last wrote. Then call resolve_person again with that as the hint.',
+      matches,
+    };
   }
 
   return {
     summary:
-      `${count(matches.length, 'person', 'people')} match that name. ` +
-      'Ask which one before going further.',
+      `${atLeast}${count(matches.length, 'person', 'people')} match that name: ` +
+      `${describeGroup(group)} Ask which one before going further.`,
     matches,
   };
+}
+
+/** "Maria Santos, at Acme; Maria Santos, emails from mapua.edu.ph." */
+function describeGroup(people: PersonClues[]): string {
+  const clues = tellApart(people);
+  const parts = people.map((person) => {
+    const clue = clues.get(person.id);
+    const phrase = clue ? phraseClue(clue, SPOKEN_CLUE) : null;
+    if (phrase === '') return person.name;
+    return phrase ? `${person.name}, ${phrase}` : `${person.name}, who the messages cannot tell apart`;
+  });
+  const unclear = people.filter((p) => clues.get(p.id) === null).length;
+  return (
+    `${parts.join('; ')}.` +
+    (unclear > 1
+      ? ` ${capitalise(spell(unclear))} of them look the same in the messages — a note on ` +
+        'their contact in Switchboard would fix that.'
+      : '')
+  );
+}
+
+function toMatches(
+  people: PersonClues[],
+  identities: { contactId: string | null; channelType: string }[],
+): ResolvedPerson[] {
+  const clues = tellApart(people);
+  return people.map((person) => {
+    const clue = clues.get(person.id);
+    /*
+     * ⚠ A LOOKUP, not a ternary. This was `type === 'gmail' ? 'Gmail' :
+     * 'WhatsApp'`, which became a lie the moment `meeting` was added in Phase 7
+     * — it would have said "WhatsApp" about a meeting, out loud. A map falls
+     * back to the raw value, so the next channel reads as unpolished rather
+     * than as wrong.
+     */
+    const channels = [
+      ...new Set(
+        identities
+          .filter((i) => i.contactId === person.id)
+          .map((i) => CHANNEL_SPEECH[i.channelType as ChannelType]?.label ?? i.channelType),
+      ),
+    ];
+    return {
+      personId: person.id,
+      name: person.name,
+      tellApart: clue ? phraseClue(clue, SPOKEN_CLUE) : null,
+      seenOn: channels.join(' and ') || 'no channel',
+      lastHeardFrom: person.lastAt ? spokenWhen(person.lastAt) : 'never',
+    };
+  });
+}
+
+const capitalise = (word: string) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+
+/**
+ * A day, said the way a person says it: "today", "yesterday", "on 3 September".
+ *
+ * ⚠ Not a weekday. The clue compares calendar days, and "on Tuesday" said
+ * about a message from June names a day that is not the one it means.
+ */
+function spokenDay(iso: string, now: Date = new Date()): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return 'at an unknown time';
+  const day = (date: Date) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(date);
+  if (day(at) === day(now)) return 'today';
+  if (day(at) === day(new Date(now.getTime() - 24 * 60 * 60 * 1000))) return 'yesterday';
+  return `on ${new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Manila',
+    day: 'numeric',
+    month: 'long',
+  }).format(at)}`;
+}
+
+/** How a clue is said: channels by their spoken label, days as a person says them. */
+const SPOKEN_CLUE = {
+  channelLabel: (type: string) => CHANNEL_SPEECH[type as ChannelType]?.label ?? type,
+  day: (iso: string) => spokenDay(iso),
+};
+
+/** `in()` goes into the URL, so long id lists are read in slices. */
+function slices<T>(items: T[], size = 100, max = 5): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length && out.length < max; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Affiliation rows with the conversation each one's message belongs to.
+ *
+ * ⚠ Owner-filtered by hand, both reads — the RLS-scoped version in `brief.ts`
+ * must never be called with this client. Bounded by how many affiliation rows
+ * exist (two, on 2026-09-28), not by the size of the corpus.
+ */
+async function affiliationsForVoice(
+  supabase: SupabaseClient,
+  ownerId: string,
+): Promise<{ row: BriefRow; conversationId: string | null }[]> {
+  const { data: rows } = await supabase
+    .from('extractions')
+    .select('id, kind, model, message_id, payload')
+    .eq('owner_id', ownerId)
+    .eq('kind', AFFILIATION_KIND)
+    .is('archived_at', null)
+    .limit(500);
+
+  const extractions = ((rows ?? []) as {
+    id: string;
+    kind: string;
+    model: string;
+    message_id: string;
+    payload: BriefRow['payload'] | null;
+  }[]).filter((row) => row?.kind === AFFILIATION_KIND && row.message_id);
+  if (extractions.length === 0) return [];
+
+  type MessageRow = { id: string; sent_at: string; channel_id: string; conversation_id: string | null };
+  const messages = new Map<string, MessageRow>();
+  for (const slice of slices([...new Set(extractions.map((e) => e.message_id))])) {
+    const { data: messageRows } = await supabase
+      .from('messages')
+      .select('id, sent_at, channel_id, conversation_id')
+      .eq('owner_id', ownerId)
+      .in('id', slice);
+    for (const m of (messageRows ?? []) as MessageRow[]) messages.set(m.id, m);
+  }
+
+  return extractions.flatMap((row) => {
+    const message = messages.get(row.message_id);
+    if (!message) return [];
+    return [
+      {
+        row: {
+          id: row.id,
+          kind: row.kind,
+          status: null,
+          model: row.model,
+          messageId: row.message_id,
+          sentAt: message.sent_at,
+          channelId: message.channel_id,
+          payload: row.payload ?? {},
+        },
+        conversationId: message.conversation_id,
+      },
+    ];
+  });
 }
 
 /* ─── get_attention_items ─────────────────────────────────────────────────── */

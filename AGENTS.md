@@ -403,6 +403,25 @@ three rendered candidates; see the jack-field note.
 `/preview?screen=assistant` now renders the orb, so it can be looked at
 without signing in.
 
+### Same-name people are told apart, 2026-09-28 — Ms. Maria's task 4
+
+Full note: `correspondence/2026-09-28-same-name-people.md`, ADR-029.
+Every person in a group sharing a name gets the ONE clue nobody else in it has —
+their note, company, work domain, newest subject, a channel, the day they last
+wrote — or an honest "cannot be told apart" (`lib/tell-apart.ts`). Uriel's
+`resolve_person` says the clues, asks for a detail at four or more, and takes a
+`hint`; `/contacts` shows "1 of 4 named …"; `/contacts/[id]` has "Add a note —
+who is this?" (`contacts.notes`, no migration).
+
+1. **CAUTION: Vapi must be edited by hand** — the `resolve_person` description,
+   a new optional `hint` property, and the `# Handling people` prompt block.
+   The text is in the note. Until then the live agent never sends a hint.
+2. **CAUTION: the voice fetch and the list fetch are separate on purpose** —
+   owner-filtered by hand vs RLS. Only the deciding in `tell-apart.ts` is shared.
+3. **Only Yuri's Gmail can connect because OAuth is in testing mode with one
+   allowlisted user.** More users = Google Cloud → Audience → Test users (≤100).
+   Never publish (CASA). Steps in the note.
+
 **§7 at the bottom of this file is the fastest way to know where things stand** —
 it carries the verified numbers and the next action. Read that, then come back.
 

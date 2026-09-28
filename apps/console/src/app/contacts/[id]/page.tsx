@@ -7,6 +7,7 @@ import { notFound, redirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
 import { ContactBrief } from '@/components/contact-brief';
+import { ContactNote, type NoteResult } from '@/components/contact-note';
 import { MergeContact } from '@/components/merge-contact';
 import { MessageRow } from '@/components/message-row';
 import { fetchContactBrief } from '@/lib/brief';
@@ -14,6 +15,7 @@ import { CHANNELS, CHANNEL_META, fetchChannels } from '@/lib/channels';
 import { fetchContactDetail, fetchContacts } from '@/lib/contacts';
 import { mergeContacts, suggestMerges, type MergeResult } from '@/lib/merge';
 import { createClient } from '@/lib/supabase/server';
+import { NOTE_MAX } from '@/lib/tell-apart';
 import { channelChangePoints } from '@/lib/timeline';
 import { LABEL } from '@/lib/ui';
 import { cn } from '@/lib/utils';
@@ -124,6 +126,46 @@ export default async function ContactPage({
     return result;
   }
 
+  /**
+   * Save the "who is this?" note (Ms. Maria's research task 4).
+   *
+   * Builds its own client, like `merge`, so RLS decides whether the contact is
+   * the caller's — an id from another tenant updates nothing, and `.select()`
+   * is what tells "saved" from "matched no row".
+   */
+  async function saveNote(
+    _previous: NoteResult | null,
+    formData: FormData,
+  ): Promise<NoteResult> {
+    'use server';
+
+    const client = await createClient();
+    const {
+      data: { user: caller },
+    } = await client.auth.getUser();
+    if (!caller) {
+      return { ok: false, message: 'Your session expired. Reload the page and sign in again.' };
+    }
+
+    const note = String(formData.get('note') ?? '').trim();
+    if (note.length > NOTE_MAX) {
+      return { ok: false, message: `Keep it under ${NOTE_MAX} characters.` };
+    }
+
+    const { data, error: updateError } = await client
+      .from('contacts')
+      .update({ notes: note || null })
+      .eq('id', id)
+      .select('id');
+
+    if (updateError) return { ok: false, message: 'The note could not be saved. Try again.' };
+    if (!data?.length) return { ok: false, message: 'That contact no longer exists.' };
+
+    revalidatePath(`/contacts/${id}`);
+    revalidatePath('/contacts');
+    return { ok: true, message: note ? 'Note saved.' : 'Note removed.' };
+  }
+
   return (
     <AppShell
       title={contact?.displayName ?? 'Contact'}
@@ -163,6 +205,8 @@ export default async function ContactPage({
               <h2 className="text-heading font-semibold text-balance">
                 {contact.displayName}
               </h2>
+
+              <ContactNote note={contact.notes} action={saveNote} />
 
               <ul className={cn(LABEL, 'mt-2 grid gap-1')}>
                 {contact.identities.map((identity) => {

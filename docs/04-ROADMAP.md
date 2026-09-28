@@ -1375,6 +1375,25 @@ both schemes. Full note: `correspondence/2026-09-27-jackfield-backdrop.md`.
 - [x] **The worker's OOM crash loop** fixed in code, no resize — see
       *Pipeline repair* above and `correspondence/2026-09-27-worker-oom-fix.md`.
 
+## Same-name people — Ms. Maria's research task 4, 2026-09-28
+
+*"Per-Person Personalization: design logic to differentiate individuals with
+identical names based on project context."* ADR-029, full note:
+`correspondence/2026-09-28-same-name-people.md`.
+
+- [x] **One clue per person** that nobody else with the name has
+      (`lib/tell-apart.ts`): note → company → domain → subject → channel → day.
+      "Cannot be told apart" rather than a guess.
+- [x] **Uriel:** `resolve_person` returns `tellApart` per match, asks for a
+      detail at four or more, and takes a `hint` that also searches their
+      conversations. Six reads at most (was two per match).
+- [x] **`/contacts`:** "1 of 4 named Maria Santos · at Acme Logistics".
+- [x] **`/contacts/[id]`:** "Add a note — who is this?" (`contacts.notes`).
+- [x] Verified read-only on live data: 17 of 19 same-name contacts told apart;
+      the other two are identical no-reply senders.
+- [ ] ⚠ **Paste the new tool description, `hint` property and prompt block into
+      Vapi** — nothing here deploys there. Text in the note.
+
 ## Stretch — only after Phase 5 is solid
 
 | Item | Notes |

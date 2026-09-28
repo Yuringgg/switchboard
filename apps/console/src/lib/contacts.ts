@@ -1,5 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { AFFILIATION_KIND, type BriefRow } from './brief';
+import { assembleClues, sameNameGroups, tellApart, type Clue } from './tell-apart';
+
 /**
  * Contacts — one person, however many handles they have (US-5).
  *
@@ -32,6 +35,12 @@ export interface ContactSummary {
   identities: ContactIdentity[];
   messageCount: number;
   lastMessageAt: string | null;
+  /**
+   * Set only when another contact has the SAME name: how many share it, and
+   * the one clue that tells this one apart (`lib/tell-apart.ts`). A null clue
+   * means nothing in the messages does, and the screen says so.
+   */
+  sameName?: { count: number; clue: Clue | null };
 }
 
 interface IdentityRow {
@@ -64,12 +73,16 @@ export async function fetchContacts(
   try {
     const { data: contactRows, error: contactError } = await supabase
       .from('contacts')
-      .select('id, display_name')
+      .select('id, display_name, notes')
       .limit(limit);
 
     if (contactError) return { contacts: [], error: contactError.message };
 
-    const contacts = (contactRows ?? []) as { id: string; display_name: string }[];
+    const contacts = (contactRows ?? []) as {
+      id: string;
+      display_name: string;
+      notes: string | null;
+    }[];
     if (contacts.length === 0) return { contacts: [], error: null };
 
     const { data: identityRows, error: identityError } = await supabase
@@ -81,24 +94,29 @@ export async function fetchContacts(
     const identities = (identityRows ?? []) as IdentityRow[];
 
     /*
-     * ⚠ `sent_at` and `sender_identity` only — deliberately no `body_text`.
+     * ⚠ Stamps, a subject and a thread id — deliberately no `body_text`.
      *
-     * The list needs a count and a most-recent stamp. Selecting bodies to
-     * compute those would pull the whole corpus into a page that renders none
-     * of it, which is exactly the kind of quiet over-fetch §6 is about.
+     * The list needs a count and a most-recent stamp, and a same-name clue
+     * needs the subject of somebody's newest message and which threads are
+     * theirs. Selecting bodies for any of that would pull the whole corpus into
+     * a page that renders none of it, which is the quiet over-fetch §6 is about.
      */
     const { data: messageRows, error: messageError } = await supabase
       .from('messages')
-      .select('sender_identity, sent_at')
+      .select('sender_identity, sent_at, subject, conversation_id')
       .not('sender_identity', 'is', null);
 
     if (messageError) return { contacts: [], error: messageError.message };
 
-    const stats = new Map<string, { count: number; last: string | null }>();
-    for (const row of (messageRows ?? []) as {
+    const sentRows = (messageRows ?? []) as {
       sender_identity: string;
       sent_at: string;
-    }[]) {
+      subject: string | null;
+      conversation_id: string | null;
+    }[];
+
+    const stats = new Map<string, { count: number; last: string | null }>();
+    for (const row of sentRows) {
       const current = stats.get(row.sender_identity) ?? { count: 0, last: null };
       current.count += 1;
       if (!current.last || row.sent_at > current.last) current.last = row.sent_at;
@@ -130,14 +148,65 @@ export async function fetchContacts(
         if (stat.last && (!last || stat.last > last)) last = stat.last;
       }
 
-      return {
+      const summary: ContactSummary = {
         id: contact.id,
         displayName: contact.display_name,
         identities: own,
         messageCount: count,
         lastMessageAt: last,
       };
+      return summary;
     });
+
+    /*
+     * ── Same name, different people ─────────────────────────────────────────
+     *
+     * Ms. Maria's research task 4. Only contacts whose name another contact
+     * also has get a clue, so a list of distinct names reads exactly as before
+     * — and the affiliation reads happen only when there is a group to score.
+     */
+    const groups = sameNameGroups(summaries);
+    if (groups.length > 0) {
+      const grouped = new Set(groups.flat().map((c) => c.id));
+      const notesById = new Map(contacts.map((c) => [c.id, c.notes]));
+      const groupedIdentities = identities.filter(
+        (i) => i.contact_id !== null && grouped.has(i.contact_id),
+      );
+      const groupedIdentityIds = new Set(groupedIdentities.map((i) => i.id));
+
+      const clues = assembleClues({
+        contacts: groups.flat().map((c) => ({
+          id: c.id,
+          displayName: c.displayName,
+          notes: notesById.get(c.id) ?? null,
+        })),
+        identities: groupedIdentities.map((i) => ({
+          id: i.id,
+          contactId: i.contact_id,
+          channelType: i.channel_type,
+          externalId: i.external_id,
+          displayName: i.display_name,
+        })),
+        sent: sentRows
+          .filter((m) => groupedIdentityIds.has(m.sender_identity))
+          .map((m) => ({
+            senderIdentity: m.sender_identity,
+            subject: m.subject,
+            sentAt: m.sent_at,
+            conversationId: m.conversation_id,
+          })),
+        // A failed read costs the company clue, never the list.
+        affiliations: await fetchAffiliations(supabase).catch(() => []),
+      });
+
+      const cluesById = new Map(clues.map((c) => [c.id, c]));
+      for (const group of groups) {
+        const scored = tellApart(group.flatMap((c) => cluesById.get(c.id) ?? []));
+        for (const contact of group) {
+          contact.sameName = { count: group.length, clue: scored.get(contact.id) ?? null };
+        }
+      }
+    }
 
     /*
      * Most recently heard from first, and **contacts with no messages last**
@@ -163,6 +232,73 @@ export async function fetchContacts(
       error: cause instanceof Error ? cause.message : 'Contacts are unavailable.',
     };
   }
+}
+
+/**
+ * Affiliation rows with the thread each one's message is in — the evidence
+ * behind a company clue.
+ *
+ * ⚠ RLS scopes both reads, so there is no `owner_id` filter, as everywhere else
+ * in this file. The voice path has its own owner-filtered copy in
+ * `lib/voice/tools.ts`, deliberately: the two security models never share a
+ * query. Bounded by how many affiliation rows exist, not by the corpus.
+ */
+async function fetchAffiliations(
+  supabase: SupabaseClient,
+): Promise<{ row: BriefRow; conversationId: string | null }[]> {
+  const { data: rows, error } = await supabase
+    .from('extractions')
+    .select('id, kind, model, message_id, payload')
+    .eq('kind', AFFILIATION_KIND)
+    // ⚠ `is`, never `eq(…, null)` — see `fetchContactBrief`.
+    .is('archived_at', null)
+    .limit(500);
+  if (error) return [];
+
+  const extractions = (rows ?? []) as {
+    id: string;
+    kind: string;
+    model: string;
+    message_id: string;
+    payload: BriefRow['payload'] | null;
+  }[];
+  if (extractions.length === 0) return [];
+
+  type MessageRow = {
+    id: string;
+    sent_at: string;
+    channel_id: string;
+    conversation_id: string | null;
+  };
+  const messages = new Map<string, MessageRow>();
+  const ids = [...new Set(extractions.map((e) => e.message_id))];
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data } = await supabase
+      .from('messages')
+      .select('id, sent_at, channel_id, conversation_id')
+      .in('id', ids.slice(i, i + 100));
+    for (const m of (data ?? []) as MessageRow[]) messages.set(m.id, m);
+  }
+
+  return extractions.flatMap((row) => {
+    const message = messages.get(row.message_id);
+    if (!message) return [];
+    return [
+      {
+        row: {
+          id: row.id,
+          kind: row.kind,
+          status: null,
+          model: row.model,
+          messageId: row.message_id,
+          sentAt: message.sent_at,
+          channelId: message.channel_id,
+          payload: row.payload ?? {},
+        },
+        conversationId: message.conversation_id,
+      },
+    ];
+  });
 }
 
 export interface ContactDetail {

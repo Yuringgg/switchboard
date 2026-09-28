@@ -1681,6 +1681,52 @@ job — the same reason Q3 refuses to merge on a handle).
 
 ---
 
+## ADR-029 — Same-name people are told apart by the one clue nobody else in the group has
+
+**Date:** 2026-09-28 · **Status:** Accepted · *No migration*
+
+**Context.** Ms. Maria's research task 4: *"design logic to differentiate
+individuals with identical names based on project context."* Contacts already
+never merge on a name (R23) and `resolve_person` already returned every match,
+but each match carried only a channel and a date — so there was nothing to ask
+with, and the agent prompt's example asked for a team nobody had recorded. On
+live data, 9 names are shared by 19 contacts ("Anthropic" ×3).
+
+**Decision.** Each person in a same-name group gets ONE clue: the first, in a
+fixed order, that no one else in the group holds — full name, **the reader's
+note**, company (brief, ADR-028), work domain, newest subject, a channel only
+they use, the Manila day they last wrote. `null` when none exists, said as
+"cannot be told apart". Pure logic in `lib/tell-apart.ts`, used by
+`resolve_person` (voice) and `fetchContacts` (list); the two fetch with their
+own security models, as `lib/voice/tools.ts` requires. `resolve_person` takes
+an optional `hint` that narrows the group on the clues AND on words in each
+person's conversations.
+
+**Why this order.** Most reliable first. A note was typed by a person who knows;
+a company is a quoted extraction that names them; a domain is a fact of the
+address; a subject is true but arbitrary; a day is true and weakest. The name
+goes first only because when it differs it is what anybody would say.
+
+**Why a note, and why on the contact.** The inferred clues fail exactly where it
+matters — two people at one firm, writing about one thing. A person can always
+tell them apart, so they can write it down. The idea of a role on each
+*Switchboard user* was considered and does not fit: the people who need telling
+apart are in the inbox and never sign in. `contacts.notes` has existed since
+0001 and merges carry it, so no migration.
+
+**Consequences.** A clue is relative to its group, so a narrowed group is
+re-scored. Uriel reads out at most three; four or more, it asks for a detail.
+Registrable domains only (`tm.openai.com` = `openai.com`). Free mail is never a
+clue. The typed assistant is untouched — it retrieves chunks and resolves no one.
+
+**Rejected:** combining two weak clues into one ("the Gmail one from Tuesday") —
+it reads as certainty it does not have; reading out the email address — the
+prompt forbids it and a no-reply hash is not sayable; a per-person LLM summary as
+the clue — an extra model call per lookup, on the free tier's daily cap, to
+produce something that can be wrong.
+
+---
+
 ## Template for new ADRs
 
 ```markdown

@@ -9,6 +9,7 @@ import { AttentionBoard, AttentionEmpty } from '@/components/attention-board';
 import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
 import { ContactBrief } from '@/components/contact-brief';
 import { ContactList, ContactsEmpty } from '@/components/contact-list';
+import { ContactNote, type NoteResult } from '@/components/contact-note';
 import { MeetingProposal } from '@/components/meeting-proposal';
 import { SearchForm } from '@/components/search-form';
 import {
@@ -32,6 +33,7 @@ import type { ChannelRow } from '@/lib/channels';
 import type { ContactSummary } from '@/lib/contacts';
 import type { ConfirmResult } from '@/lib/proposals';
 import type { SearchResult } from '@/lib/search';
+import { tellApart, type PersonClues } from '@/lib/tell-apart';
 import type { TimelineMessage } from '@/lib/timeline';
 
 /** Not a real user. Realtime is scoped to it and will simply match nothing. */
@@ -574,6 +576,55 @@ function contactFixtures(merged: boolean): ContactSummary[] {
   ];
 }
 
+/**
+ * Four contacts all called "Maria Santos" — Ms. Maria's research task 4.
+ *
+ * The clues are NOT written by hand: each fixture states what the database
+ * would know about that person, and `tellApart` decides, exactly as it does
+ * for `/contacts` and for Uriel. So this screen shows the logic, not a mock of
+ * it. The last two are deliberately identical apart from nothing, to show the
+ * "add a note" state.
+ */
+function sameNameFixtures(): ContactSummary[] {
+  const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const people: (PersonClues & { externalId: string; messageCount: number })[] = [
+    {
+      id: 's1', name: 'Maria Santos', note: null, company: 'Acme Logistics', role: 'Operations lead',
+      domains: ['acmelogistics.ph'], topic: 'Delivery schedule for October', channels: ['gmail'],
+      lastAt: day(0), externalId: 'maria.santos@acmelogistics.ph', messageCount: 12,
+    },
+    {
+      id: 's2', name: 'Maria Santos', note: null, company: null, role: null,
+      domains: ['mapua.edu.ph'], topic: 'Thesis consultation', channels: ['gmail'],
+      lastAt: day(2), externalId: 'msantos@mymail.mapua.edu.ph', messageCount: 5,
+    },
+    {
+      id: 's3', name: 'Maria Santos', note: 'Landlord — the Makati condo', company: null, role: null,
+      domains: [], topic: 'Rent for September', channels: ['gmail'],
+      lastAt: day(6), externalId: 'mariasantos1971@gmail.com', messageCount: 3,
+    },
+    {
+      id: 's4', name: 'Maria Santos', note: null, company: null, role: null,
+      domains: [], topic: 'Rent for September', channels: ['gmail'],
+      lastAt: day(6), externalId: 'maria.s.santos@gmail.com', messageCount: 1,
+    },
+  ];
+
+  // s3 has a note and s4 does not, but s4 shares everything else with s3 —
+  // so s4 alone has nothing that is its own.
+  const clues = tellApart(people);
+  return people.map((person, index) => ({
+    id: person.id,
+    displayName: person.name,
+    identities: [
+      { id: `si${index}`, channelType: 'gmail', externalId: person.externalId, displayName: person.name },
+    ],
+    messageCount: person.messageCount,
+    lastMessageAt: person.lastAt,
+    sameName: { count: people.length, clue: clues.get(person.id) ?? null },
+  }));
+}
+
 export default async function PreviewPage({
   searchParams,
 }: {
@@ -646,7 +697,13 @@ export default async function PreviewPage({
         ) : state === 'unconnected' ? (
           <ContactsEmpty connected={false} />
         ) : (
-          <ContactList contacts={contactFixtures(state !== 'single')} />
+          <ContactList
+            contacts={
+              state === 'samename'
+                ? [...sameNameFixtures(), ...contactFixtures(true).slice(1)]
+                : contactFixtures(state !== 'single')
+            }
+          />
         )}
       </AppShell>
     );
@@ -672,6 +729,13 @@ export default async function PreviewPage({
      * list, kept deliberately plain: the brief is what this screen is for.
      */
     const brief = contactBriefFixture(state);
+
+    // The note is written by a person, so the preview never saves one.
+    async function noNote(): Promise<NoteResult> {
+      'use server';
+      return { ok: false, message: 'The preview never saves anything.' };
+    }
+
     return (
       <AppShell
         title="Maria Santos"
@@ -682,6 +746,11 @@ export default async function PreviewPage({
         channels={channels}
       >
         <h2 className="text-heading font-semibold">Maria Santos</h2>
+        {/* ?state=note shows a saved note; every other state, the empty prompt. */}
+        <ContactNote
+          note={state === 'note' ? 'Operations lead at Acme — the October delivery schedule' : null}
+          action={noNote}
+        />
         <ul className="mt-2 grid gap-1 font-mono text-label uppercase text-muted-foreground">
           <li>Gmail · <span className="normal-case">maria@iozera.example</span></li>
           <li>WhatsApp · <span className="normal-case">+63 917 000 0001</span></li>

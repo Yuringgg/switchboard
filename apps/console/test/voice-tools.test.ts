@@ -251,6 +251,93 @@ describe('resolvePerson', () => {
   });
 });
 
+/*
+ * ── Telling apart people who share a name (Ms. Maria's research task 4) ─────
+ *
+ * ⚠ The fake answers EVERY query with the same rows, so each row below is
+ * legal as a contact, an identity, a sent message, an affiliation and a hint
+ * hit at once. Two people, both "Maria Santos", one at acme.ph and one at
+ * mapua.edu.ph.
+ */
+function twoMarias() {
+  const row = (id: string, externalId: string, conversationId: string) => ({
+    id,
+    display_name: 'Maria Santos',
+    notes: null,
+    contact_id: id,
+    channel_type: 'gmail',
+    external_id: externalId,
+    sender_identity: id,
+    subject: 'Website',
+    sent_at: '2026-09-20T02:00:00Z',
+    conversation_id: conversationId,
+    kind: 'not-an-affiliation',
+    message_id: id,
+    payload: {},
+  });
+  return [row('a', 'maria@acme.ph', 't1'), row('b', 'msantos@mymail.mapua.edu.ph', 't2')];
+}
+
+describe('resolvePerson tells same-name people apart', () => {
+  it('says what tells each one apart, not just "two people"', async () => {
+    const { client } = fakeClient(twoMarias());
+    const result = await resolvePerson(client, OWNER, 'Maria');
+
+    expect(result.summary).toMatch(/two people/i);
+    expect(result.summary).toContain('emails from acme.ph');
+    expect(result.summary).toContain('emails from mapua.edu.ph');
+    const matches = result.matches as { tellApart: string | null }[];
+    expect(matches.map((m) => m.tellApart)).toEqual([
+      'emails from acme.ph',
+      'emails from mapua.edu.ph',
+    ]);
+  });
+
+  it('filters owner_id on EVERY read it makes, the hint search included', async () => {
+    const { client, calls } = fakeClient(twoMarias());
+    await resolvePerson(client, OWNER, 'Maria', { hint: 'website' });
+
+    /*
+     * ⚠ Not `toContain`. This path now makes several reads, and one of them
+     * missing the filter reads another tenant's rows down a phone line. Every
+     * `from()` must be matched by an owner filter.
+     */
+    const reads = calls.filter((call) => call.method === 'from').length;
+    expect(reads).toBeGreaterThan(3);
+    expect(ownerFilters(calls)).toEqual(Array(reads).fill(OWNER));
+  });
+
+  it('never lets a hint write PostgREST syntax into the or() filter', async () => {
+    const { client, calls } = fakeClient(twoMarias());
+    await resolvePerson(client, OWNER, 'Maria', { hint: 'acme),owner_id.neq.x,(%_*' });
+
+    const filters = calls.filter((call) => call.method === 'or').map((call) => String(call.args[0]));
+    expect(filters.length).toBeGreaterThan(0);
+    for (const filter of filters) {
+      expect(filter).toMatch(/^subject\.ilike\.%[\p{L}\p{N}]+%,body_text\.ilike\.%[\p{L}\p{N}]+%$/u);
+    }
+  });
+
+  it('asks for a hint instead of reading out a long list', async () => {
+    const rows = ['a', 'b', 'c', 'd'].map((id) => ({ id, display_name: 'Maria Santos' }));
+    const { client } = fakeClient(rows);
+    const result = await resolvePerson(client, OWNER, 'Maria');
+
+    expect(result.summary).toMatch(/four people/i);
+    expect(result.summary).toMatch(/too many to read out/i);
+    expect(result.summary).toMatch(/hint/i);
+  });
+
+  it('says plainly when people cannot be told apart, and names the fix', async () => {
+    const rows = ['a', 'b'].map((id) => ({ id, display_name: 'Maria Santos' }));
+    const { client } = fakeClient(rows);
+    const result = await resolvePerson(client, OWNER, 'Maria');
+
+    expect(result.summary).toMatch(/cannot tell apart/i);
+    expect(result.summary).toMatch(/note/i);
+  });
+});
+
 describe('empty is not the same as broken', () => {
   it('an empty result says nothing was found', async () => {
     const { client } = fakeClient([]);

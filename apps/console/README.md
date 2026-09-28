@@ -343,10 +343,12 @@ over fixture rows.
 | `/preview?screen=attention&state=unread` | **"nothing has been read yet"** — the pass has not run |
 | `/preview?screen=attention&state=empty` | **"nothing needs your attention"** — it ran and found nothing. These two must never converge |
 | `/preview?screen=contacts` | **one person with a Gmail address AND a WhatsApp number** — the merge, which cannot be seen in the real data until Phase 2 |
+| `/preview?screen=contacts&state=samename` | **four contacts all called "Maria Santos"**, each with the clue that tells it apart — computed by `tellApart`, not hand-written. The last shows "nothing tells these apart yet — add a note" |
 | `/preview?screen=contacts&state=single` | the same list as the data actually is today: one handle each |
 | `/preview?screen=contacts&state=empty` | "no contacts yet" — a channel is connected, nothing has arrived |
 | `/preview?screen=contacts&state=unconnected` | "no channels connected". Must never converge with the above |
 | `/preview?screen=contact` | **the brief** — facts with their quotes, open items, lines, one "also mentioned" |
+| `/preview?screen=contact&state=note` | the brief with a saved "who is this?" note. Plain `?screen=contact` shows the empty "Add a note" prompt |
 | `/preview?screen=contact&state=unread` | the brief before any of the conversation has been read |
 | `/preview?screen=contact&state=empty` | read, and nothing says who they are. Must never converge with the above |
 | `/preview?screen=meetings` | **the consent gate** on sending a notetaker, and a sent link with its `?pwd=` stripped |
