@@ -342,6 +342,12 @@ export default async function WelcomePage() {
           <p className={cn(LABEL, 'normal-case')}>
             An OJT project at iOzera. Built by Yuri, mentored by Ms. Maria.
           </p>
+          <Link
+            href="/privacy"
+            className={cn(LABEL, 'focus-ring rounded normal-case underline underline-offset-2')}
+          >
+            Privacy
+          </Link>
         </div>
       </footer>
     </div>

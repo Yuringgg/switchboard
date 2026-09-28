@@ -122,6 +122,15 @@ on successful verification. Ample for iOzera.
 > the docs, not observed. If Google asks for a privacy-policy URL or insists on
 > submitting for verification when publishing, stop and record what it said.
 > Switching back is *Audience → Back to testing*.
+>
+> **Seen 2026-09-28:** *Publish app* is greyed out until the Branding page has
+> an **Application home page** and an **Application privacy policy link** —
+> "To publish your app, you must complete your configuration on the Branding
+> page." Both now exist: home `https://switchboard-console-beryl.vercel.app`,
+> policy `/privacy` (`app/privacy/page.tsx`, public in `proxy.ts`). ⚠ **Do not
+> upload a logo** — Google's own note on that page: a logo means submitting for
+> verification unless the app is Testing or Internal. *Make internal* is greyed
+> out too: this project belongs to no Google Cloud organization.
 
 ### The one that will interrupt a demo — verified 2026-08-02
 

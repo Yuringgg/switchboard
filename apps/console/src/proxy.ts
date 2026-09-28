@@ -39,6 +39,13 @@ const PUBLIC_PATHS = [
   '/welcome',
 
   /*
+   * The privacy policy (`app/privacy/page.tsx`). Google requires a public link
+   * to it before the OAuth consent screen can leave Testing, and a policy you
+   * must sign in to read is not public. Static; reads nothing.
+   */
+  '/privacy',
+
+  /*
    * The design preview (`app/preview/page.tsx`) — DEVELOPMENT ONLY, and the
    * only entry in this list that is conditional.
    *

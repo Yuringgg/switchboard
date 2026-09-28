@@ -113,3 +113,11 @@ connect with no list and no 7-day expiry; CASA comes only with verification.
 The real fix for iOzera is **Internal** under their own Google Workspace. The
 old "never publish" in these docs was wrong and is corrected — route table in
 `docs/03-RESOURCES.md` §2.
+
+**Then:** *Publish app* was greyed out until Branding had a home page and a
+privacy policy link, so a privacy policy was written at `/privacy` from the code
+and the architecture doc — what is read, kept, where, which services see it
+(Groq, Vapi, Recall.ai, Supabase, Vercel, Azure), Google's Limited Use
+statement, deletion by email (there is no delete button yet), and RA 10173.
+⚠ **It is a claim about the running system**: a new processor, stored
+attachment files or a delete button changes that page in the same commit.
