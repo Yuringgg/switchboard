@@ -1,7 +1,5 @@
 import { createServer } from 'node:http';
 
-import { BlobServiceClient } from '@azure/storage-blob';
-
 import { timingSafeEqual } from 'node:crypto';
 
 import {
@@ -580,9 +578,26 @@ async function fileSweepLoop(): Promise<void> {
     return;
   }
 
-  const container = BlobServiceClient.fromConnectionString(
-    AZURE_STORAGE_CONNECTION_STRING,
-  ).getContainerClient(AZURE_STORAGE_CONTAINER);
+  /*
+   * ⚠ Imported HERE, dynamically, never at the top of the file. The Azure SDK
+   * is CommonJS underneath and cannot be bundled into this ESM build (it took
+   * revision 0000019 down at load — see tsup.config.ts). It is installed
+   * beside the bundle in the image; if it is ever missing, this one feature
+   * says so and stops, and mail keeps flowing.
+   */
+  let container: import('@azure/storage-blob').ContainerClient;
+  try {
+    const { BlobServiceClient } = await import('@azure/storage-blob');
+    container = BlobServiceClient.fromConnectionString(
+      AZURE_STORAGE_CONNECTION_STRING,
+    ).getContainerClient(AZURE_STORAGE_CONTAINER);
+  } catch (error) {
+    console.error(
+      '[files] sweep disabled: could not load the Azure SDK:',
+      error instanceof Error ? error.message : error,
+    );
+    return;
+  }
 
   while (running) {
     const wakeAt = Date.now() + FILE_SWEEP_MS;

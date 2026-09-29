@@ -30,7 +30,7 @@ export default defineConfig({
    *
    * So the everything-else rule has to name its exceptions itself.
    */
-  noExternal: [/^(?!@huggingface\/transformers|onnxruntime-)/],
+  noExternal: [/^(?!@huggingface\/transformers|onnxruntime-|@azure\/)/],
 
   /**
    * ⚠ The exceptions, and they are exceptions for a hard reason.
@@ -48,7 +48,16 @@ export default defineConfig({
    * missing them degrades to "no embeddings" instead of failing to boot. Mail
    * keeps flowing. See `src/embed.ts` and the startup handler in `src/index.ts`.
    */
-  external: ['@huggingface/transformers', /^onnxruntime/],
+  external: ['@huggingface/transformers', /^onnxruntime/, /^@azure\//],
+
+  /*
+   * ⚠ `@azure/*` joined this list on 2026-09-29, the hard way. The Azure SDK
+   * reaches `https-proxy-agent`, which does `require('net')` — CommonJS, like
+   * google-auth-library. Bundled into this ESM file it threw "Dynamic require
+   * of \"net\" is not supported" at load, and revision 0000019 never started.
+   * It is installed by npm in the runtime stage and imported dynamically in
+   * `index.ts`, so a missing copy switches the file sweep off, not the worker.
+   */
 
   // Trims the bundle but keeps a readable stack trace when the worker throws.
   minify: false,

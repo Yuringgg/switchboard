@@ -76,7 +76,7 @@ WORKDIR /app
 # exact layout, because this image cannot be built locally to check.
 RUN printf '{"name":"switchboard-worker-runtime","private":true,"type":"module"}\n' > package.json
 
-RUN npm install --omit=dev --no-audit --no-fund @huggingface/transformers@4.2.0 \
+RUN npm install --omit=dev --no-audit --no-fund @huggingface/transformers@4.2.0 @azure/storage-blob@12.34.0 \
  && chown -R node:node /app
 
 # Never run as root.

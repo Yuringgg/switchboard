@@ -82,4 +82,29 @@ describe('worker import boundary', () => {
         `crashloops naming a module nothing here imports.\n  ${offenders.join('\n  ')}`,
     ).toEqual([]);
   });
+
+  /*
+   * ⚠ The same trap, third time (2026-09-29). The Azure SDK reaches
+   * `https-proxy-agent`, which does `require('net')`. Imported by value at the
+   * top of a file it is bundled into this ESM build and throws "Dynamic require
+   * of \"net\" is not supported" at load — revision 0000019 never started.
+   *
+   * It must stay external (tsup.config.ts), be installed in the image
+   * (Dockerfile), and be reached only through `await import(...)`. A
+   * type-only import is fine: it is erased.
+   */
+  it('never imports the Azure SDK by value at the top of a file', () => {
+    const offenders = files
+      .filter((file) =>
+        /^import\s+(?!type\b)[^;]*from\s+['"]@azure\//m.test(readFileSync(file, 'utf8')),
+      )
+      .map((file) => relative(SRC, file));
+
+    expect(
+      offenders,
+      'These import @azure/* by value, which bundles CommonJS into the ESM build ' +
+        `and crashes the worker at startup: ${offenders.join(', ')}. ` +
+        "Use `import type` for types and `await import('@azure/storage-blob')` for values.",
+    ).toEqual([]);
+  });
 });
