@@ -387,7 +387,9 @@ to invest, and it's what makes the system feel finished.
       the delete, because `on delete set null` means the reverse order would
       detach them silently rather than erroring.
 - [ ] Channel settings: connect, pause, disconnect, sync status, last error
-- [ ] **Attachments → Azure Blob; rows in `attachments`** — moved here from
+- [x] **Attachments → Azure Blob; rows in `attachments`** — ✅ **Gmail done
+      2026-09-29** (ADR-030, `file-sweep.ts`, `/files`); ⚠ WhatsApp media still
+      open. Moved here from
       Phase 1, and **now covers WhatsApp media too** (moved here from Phase 2,
       2026-07-28, for the same reason). Needs the Blob account and container
       provisioned first (`docs/03-RESOURCES.md` §6). The references already
@@ -1393,6 +1395,22 @@ identical names based on project context."* ADR-029, full note:
       the other two are identical no-reply senders.
 - [ ] ⚠ **Paste the new tool description, `hint` property and prompt block into
       Vapi** — nothing here deploys there. Text in the note.
+
+## Files — Ms. Maria's research task 5, 2026-09-29
+
+*"Routing documents directly into database folders without manual file
+downloads."* ADR-030, full note: `correspondence/2026-09-29-files.md`.
+
+- [x] Worker file sweep: real Gmail attachments → private Azure Blob, backfill
+      included. Logos, invites and >25 MB skipped. Migration 0019.
+- [x] `/files` with derived folders (people, companies, sent by you,
+      meetings); a Files section on each contact; `/api/files/[id]` five-minute
+      links. Privacy page updated.
+- [ ] ⚠ **`AZURE_STORAGE_CONNECTION_STRING` on Vercel** — Yuri, by hand. Until
+      then files list but do not open.
+- [ ] WhatsApp media (short-lived URLs; no traffic to test on).
+- [ ] **Prove the meeting-transcript path end to end** — one real call, Yuri
+      alone. Built in 7A, never seen working since the sweep shipped.
 
 ## Stretch — only after Phase 5 is solid
 

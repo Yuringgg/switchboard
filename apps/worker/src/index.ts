@@ -1,5 +1,7 @@
 import { createServer } from 'node:http';
 
+import { BlobServiceClient } from '@azure/storage-blob';
+
 import { timingSafeEqual } from 'node:crypto';
 
 import {
@@ -16,7 +18,10 @@ import { catchUpEmbeddings } from './embed-catchup';
 import { embedBatch } from './embed-messages';
 import { extractBatch } from './extract';
 import { catchUpExtractions } from './extract-catchup';
+import { sweepFiles } from './file-sweep';
 import {
+  AZURE_STORAGE_CONNECTION_STRING,
+  AZURE_STORAGE_CONTAINER,
   DATABASE_URL,
   EMBED_API_SECRET,
   GROQ_API_KEY,
@@ -551,6 +556,56 @@ async function meetingSweepLoop(): Promise<void> {
 }
 
 /**
+ * The file sweep — Ms. Maria's research task 5. Saves every real attachment
+ * into the private Azure container and records it; see `file-sweep.ts`.
+ *
+ * Two minutes: a file should be on the Files page shortly after its email is on
+ * the timeline, and a pass that finds nothing is one indexed query. Like the
+ * meeting sweep it spends no LLM tokens, so it does not wait for an idle queue.
+ *
+ * ⚠ Downloads are held in memory one at a time (25 MB at most, Gmail's own
+ * ceiling) — deliberately sequential after the 2026-09-27 OOM lesson.
+ */
+const FILE_SWEEP_MS = 2 * 60 * 1000;
+const FILE_SWEEP_BATCH = 10;
+const fileGiveUp = new Set<string>();
+
+async function fileSweepLoop(): Promise<void> {
+  const gmail = readGmailWatchConfig();
+  if (!AZURE_STORAGE_CONNECTION_STRING || !gmail) {
+    console.info(
+      '[files] sweep disabled: needs AZURE_STORAGE_CONNECTION_STRING and the Gmail ' +
+        'credentials. Mail still ingests; attachments are just not saved.',
+    );
+    return;
+  }
+
+  const container = BlobServiceClient.fromConnectionString(
+    AZURE_STORAGE_CONNECTION_STRING,
+  ).getContainerClient(AZURE_STORAGE_CONTAINER);
+
+  while (running) {
+    const wakeAt = Date.now() + FILE_SWEEP_MS;
+    while (running && Date.now() < wakeAt) await sleep(1_000);
+    if (!running) return;
+
+    try {
+      const result = await sweepFiles(db, container, gmail, FILE_SWEEP_BATCH, fileGiveUp);
+      // Silent when there was nothing to do.
+      if (result.considered > 0) {
+        console.info(
+          `[files] sweep: considered=${result.considered} done=${result.done} ` +
+            `saved=${result.saved} skipped=${result.skipped} failed=${result.failed}`,
+        );
+      }
+    } catch (error) {
+      // Must never take the worker down. Files are additive.
+      console.error('[files] sweep errored:', error instanceof Error ? error.message : error);
+    }
+  }
+}
+
+/**
  * Messages each catch-up gave up on in this process's life — see the `giveUp`
  * parameter on each. Module-level so they survive between sweeps, and in memory
  * so a restart or a new model gives every one of them another try.
@@ -759,3 +814,4 @@ void loop();
 void watchRenewalLoop();
 void catchUpLoop();
 void meetingSweepLoop();
+void fileSweepLoop();

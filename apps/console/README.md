@@ -347,6 +347,7 @@ over fixture rows.
 | `/preview?screen=contacts&state=single` | the same list as the data actually is today: one handle each |
 | `/preview?screen=contacts&state=empty` | "no contacts yet" — a channel is connected, nothing has arrived |
 | `/preview?screen=contacts&state=unconnected` | "no channels connected". Must never converge with the above |
+| `/preview?screen=files` | **the Files library** — invented documents from three senders at two companies, one sent by you, one meeting transcript. `&folder=org:Acme Logistics` (or `person:c-maria`, `sent`, `meetings`) opens a folder; `&state=empty` is the library before anything is saved |
 | `/preview?screen=contact` | **the brief** — facts with their quotes, open items, lines, one "also mentioned" |
 | `/preview?screen=contact&state=note` | the brief with a saved "who is this?" note. Plain `?screen=contact` shows the empty "Add a note" prompt |
 | `/preview?screen=contact&state=unread` | the brief before any of the conversation has been read |

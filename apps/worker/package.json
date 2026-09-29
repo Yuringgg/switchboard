@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.34.0",
     "@switchboard/adapter-gmail": "workspace:*",
     "@switchboard/adapter-meeting": "workspace:*",
     "@switchboard/adapter-whatsapp": "workspace:*",

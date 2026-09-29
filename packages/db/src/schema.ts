@@ -188,7 +188,12 @@ export const attachments = pgTable(
     messageId: uuid('message_id')
       .notNull()
       .references(() => messages.id, { onDelete: 'cascade' }),
-    /** Azure Blob URL, assigned after upload — never by an adapter. */
+    /**
+     * The blob NAME in the private `attachments` container
+     * (`<owner>/<message>/<n>-<file>`), written by the worker's file sweep —
+     * never by an adapter. Not a URL despite the column name (0019): the
+     * console mints a five-minute read link per request.
+     */
     blobUrl: text('blob_url').notNull(),
     filename: text('filename'),
     mimeType: text('mime_type'),
@@ -257,6 +262,26 @@ export const messageExtractionRuns = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index('message_extraction_runs_owner_idx').on(t.ownerId)],
+);
+
+/**
+ * One row per message the worker's file sweep has finished (migration 0019,
+ * Ms. Maria's research task 5). Same idea as `messageExtractionRuns`: zero
+ * files saved is an ordinary outcome — a signature logo, a calendar invite —
+ * and recording it is what stops the sweep downloading the message again.
+ */
+export const messageAttachmentRuns = pgTable(
+  'message_attachment_runs',
+  {
+    messageId: uuid('message_id')
+      .primaryKey()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    ownerId: uuid('owner_id').notNull(),
+    filesSaved: integer('files_saved').notNull().default(0),
+    filesSkipped: integer('files_skipped').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('message_attachment_runs_owner_idx').on(t.ownerId)],
 );
 
 export const rawEvents = pgTable(

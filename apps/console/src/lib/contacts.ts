@@ -243,7 +243,7 @@ export async function fetchContacts(
  * `lib/voice/tools.ts`, deliberately: the two security models never share a
  * query. Bounded by how many affiliation rows exist, not by the corpus.
  */
-async function fetchAffiliations(
+export async function fetchAffiliations(
   supabase: SupabaseClient,
 ): Promise<{ row: BriefRow; conversationId: string | null }[]> {
   const { data: rows, error } = await supabase

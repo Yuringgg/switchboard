@@ -1727,6 +1727,44 @@ produce something that can be wrong.
 
 ---
 
+## ADR-030 — Attachments are saved by a sweep, and folders are derived on read
+
+**Date:** 2026-09-29 · **Status:** Accepted · *Migration 0019*
+
+**Context.** Ms. Maria's research task 5: documents routed into folders with no
+manual download. ADR-004 already chose Azure Blob for attachments and the
+private container was provisioned on 2026-08-03; nothing wrote to it.
+
+**Decision.** A worker sweep (`file-sweep.ts`, every 2 minutes) saves each real
+Gmail attachment to `<owner>/<message>/<n>-<name>` and writes `attachments`
+rows plus a `message_attachment_runs` row in one transaction. Folders — person,
+company, sent by you, meetings — are computed by the console on every read
+(`lib/files.ts`). Files open through `/api/files/[id]`: RLS-checked, then a
+five-minute read-only link.
+
+**Why a sweep, not a step in ingest.** Ingest must be fast and must not fail on
+something optional; a slow 20 MB download or an Azure hiccup must never stop
+mail. The sweep is also the backfill.
+
+**Why derived folders.** A stored folder is stale the moment two contacts merge
+or a company is learned from a later email. Derived, everything re-files itself.
+
+**Why a redirect, not streaming.** Bytes through a Vercel function hit its time
+and memory limits and break range requests; the same reasoning SafeHands'
+storage used.
+
+**Consequences.** The console needs `AZURE_STORAGE_CONNECTION_STRING` (a Vercel
+env var, set by hand) to mint links. `attachments.blob_url` holds a blob NAME,
+not a URL (0019's comment). WhatsApp media is not handled yet. A file you sent
+is filed under "Sent by you", never under a person — `messages` records no
+recipients.
+
+**Rejected:** Supabase Storage (would reverse ADR-004 for no gain — the container
+exists, is private, and costs well under a cent); downloading in ingest (above);
+public blobs with unguessable names (a leaked link would work forever).
+
+---
+
 ## Template for new ADRs
 
 ```markdown

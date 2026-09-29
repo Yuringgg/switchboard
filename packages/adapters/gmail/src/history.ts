@@ -1,3 +1,4 @@
+import { base64UrlToBuffer } from './decode';
 import type { GmailMessage } from './normalize';
 
 /**
@@ -266,4 +267,52 @@ export async function fetchMessage(
 
   const message = (await response.json()) as GmailMessage;
   return { ok: true, message };
+}
+
+export type FetchAttachmentResult =
+  | { ok: true; bytes: Buffer }
+  | { ok: false; reason: string; notFound: boolean };
+
+/**
+ * One attachment's bytes (`users.messages.attachments.get`).
+ *
+ * Used by the worker's file sweep (Ms. Maria's research task 5), never by
+ * ingest: a download is slow and optional, and mail must not wait on it.
+ *
+ * ⚠ The attachment id comes from a FRESH `fetchMessage`, not from the copy in
+ * `messages.payload_raw`. Gmail attachment ids are not promised to stay the
+ * same between fetches of one message, so a stored one is the wrong thing to
+ * trust weeks later.
+ */
+export async function fetchAttachment(
+  accessToken: string,
+  messageId: string,
+  attachmentId: string,
+): Promise<FetchAttachmentResult> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `${BASE}/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+  } catch {
+    return { ok: false, reason: 'could not reach Gmail for the attachment', notFound: false };
+  }
+
+  if (response.status === 404) {
+    return { ok: false, reason: 'attachment no longer exists', notFound: true };
+  }
+  if (!response.ok) {
+    return {
+      ok: false,
+      reason: `attachments.get failed (HTTP ${response.status})`,
+      notFound: false,
+    };
+  }
+
+  const body = (await response.json()) as { data?: string };
+  if (typeof body.data !== 'string') {
+    return { ok: false, reason: 'attachments.get returned no data', notFound: false };
+  }
+  return { ok: true, bytes: base64UrlToBuffer(body.data) };
 }

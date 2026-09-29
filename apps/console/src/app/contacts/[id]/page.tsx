@@ -8,11 +8,13 @@ import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
 import { ContactBrief } from '@/components/contact-brief';
 import { ContactNote, type NoteResult } from '@/components/contact-note';
+import { FileRows } from '@/components/file-library';
 import { MergeContact } from '@/components/merge-contact';
 import { MessageRow } from '@/components/message-row';
 import { fetchContactBrief } from '@/lib/brief';
 import { CHANNELS, CHANNEL_META, fetchChannels } from '@/lib/channels';
 import { fetchContactDetail, fetchContacts } from '@/lib/contacts';
+import { conversationMessageIds, fetchLibrary } from '@/lib/files';
 import { mergeContacts, suggestMerges, type MergeResult } from '@/lib/merge';
 import { createClient } from '@/lib/supabase/server';
 import { NOTE_MAX } from '@/lib/tell-apart';
@@ -63,9 +65,18 @@ export default async function ContactPage({
 
   // For the merge control. Only names and ids — no identities, no messages.
   // The brief is read alongside it rather than after: neither needs the other.
-  const [{ contacts: allContacts }, { brief, error: briefError }] = contact
-    ? await Promise.all([fetchContacts(supabase), fetchContactBrief(supabase, contact)])
-    : [{ contacts: [] }, { brief: null, error: null }];
+  const [{ contacts: allContacts }, { brief, error: briefError }, files] = contact
+    ? await Promise.all([
+        fetchContacts(supabase),
+        fetchContactBrief(supabase, contact),
+        // Files in their conversations, both directions (task 5). A failure
+        // here hides the section rather than the page.
+        conversationMessageIds(
+          supabase,
+          contact.identities.map((i) => i.id),
+        ).then((messageIds) => fetchLibrary(supabase, { messageIds })),
+      ])
+    : [{ contacts: [] }, { brief: null, error: null }, { items: [], error: null }];
 
   const candidates = allContacts
     .filter((c) => c.id !== contact?.id)
@@ -278,6 +289,15 @@ export default async function ContactPage({
                   channelTypeById={Object.fromEntries(channelTypeById)}
                 />
               )
+            )}
+
+            {files.items.length > 0 && (
+              <section className="mt-7">
+                <p className={cn(LABEL, 'mb-2')}>
+                  Files · {files.items.length}
+                </p>
+                <FileRows items={files.items} />
+              </section>
             )}
 
             <section className="mt-7">

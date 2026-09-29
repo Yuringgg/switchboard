@@ -10,6 +10,7 @@ import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
 import { ContactBrief } from '@/components/contact-brief';
 import { ContactList, ContactsEmpty } from '@/components/contact-list';
 import { ContactNote, type NoteResult } from '@/components/contact-note';
+import { FileLibrary, FilesEmpty } from '@/components/file-library';
 import { MeetingProposal } from '@/components/meeting-proposal';
 import { SearchForm } from '@/components/search-form';
 import {
@@ -31,6 +32,7 @@ import type { AttentionItem } from '@/lib/attention';
 import type { ContactBrief as ContactBriefData } from '@/lib/brief';
 import type { ChannelRow } from '@/lib/channels';
 import type { ContactSummary } from '@/lib/contacts';
+import type { LibraryItem } from '@/lib/files';
 import type { ConfirmResult } from '@/lib/proposals';
 import type { SearchResult } from '@/lib/search';
 import { tellApart, type PersonClues } from '@/lib/tell-apart';
@@ -625,10 +627,55 @@ function sameNameFixtures(): ContactSummary[] {
   }));
 }
 
+/**
+ * The Files screen's fixtures — Ms. Maria's research task 5.
+ *
+ * Invented documents from three senders at two companies, one sent by the
+ * reader, and one meeting transcript, so every folder kind has something in
+ * it. `?state=empty` shows the library before anything has been saved.
+ */
+function fileFixtures(): LibraryItem[] {
+  const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const file = (
+    id: string,
+    filename: string,
+    mimeType: string,
+    sizeBytes: number,
+    daysAgo: number,
+    from: { id: string; name: string; org: string | null } | null,
+    subject: string,
+  ): LibraryItem => ({
+    kind: 'file',
+    id,
+    filename,
+    mimeType,
+    sizeBytes,
+    messageId: `m-${id}`,
+    sentAt: day(daysAgo),
+    subject,
+    direction: from ? 'inbound' : 'outbound',
+    contactId: from?.id ?? null,
+    contactName: from?.name ?? null,
+    organisation: from?.org ?? null,
+  });
+  const maria = { id: 'c-maria', name: 'Maria Santos', org: 'Acme Logistics' };
+  const jose = { id: 'c-jose', name: 'Jose Reyes', org: 'Acme Logistics' };
+  const lea = { id: 'c-lea', name: 'Lea Cruz', org: 'mapua.edu.ph' };
+  return [
+    file('f1', 'October delivery schedule.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 48_200, 0, maria, 'Delivery schedule for October'),
+    { kind: 'transcript', messageId: 'm-t1', title: 'Weekly sync with Acme', sentAt: day(1) },
+    file('f2', 'Signed quotation — Q4 rollout.pdf', 'application/pdf', 812_000, 1, jose, 'Signed quote attached'),
+    file('f3', 'Thesis consultation notes.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 96_400, 3, lea, 'Notes from Tuesday'),
+    file('f4', 'Landing page draft.pdf', 'application/pdf', 2_400_000, 4, null, 'Draft for review'),
+    file('f5', 'Warehouse photo.jpg', 'image/jpeg', 1_900_000, 6, maria, 'Site photo'),
+    file('f6', 'Rate card 2026.pdf', 'application/pdf', 240_000, 9, jose, 'Rates'),
+  ];
+}
+
 export default async function PreviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ state?: string; screen?: string; view?: string }>;
+  searchParams: Promise<{ state?: string; screen?: string; view?: string; folder?: string }>;
 }) {
   if (process.env.NODE_ENV !== 'development') notFound();
 
@@ -641,6 +688,7 @@ export default async function PreviewPage({
     // change points and lamp rail are the parts worth reviewing. `?view=split`
     // shows the other.
     view = 'merged',
+    folder = 'all',
   } = await searchParams;
 
   const rows =
@@ -669,6 +717,29 @@ export default async function PreviewPage({
             <ChannelList rows={rows} error={null} />
           )}
         </Suspense>
+      </AppShell>
+    );
+  }
+
+  if (screen === 'files') {
+    return (
+      <AppShell
+        title="Files"
+        description="Every document from your messages, filed for you."
+        userEmail="preview@switchboard.local"
+        userId={PREVIEW_USER_ID}
+        activeHref="/files"
+        channels={channels}
+      >
+        {state === 'empty' ? (
+          <FilesEmpty />
+        ) : (
+          <FileLibrary
+            items={fileFixtures()}
+            folderKey={folder}
+            basePath="/preview?screen=files"
+          />
+        )}
       </AppShell>
     );
   }

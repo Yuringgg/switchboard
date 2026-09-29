@@ -72,3 +72,14 @@ export const RECALL_API_KEY = process.env.RECALL_API_KEY ?? '';
  * `apps/console/src/lib/meetings/bot-session.ts`; the two must agree.
  */
 export const RECALL_REGION = process.env.RECALL_REGION ?? 'ap-northeast-1';
+
+/**
+ * The private Azure Blob container attachments are saved into (ADR-004,
+ * provisioned 2026-08-03 as `swbattachments` / `attachments`). Optional: without
+ * it the file sweep is off and mail ingests exactly as before.
+ *
+ * ⚠ A secret — it carries the account key. Container Apps secret, never a
+ * plain env value, never logged.
+ */
+export const AZURE_STORAGE_CONNECTION_STRING = process.env.AZURE_STORAGE_CONNECTION_STRING ?? '';
+export const AZURE_STORAGE_CONTAINER = process.env.AZURE_STORAGE_CONTAINER ?? 'attachments';

@@ -50,7 +50,7 @@ export default function PrivacyPage() {
       </header>
 
       <main className="mx-auto max-w-[68ch] px-5 py-12 md:py-16">
-        <p className={LABEL}>Effective 28 September 2026</p>
+        <p className={LABEL}>Effective 29 September 2026</p>
         <h1 className="mt-2 text-heading font-semibold text-balance">Privacy policy</h1>
         <p className="mt-4 text-row text-muted-foreground">
           Switchboard is an on-the-job-training project at iOzera, built by Yuri. It brings
@@ -62,8 +62,9 @@ export default function PrivacyPage() {
           <ul className="list-disc space-y-2 pl-5">
             <li>
               <strong>Gmail</strong>, with read-only access (<code>gmail.readonly</code>). It
-              reads the messages in your mailbox: sender, subject, date and text. It notes each
-              attachment&rsquo;s name, type and size, but does not download the file.
+              reads the messages in your mailbox: sender, subject, date and text, and saves the
+              files attached to them so they can be filed for you. Small images (logos,
+              signatures), calendar invites and files over 25 MB are left out.
             </li>
             <li>
               <strong>Google Calendar</strong> (<code>calendar.events</code>). It creates an event{' '}
@@ -86,6 +87,11 @@ export default function PrivacyPage() {
             them, and notes you write on contacts. They are stored in a Postgres database hosted
             by Supabase in Singapore. Each account can only ever read its own rows; the database
             enforces that for every table.
+          </p>
+          <p>
+            Saved attachments are stored in a private Microsoft Azure storage account in Malaysia.
+            Nothing in it is public: opening a file checks that it is yours and gives your browser
+            a link that works for five minutes.
           </p>
           <p>
             Your Google access tokens are encrypted (AES-256-GCM) before they are stored. Your
@@ -115,8 +121,8 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong>Supabase</strong>, <strong>Vercel</strong> and <strong>Microsoft Azure</strong>{' '}
-              host the database, the website and the background worker. The search index is
-              computed on that worker, not by an outside service.
+              host the database, the website, the background worker and your saved files. The
+              search index is computed on that worker, not by an outside service.
             </li>
           </ul>
           <p>
@@ -148,7 +154,7 @@ export default function PrivacyPage() {
               leiruychua@gmail.com
             </a>{' '}
             from the address you signed up with, and your account, your connected channels and
-            every message, summary and note stored for you will be deleted. You can also remove
+            every message, file, summary and note stored for you will be deleted. You can also remove
             Switchboard&rsquo;s access to Google at any time from{' '}
             <a
               href="https://myaccount.google.com/permissions"

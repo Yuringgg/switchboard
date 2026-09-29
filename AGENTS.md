@@ -403,6 +403,23 @@ three rendered candidates; see the jack-field note.
 `/preview?screen=assistant` now renders the orb, so it can be looked at
 without signing in.
 
+### Files: documents saved and filed with no download, 2026-09-29 — Ms. Maria's task 5
+
+Full note: `correspondence/2026-09-29-files.md`, ADR-030. A worker sweep saves
+every real Gmail attachment into the private Azure container (ADR-004) every 2
+minutes, backfill included; `/files` files them by person, company, "sent by
+you" and meetings — **derived on read, never stored**; each contact page lists
+their files; `/api/files/[id]` checks ownership (RLS) and redirects to a
+**five-minute** link.
+
+1. **CAUTION: the console needs `AZURE_STORAGE_CONNECTION_STRING` on Vercel** to
+   open files; without it, a 503 that says so. The worker has it as a secret.
+2. **CAUTION: `attachments.blob_url` is a blob NAME, not a URL** (0019).
+3. **The privacy page is a claim about the system** — it changed in the same
+   commit. Keep it that way.
+4. Meeting transcripts are built but **unproven end to end**; WhatsApp media is
+   not handled.
+
 ### Same-name people are told apart, 2026-09-28 — Ms. Maria's task 4
 
 Full note: `correspondence/2026-09-28-same-name-people.md`, ADR-029.

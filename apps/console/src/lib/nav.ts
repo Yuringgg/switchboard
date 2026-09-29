@@ -1,4 +1,5 @@
 import {
+  FolderOpen,
   ListChecks,
   MessagesSquare,
   Plug,
@@ -28,6 +29,9 @@ export const NAV_ITEMS: NavItem[] = [
   // with the two screens people arrive at the console to use. Phase 5, US-9.
   { label: 'Needs attention', href: '/attention', icon: ListChecks, ready: true },
   { label: 'Contacts', href: '/contacts', icon: Users, ready: true },
+  // Under Contacts: files are filed by who sent them, so the two read as a
+  // pair. Ms. Maria's research task 5.
+  { label: 'Files', href: '/files', icon: FolderOpen, ready: true },
   { label: 'Assistant', href: '/assistant', icon: Sparkles, ready: true },
   // Above Channels and below Assistant: sending a notetaker is a *doing*
   // surface like Needs attention, not configuration. Channels stays last
