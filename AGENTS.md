@@ -419,6 +419,10 @@ their files; `/api/files/[id]` checks ownership (RLS) and redirects to a
    commit. Keep it that way.
 4. Meeting transcripts are built but **unproven end to end**; WhatsApp media is
    not handled.
+5. **CAUTION: `@azure/*` must stay OUT of the worker bundle** (`tsup.config.ts`
+   external, npm-installed in the Dockerfile, dynamic import). Bundled, it took
+   revision 0000019 down at load. **Live: revision 0000020**, first pass saved
+   12 files with 0 failures.
 
 ### Same-name people are told apart, 2026-09-28 — Ms. Maria's task 4
 
