@@ -49,6 +49,10 @@ const EXPECTED_TABLES = [
   // for being listed anyway as `voice_call_sessions` above — the third time
   // this pattern appears, and by now it is a pattern rather than a decision.
   'meeting_bot_sessions',
+  // Files, migration 0019. Worker-written like `message_extraction_runs`, and
+  // listed for the same reason. CI caught it missing on the first push
+  // (2026-09-29) — which is exactly what the "unlisted table" check is for.
+  'message_attachment_runs',
 ] as const;
 
 interface Row {
