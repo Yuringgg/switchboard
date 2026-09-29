@@ -1,5 +1,6 @@
 import { CHANNEL_TYPES } from '@switchboard/core';
-import { Plug } from 'lucide-react';
+import { Plug, Video } from 'lucide-react';
+import Link from 'next/link';
 
 import { Callout } from '@/components/callout';
 import { CHANNELS, type ChannelRow } from '@/lib/channels';
@@ -34,6 +35,16 @@ const COPY: Record<string, { does: string; unconnected: string }> = {
     unconnected:
       'Numbers belong to the business, so an admin assigns one to you rather than you connecting it here.',
   },
+  /*
+   * ⚠ Nobody assigns this one. A meetings line is created the first time you
+   * send a notetaker (`/api/meetings/bot`), so "Assigned by an admin" — what
+   * this row said until 2026-09-29 — sent a second user looking for an admin
+   * who does not exist.
+   */
+  meeting: {
+    does: 'Each recorded meeting arrives as one message, with its transcript.',
+    unconnected: 'This line appears the first time you send a notetaker into a call.',
+  },
 };
 
 /** `channels.status` is a database enum. This is what a person should read. */
@@ -46,16 +57,9 @@ const STATUS: Record<string, { label: string; tone: 'ok' | 'bad' }> = {
 export function ChannelList({
   rows,
   error,
-  userEmail,
 }: {
   rows: ChannelRow[];
   error: string | null;
-  /**
-   * The signed-in address, so the allowlist note can name the exact string an
-   * admin has to paste into Google. Optional because the preview harness has
-   * no user behind it.
-   */
-  userEmail?: string;
 }) {
   return (
     <>
@@ -106,6 +110,11 @@ export function ChannelList({
                     <Plug className="size-3.5" aria-hidden />
                     {connected.length > 0 ? 'Reconnect' : 'Connect'}
                   </a>
+                ) : type === 'meeting' ? (
+                  <Link href="/meetings" className={buttonClass({ variant: 'subtle', size: 'sm' })}>
+                    <Video className="size-3.5" aria-hidden />
+                    Send a notetaker
+                  </Link>
                 ) : (
                   <span className={cn(LABEL, 'mt-1.5')}>Assigned by an admin</span>
                 )}
@@ -113,36 +122,26 @@ export function ChannelList({
 
               {/*
                 ── Why this note exists ──────────────────────────────────────
-                Google's consent screen is External + Testing, so only accounts
-                on a manually maintained allowlist can complete OAuth. When a
-                new person clicks Connect, Google blocks them on its OWN error
-                page — "Access blocked: Switchboard has not completed the Google
-                verification process" — and usually never redirects back here.
-                So the callback's error message, however well written, is never
-                seen. The only place this can be said in time is BEFORE the
-                click.
+                The consent screen was PUBLISHED on 2026-09-28, unverified
+                (`docs/03-RESOURCES.md` §2). Anyone can connect now — no
+                allowlist — but Google first shows its own full-page warning,
+                "Google hasn't verified this app", whose way forward is hidden
+                behind "Advanced". A first-time user reads that page as a
+                dead end and never comes back here, so the one place to say
+                what to click is BEFORE the click.
+
+                This replaced a note about testing mode and an admin allowlist,
+                which stopped being true the day the app was published.
 
                 Shown only while Gmail is unconnected for this user: that is
-                precisely the moment it is about to matter, and it would be
-                noise on every visit afterwards. The address is printed in the
-                mono machine voice because it is a value to be copied exactly,
-                not prose — a paraphrased address is a failed allowlist entry.
-
-                There is no API for this (Google's IAP OAuth Admin APIs were
-                withdrawn in March 2026), so it genuinely cannot be automated —
-                which is the other half of what a reader needs to know.
+                the moment it matters, and it would be noise afterwards.
               */}
               {isGmail && connected.length === 0 && (
                 <p className="border-t border-border px-4 py-3 text-note text-muted-foreground">
-                  Switchboard's Google app is in testing mode, so an admin has
-                  to allow each address before it can connect.
-                  {userEmail && (
-                    <>
-                      {' '}
-                      If Google blocks the connection, ask them to add{' '}
-                      <span className="font-mono text-foreground">{userEmail}</span>.
-                    </>
-                  )}
+                  Google will warn that it hasn&rsquo;t verified Switchboard. Choose{' '}
+                  <span className="text-foreground">Advanced</span>, then{' '}
+                  <span className="text-foreground">Go to Switchboard</span>, and leave both
+                  permissions ticked.
                 </p>
               )}
 

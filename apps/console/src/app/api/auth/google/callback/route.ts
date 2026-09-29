@@ -43,10 +43,11 @@ export async function GET(request: NextRequest) {
    * is right for one of the two causes and actively misleading for the other:
    *
    *   1. The person clicked Cancel on the consent screen. Not an error.
-   *   2. Their Google account is not on the app's test-user allowlist. The
-   *      consent screen is External + Testing (docs/03-RESOURCES.md §2), so
-   *      Google refuses any account an admin has not added by hand — and it
-   *      reports that refusal with the same `access_denied` code.
+   *   2. Google stopped them before consent. Until 2026-09-28 that meant the
+   *      test-user allowlist; since the consent screen was PUBLISHED unverified
+   *      (docs/03-RESOURCES.md §2) it means backing out of Google's "hasn't
+   *      verified this app" warning, or the 100-user lifetime cap. Either way
+   *      Google reports it with the same `access_denied` code.
    *
    * Google gives us nothing that separates them, so the message must cover
    * both. Telling someone they cancelled, when in fact they were blocked,
@@ -63,10 +64,9 @@ export async function GET(request: NextRequest) {
     return back(request, {
       error:
         googleError === 'access_denied'
-          ? 'Google did not complete the connection. Either it was cancelled, ' +
-            'or this Google account is not on the app allowlist yet — ' +
-            'Switchboard is in Google testing mode, so an admin has to add each ' +
-            'address before it can connect.'
+          ? 'Google did not complete the connection. Either it was cancelled, or ' +
+            'it stopped at Google’s “hasn’t verified this app” warning. Try again, ' +
+            'and on that page choose Advanced, then Go to Switchboard.'
           : 'Google could not complete the connection.',
     });
   }
