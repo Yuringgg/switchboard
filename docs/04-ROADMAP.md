@@ -1406,8 +1406,8 @@ downloads."* ADR-030, full note: `correspondence/2026-09-29-files.md`.
 - [x] `/files` with derived folders (people, companies, sent by you,
       meetings); a Files section on each contact; `/api/files/[id]` five-minute
       links. Privacy page updated.
-- [ ] ⚠ **`AZURE_STORAGE_CONNECTION_STRING` on Vercel** — Yuri, by hand. Until
-      then files list but do not open.
+- [x] **`AZURE_STORAGE_CONNECTION_STRING` on Vercel** — set by Yuri and
+      redeployed 2026-09-29; files open from `/files` (checked by Yuri, signed in).
 - [ ] WhatsApp media (short-lived URLs; no traffic to test on).
 - [ ] **Prove the meeting-transcript path end to end** — one real call, Yuri
       alone. Built in 7A, never seen working since the sweep shipped.

@@ -412,8 +412,9 @@ you" and meetings — **derived on read, never stored**; each contact page lists
 their files; `/api/files/[id]` checks ownership (RLS) and redirects to a
 **five-minute** link.
 
-1. **CAUTION: the console needs `AZURE_STORAGE_CONNECTION_STRING` on Vercel** to
-   open files; without it, a 503 that says so. The worker has it as a secret.
+1. **The console needs `AZURE_STORAGE_CONNECTION_STRING` on Vercel** to open
+   files — ✅ set 2026-09-29 and working. Without it, a 503 that says so. The
+   worker has it as the Container Apps secret `azure-storage-connection-string`.
 2. **CAUTION: `attachments.blob_url` is a blob NAME, not a URL** (0019).
 3. **The privacy page is a claim about the system** — it changed in the same
    commit. Keep it that way.
