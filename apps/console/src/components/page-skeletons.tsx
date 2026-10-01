@@ -141,6 +141,33 @@ export function DetailSkeleton() {
 }
 
 /**
+ * The assistant's stage: Uriel's place on the left, the composer on the right
+ * — the same grid as `VoiceCall`, so the orb lands where its outline was.
+ */
+export function AssistantSkeleton() {
+  return (
+    <div className="py-4" aria-hidden>
+      <div className="grid items-start gap-8 lg:grid-cols-[1.45fr_1fr] lg:gap-10">
+        <div className="flex flex-col items-center">
+          <span className="size-60 rounded-full border border-border bg-faint/10 sm:size-72 lg:size-80" />
+          <span className="mt-6 block h-9 w-36 animate-pulse rounded-md bg-faint/40" />
+        </div>
+        <div className="animate-pulse">
+          <span className="block h-[4.5rem] w-full rounded-lg border border-border bg-panel" />
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {['w-44', 'w-56', 'w-40'].map((width) => (
+              <span key={width} className={cn('h-7 rounded-full bg-faint/40', width)} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <span className="sr-only">Loading</span>
+    </div>
+  );
+}
+
+/**
  * A form or a panel: the assistant, meetings, the voice lab. Two blocks — a
  * control area and what sits under it.
  */

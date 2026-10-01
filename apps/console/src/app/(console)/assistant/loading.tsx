@@ -1,5 +1,5 @@
 import { PageFrame } from '@/components/page-frame';
-import { PanelSkeleton } from '@/components/page-skeletons';
+import { AssistantSkeleton } from '@/components/page-skeletons';
 
 /**
  * Shown the instant Assistant is clicked, while the server is still answering.
@@ -10,9 +10,10 @@ export default function Loading() {
     <PageFrame
       title="Assistant"
       description="Talk to Uriel, or type. Every answer cites the messages it used."
+      width="wide"
       busy
     >
-      <PanelSkeleton />
+      <AssistantSkeleton />
     </PageFrame>
   );
 }

@@ -424,6 +424,8 @@ render only `PageFrame`. Every route has a `loading.tsx`.
 5. **Open: the pages run in `iad1`, the database is in Singapore.** Moving
    them to `sin1` is one line in `apps/console/vercel.json`, recommended and
    waiting on Yuri.
+6. **No Ctrl+K / jump menu.** One was built and Yuri had it removed
+   (2026-10-02). Ask before proposing it again.
 
 ### Files: documents saved and filed with no download, 2026-09-29 — Ms. Maria's task 5
 

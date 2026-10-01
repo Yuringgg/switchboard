@@ -77,3 +77,12 @@ page, so it still comes out ahead. After deploying, check `x-vercel-id` reads
 - ⚠ **Not checked: clicking through the signed-in console.** This session
   does not sign in. The new layout is covered by the build and the tests;
   Yuri's first click on the live site is the real check.
+
+## Follow-up, same day
+
+- The Assistant's loading screen now matches its stage — Uriel's outline on
+  the left, the composer and suggestion chips on the right, in the wide
+  measure. It had been a generic panel at the reading width.
+- **A Ctrl+K jump menu ("Jump to…", people and pages) was built, shown to
+  Yuri, and removed at Yuri's request before it was committed.** Do not add
+  one again without asking.
