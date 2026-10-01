@@ -225,7 +225,7 @@ export function DateTimePicker({
         /*
          * `fixed`, centred, and outside the flow — not `absolute`.
          *
-         * ⚠ This form renders inside `AppShell`'s scroll container, which is
+         * ⚠ This form renders inside `PageFrame`'s scroll container, which is
          * `overflow-y: auto`. An absolutely-positioned popover would be clipped
          * by it the moment the picker is taller than the space below the field,
          * which on a month grid is always. `fixed` escapes the container

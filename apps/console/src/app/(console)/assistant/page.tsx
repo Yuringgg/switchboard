@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { AppShell } from '@/components/app-shell';
 import { AssistantPanel } from '@/components/assistant-panel';
+import { PageFrame } from '@/components/page-frame';
 import { VoiceCall } from '@/components/voice-call';
 import { askAssistant, type AssistantAnswer } from '@/lib/assistant';
 import { CHANNEL_META, fetchChannels } from '@/lib/channels';
@@ -30,7 +30,6 @@ export default async function AssistantPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login?next=/assistant');
 
-  const channels = fetchChannels(supabase);
 
   /**
    * The server action.
@@ -84,13 +83,9 @@ export default async function AssistantPage() {
   }
 
   return (
-    <AppShell
+    <PageFrame
       title="Assistant"
       description="Talk to Uriel, or type. Every answer cites the messages it used."
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/assistant"
-      channels={channels}
       /*
        * ⚠ `wide`, like the attention board. This screen is now laid out ACROSS
        * rather than down, and 56rem gives the right-hand column roughly 22rem —
@@ -117,7 +112,7 @@ export default async function AssistantPage() {
           <AssistantPanel action={ask} suggestions={SUGGESTIONS} />
         </VoiceCall>
       </div>
-    </AppShell>
+    </PageFrame>
   );
 }
 

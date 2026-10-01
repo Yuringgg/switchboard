@@ -1765,6 +1765,52 @@ public blobs with unguessable names (a leaked link would work forever).
 
 ---
 
+## ADR-031 — The console frame lives in a layout, and every route has a loading screen
+
+**Date:** 2026-10-02 · **Status:** Accepted
+
+**Context.** Yuri asked for the console to feel smoother to move around. Every
+page rendered the whole frame itself (`AppShell`), so a click threw away the
+sidebar, the realtime subscription and the backdrop and built them again. There
+was no `loading.tsx` anywhere, so Next could prefetch nothing for these dynamic
+routes, and nothing on screen changed after a click until the server had
+answered: an `iad1` function reading a Singapore database, several round trips
+per page.
+
+**Decision.** The signed-in routes moved into the route group `app/(console)/`
+(URLs unchanged). Its layout renders `ConsoleFrame` — sidebar, dock, `Live` —
+once. Each page renders only `PageFrame` (header + scroll column). Each route
+has a `loading.tsx`: the page's own header with a skeleton the page's shape,
+shown on the click. The rail's active pill is one element that slides to the
+clicked entry, and the content column fades in over 180ms — both CSS, both off
+under `prefers-reduced-motion`.
+
+**Why.** A layout survives client navigation, so the frame stays put and only
+the page changes. A `loading.tsx` is also what Next prefetches for a dynamic
+route, so the skeleton is already in the browser before the click. The slide
+needs the rail to persist: while each page built its own rail there was nothing
+to slide from.
+
+**Consequences.** The nav reads the route from `usePathname` (`navHrefFor` in
+`lib/nav.ts`) — a page can no longer pass it. The channel legend is as fresh as
+the last full load, `router.refresh()` or server-action revalidation, not every
+click. Every skeleton must keep the shape of the page it stands in for; the
+timeline's is exactly the page's first streamed state. `AppShell` remains only
+for `/preview`, which sits outside the group; `?screen=loading&page=<route>`
+shows each loading screen in the real frame.
+
+**Not decided here:** moving the functions to `sin1` (Singapore, beside
+Supabase). Measured, recommended, and waiting on Yuri — it moves the live
+deployment. See `correspondence/2026-10-02-smooth-navigation.md`.
+
+**Rejected:** framer-motion `layoutId` for the slide (this console dropped
+JS-driven motion — flowing-paths.tsx); a top progress bar (the instant skeleton
+answers the click already; two signals for one event is noise); copying
+21st.dev components (the patterns are common, and taken as patterns — the code
+is this console's own, in its tokens).
+
+---
+
 ## Template for new ADRs
 
 ```markdown

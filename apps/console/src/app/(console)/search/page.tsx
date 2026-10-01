@@ -2,8 +2,9 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
-import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
+import { PageFrame } from '@/components/page-frame';
+import { SearchControlsSkeleton } from '@/components/page-skeletons';
 import { SearchForm } from '@/components/search-form';
 import {
   PAGE_SIZE,
@@ -101,15 +102,11 @@ export default async function SearchPage({
   };
 
   return (
-    <AppShell
+    <PageFrame
       title="Search"
       description="One query, every channel, ranked by relevance."
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/search"
-      channels={channels}
     >
-      <Suspense fallback={null}>
+      <Suspense fallback={<SearchControlsSkeleton />}>
         <SearchControls
           channels={channels}
           query={query}
@@ -133,7 +130,7 @@ export default async function SearchPage({
       ) : (
         <SearchPrompt />
       )}
-    </AppShell>
+    </PageFrame>
   );
 }
 

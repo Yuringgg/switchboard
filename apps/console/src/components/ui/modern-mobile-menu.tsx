@@ -118,6 +118,21 @@ export function InteractiveMenu({
       aria-label={ariaLabel}
       style={navStyle}
     >
+      {/*
+        The rail's sliding pill — see "The glide" in globals.css. Hidden by CSS
+        in the dock. First in the DOM so the entries paint over it.
+
+        An inline custom property is right here, unlike on the entries below:
+        this value has exactly one writer, and nothing measures it.
+      */}
+      {orientation === 'vertical' && activeIndex >= 0 && (
+        <span
+          className="menu__glide"
+          aria-hidden
+          style={{ '--active-index': activeIndex } as React.CSSProperties}
+        />
+      )}
+
       {items.map((item, index) => {
         const isActive = index === activeIndex;
         const Icon = item.icon;

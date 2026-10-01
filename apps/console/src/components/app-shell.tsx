@@ -1,67 +1,28 @@
-import { LogOut } from 'lucide-react';
-import { Suspense, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
-import { Brand } from '@/components/brand';
-import { ConsoleNav } from '@/components/console-nav';
-import { Live, LiveStatus, SCROLLER_ID } from '@/components/live';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { ConsoleBackdrop } from '@/components/ui/flowing-paths';
-import { signOut } from '@/lib/auth-actions';
-import { CHANNELS, type ChannelRow } from '@/lib/channels';
-import { buttonClass, LABEL } from '@/lib/ui';
-import { cn } from '@/lib/utils';
+import { ConsoleFrame } from '@/components/console-frame';
+import { PageFrame } from '@/components/page-frame';
+import type { ChannelRow } from '@/lib/channels';
 
 /**
- * The console's frame: identity, navigation, and the channel legend.
+ * The whole console frame and one page, in a single element.
  *
- * ── Layout ───────────────────────────────────────────────────────────────────
+ * ⚠ Real routes do NOT use this any more (2026-10-02, ADR-031). They live under
+ * `app/(console)/`, whose layout renders `ConsoleFrame` once and keeps it
+ * across navigation, and each page renders only `PageFrame`. Rendering this
+ * from a page inside that group would draw a second sidebar inside the first.
  *
- * The frame does not scroll; the record does. `h-dvh` + `overflow-hidden` on
- * the outer element gives the page a fixed height, and the only element with
- * `overflow-y-auto` is the message column. This replaces `min-h-dvh`, under
- * which the whole document scrolled as one column: the sidebar rode up with
- * the timeline, and because the aside grew to the document's full height,
- * `mt-auto` on the channel legend pushed "Gmail — Connected" and "Sign out"
- * into the middle of the page.
- *
- * Still deliberately CSS-only — no drawer state, no client JavaScript for the
- * navigation. On narrow widths the sidebar is a strip above the content with a
- * horizontally scrollable nav, and it stays put now too.
- *
- * ── Data ─────────────────────────────────────────────────────────────────────
- *
- * `channels` arrives as an unawaited promise from the page, which starts it in
- * parallel with the page's own queries. The shell renders immediately and the
- * legend fills in behind a `<Suspense>`. This component used to run its own
- * `createClient()` and a second `channels` query — and because a shell only
- * renders after the page's awaits resolve, that was a whole extra sequential
- * round trip to Singapore for data the page already had.
+ * It stays for `/preview`, which sits outside the group and renders fixtures
+ * through exactly the same two components — so a screenshot of the preview is
+ * still a screenshot of the real frame.
  */
 export function AppShell({
   title,
   description,
   userEmail,
   userId,
-  /**
-   * Which nav entry is the current page.
-   *
-   * Separate from `ready`: `ready` means the route exists, `activeHref` means
-   * you are on it. Conflating them made every built route claim
-   * `aria-current="page"`, which tells a screen-reader user they are on several
-   * pages at once.
-   */
   activeHref,
   channels,
-  /**
-   * How wide the content column runs.
-   *
-   * `default` (56rem) is a reading measure and is right for everything that is
-   * a list of prose — the timeline, search, a message. `wide` (76rem) exists
-   * for the attention board: three columns inside 56rem gives each card about
-   * 258px, which is narrower than the quote it has to show, and the result
-   * reads as cramped rather than dense. It is the only screen in the console
-   * whose content is laid out ACROSS rather than down.
-   */
   width = 'default',
   children,
 }: {
@@ -74,309 +35,16 @@ export function AppShell({
   width?: 'default' | 'wide';
   children: ReactNode;
 }) {
-  // ⚠ Full class strings, never `max-w-${…}`. Tailwind scans source text, so a
-  // constructed class name is not in the stylesheet and silently does nothing.
-  const measure = width === 'wide' ? 'max-w-[76rem]' : 'max-w-4xl';
-
   return (
-    <Live userId={userId}>
-      {/*
-        First thing in the tab order. Without it, reaching the timeline by
-        keyboard means tabbing past the whole sidebar on every navigation —
-        and the sidebar is the part that never changes.
-      */}
-      <a
-        href={`#${SCROLLER_ID}`}
-        className="focus-ring sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground"
-      >
-        Skip to messages
-      </a>
-
-      <div className="flex h-dvh flex-col overflow-hidden md:flex-row">
-        {/*
-          Wider by a rem and better padded than it was. The rail's labels are
-          set in Archivo now and the scale went up a step on 2026-08-06; 240px
-          was tuned for the old pair and "Needs attention" was already the entry
-          deciding the width.
-        */}
-        <aside className="flex shrink-0 flex-col border-b border-border bg-panel md:w-64 md:overflow-y-auto md:border-r md:border-b-0">
-          <div className="flex items-center gap-2.5 px-4 py-3.5 md:px-6 md:py-6">
-            <Brand />
-
-            {/* The account controls live in the sidebar's footer on desktop,
-                which is `hidden` on mobile — so on a phone they come here.
-                A console you cannot sign out of is not finished. */}
-            <div className="ml-auto flex items-center gap-2 md:hidden">
-              <Suspense fallback={<LampsFallback />}>
-                <ChannelLamps channels={channels} />
-              </Suspense>
-              <ThemeToggle />
-              <form action={signOut}>
-                <button
-                  type="submit"
-                  className={buttonClass({ variant: 'ghost', size: 'icon' })}
-                >
-                  <LogOut className="size-3.5" aria-hidden />
-                  <span className="sr-only">Sign out</span>
-                </button>
-              </form>
-            </div>
-          </div>
-
-          {/*
-            The rail. Same component as the dock at the bottom of the frame on a
-            phone, turned on its side — `hidden` rather than a second set of
-            styles, so exactly one of the two is ever in the accessibility tree
-            and "Primary" names one navigation at any width.
-
-            ⚠ `md:flex`, not `md:block`. The entries are flex children; a
-            `display: block` here would strand them and the rail would render as
-            six full-width rows with the icons detached from their labels.
-          */}
-          <ConsoleNav
-            activeHref={activeHref}
-            orientation="vertical"
-            className="hidden md:flex"
-          />
-
-          <div className="mt-auto hidden px-6 py-6 md:block">
-            {/* The same word as the nav entry and the page it links to. A
-                surface that calls one thing three names is one the reader has
-                to keep translating. */}
-            <p className={LABEL}>Channels</p>
-
-            <Suspense fallback={<LegendFallback />}>
-              <ChannelLegend channels={channels} />
-            </Suspense>
-
-            <div className="mt-5 border-t border-border pt-4">
-              <p
-                className="truncate font-mono text-meta text-muted-foreground"
-                title={userEmail}
-              >
-                {userEmail}
-              </p>
-              {/* Sign out and the theme control share a row: one is the only
-                  account action, the other the only display setting, and
-                  neither earns a section of its own. */}
-              <div className="mt-2 flex items-center gap-2">
-                <form action={signOut}>
-                  <button
-                    type="submit"
-                    className={buttonClass({
-                      variant: 'ghost',
-                      size: 'sm',
-                      className: '-ml-2 h-7 px-2',
-                    })}
-                  >
-                    <LogOut className="size-3" aria-hidden />
-                    Sign out
-                  </button>
-                </form>
-                <ThemeToggle className="ml-auto" />
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
-          <header className="shrink-0 border-b border-border bg-panel">
-            <div
-              className={cn(
-                'mx-auto flex w-full items-center gap-4 px-5 py-4 md:px-10 md:py-5',
-                measure,
-              )}
-            >
-              <div className="min-w-0">
-                <h1 className="truncate text-heading font-semibold">{title}</h1>
-                {description && (
-                  <p className="mt-0.5 hidden truncate text-note text-muted-foreground sm:block">
-                    {description}
-                  </p>
-                )}
-              </div>
-              <LiveStatus className="ml-auto shrink-0" />
-            </div>
-          </header>
-
-          {/*
-            ⚠ `relative isolate` is what makes the backdrop below work at all.
-
-            `ConsoleBackdrop` is `-z-10`, and a negative z-index only stays
-            inside its parent when that parent establishes a stacking context.
-            Without `isolate` it paints behind the ROOT's background — which is
-            opaque — and the jack field and its lines disappear completely with
-            nothing in the DOM to explain it. `relative` alone does not
-            establish one.
-
-            The backdrop lives on this wrapper, UNDER the header rather than
-            behind it (2026-09-27), so the header's own border is the jack
-            field's top edge and its light hangs from it. Behind the content and
-            NOT behind the sidebar or the header — the frame stays untextured.
-
-            ⚠ On this wrapper rather than inside `<main>`, which is the one
-            element in the app that scrolls. Inside, it would scroll away after
-            one viewport and leave every page below the fold bare. Here it stays
-            put and the record moves over it, which is also the right reading:
-            the backdrop is the instrument, not part of the record.
-          */}
-          <div className="relative isolate flex min-h-0 flex-1 flex-col">
-            <ConsoleBackdrop />
-
-            {/*
-              The one element that scrolls. `live.tsx` reads its offset by id
-              to decide whether an arriving message may be inserted above what
-              you are currently reading.
-
-              `tabIndex={-1}` makes it the skip link's landing point, and gives
-              a keyboard user something to focus before pressing Page Down — a
-              scroll container that cannot take focus cannot be scrolled from
-              the keyboard alone. `live.tsx` also hands focus here when the
-              new-messages pill is dismissed, which is why it is worth naming:
-              focus landing on an unlabelled <main> announces only "main".
-            */}
-            <main
-              id={SCROLLER_ID}
-              tabIndex={-1}
-              aria-label={title}
-              className="min-h-0 flex-1 overflow-y-auto outline-none"
-            >
-              <div
-                className={cn(
-                  'mx-auto flex min-h-full w-full flex-col px-5 py-7 md:px-10 md:py-10',
-                  measure,
-                )}
-              >
-                {children}
-              </div>
-            </main>
-          </div>
-        </div>
-
-        {/*
-          Last child, so on a phone — where the frame is a column — it is the
-          bottom row, and the content above it shrinks to fit rather than
-          scrolling under it. `md:hidden` keeps it from becoming a third column
-          once the frame turns into a row.
-        */}
-        <ConsoleNav
-          activeHref={activeHref}
-          orientation="horizontal"
-          className="flex md:hidden"
-        />
-      </div>
-    </Live>
-  );
-}
-
-/** Which channels exist and whether they are healthy — the sidebar's footer. */
-async function ChannelLegend({
-  channels,
-}: {
-  channels: Promise<{ channels: ChannelRow[]; error: string | null }>;
-}) {
-  const { channels: rows } = await channels;
-
-  return (
-    <ul className="mt-3 space-y-2.5">
-      {CHANNELS.map(({ type, label, dotClass }) => {
-        // Read from the database, not hardcoded. This said "Not connected"
-        // beside a channel that WAS connected, which is worse than showing
-        // nothing: it sends you looking for a broken connection instead of the
-        // actual problem.
-        const connected = rows.filter((c) => c.type === type);
-        const anyError = connected.some((c) => c.status === 'error');
-
-        return (
-          <li key={type} className="flex items-center gap-2 text-row">
-            <span
-              className={cn(
-                'size-1.5 shrink-0 rounded-full',
-                connected.length === 0 ? 'bg-faint' : dotClass,
-              )}
-              aria-hidden
-            />
-            <span className={connected.length > 0 ? '' : 'text-muted-foreground'}>
-              {label}
-            </span>
-            <span
-              className={cn(
-                'ml-auto font-mono text-label uppercase',
-                anyError ? 'text-destructive' : 'text-muted-foreground',
-              )}
-            >
-              {connected.length === 0
-                ? 'Not connected'
-                : anyError
-                  ? 'Needs attention'
-                  : 'Connected'}
-            </span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-/** The same information on a phone, where there is only room for the lamps. */
-async function ChannelLamps({
-  channels,
-}: {
-  channels: Promise<{ channels: ChannelRow[]; error: string | null }>;
-}) {
-  const { channels: rows } = await channels;
-
-  return (
-    <ul className="flex items-center gap-1.5">
-      {CHANNELS.map(({ type, label, dotClass }) => {
-        const connected = rows.filter((c) => c.type === type);
-        const anyError = connected.some((c) => c.status === 'error');
-        const state =
-          connected.length === 0
-            ? 'not connected'
-            : anyError
-              ? 'needs attention'
-              : 'connected';
-
-        return (
-          <li key={type}>
-            <span
-              className={cn(
-                'block size-1.5 rounded-full',
-                anyError ? 'bg-destructive' : dotClass,
-                connected.length === 0 && 'bg-faint',
-              )}
-              title={`${label} — ${state}`}
-              aria-hidden
-            />
-            <span className="sr-only">{`${label} — ${state}`}</span>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function LegendFallback() {
-  return (
-    <ul className="mt-3 animate-pulse space-y-2.5" aria-hidden>
-      {CHANNELS.map(({ type }) => (
-        <li key={type} className="flex items-center gap-2">
-          <span className="size-1.5 rounded-full bg-faint" />
-          <span className="h-3 w-16 rounded bg-faint/60" />
-          <span className="ml-auto h-3 w-12 rounded bg-faint/40" />
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function LampsFallback() {
-  return (
-    <span className="flex animate-pulse items-center gap-1.5" aria-hidden>
-      {CHANNELS.map(({ type }) => (
-        <span key={type} className="size-1.5 rounded-full bg-faint" />
-      ))}
-    </span>
+    <ConsoleFrame
+      userEmail={userEmail}
+      userId={userId}
+      channels={channels}
+      activeHref={activeHref}
+    >
+      <PageFrame title={title} description={description} width={width}>
+        {children}
+      </PageFrame>
+    </ConsoleFrame>
   );
 }

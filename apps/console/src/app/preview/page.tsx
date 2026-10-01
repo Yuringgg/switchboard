@@ -2,7 +2,18 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Suspense } from 'react';
 
+import AssistantLoading from '@/app/(console)/assistant/loading';
+import AttentionLoading from '@/app/(console)/attention/loading';
+import ChannelsLoading from '@/app/(console)/channels/loading';
+import ContactLoading from '@/app/(console)/contacts/[id]/loading';
+import ContactsLoading from '@/app/(console)/contacts/loading';
+import FilesLoading from '@/app/(console)/files/loading';
+import TimelineLoading from '@/app/(console)/loading';
+import MeetingsLoading from '@/app/(console)/meetings/loading';
+import MessageLoading from '@/app/(console)/messages/[id]/loading';
+import SearchLoading from '@/app/(console)/search/loading';
 import { AppShell } from '@/components/app-shell';
+import { ConsoleFrame } from '@/components/console-frame';
 import { MeetingsPanel } from '@/components/meetings-panel';
 import { AssistantPanel } from '@/components/assistant-panel';
 import { AttentionBoard, AttentionEmpty } from '@/components/attention-board';
@@ -675,7 +686,13 @@ function fileFixtures(): LibraryItem[] {
 export default async function PreviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ state?: string; screen?: string; view?: string; folder?: string }>;
+  searchParams: Promise<{
+    state?: string;
+    screen?: string;
+    view?: string;
+    folder?: string;
+    page?: string;
+  }>;
 }) {
   if (process.env.NODE_ENV !== 'development') notFound();
 
@@ -689,6 +706,7 @@ export default async function PreviewPage({
     // shows the other.
     view = 'merged',
     folder = 'all',
+    page = 'timeline',
   } = await searchParams;
 
   const rows =
@@ -699,6 +717,38 @@ export default async function PreviewPage({
         : CHANNELS;
 
   const channels = Promise.resolve({ channels: rows, error: null });
+
+  /*
+   * A route's loading screen (ADR-031): `?screen=loading&page=files`. The real
+   * `loading.tsx` inside the real frame, so a skeleton can be put side by side
+   * with the page it stands in for — the rule is that the two share a shape.
+   */
+  if (screen === 'loading') {
+    const routes: Record<string, { href: string; Loading: () => React.ReactNode }> = {
+      timeline: { href: '/', Loading: TimelineLoading },
+      search: { href: '/search', Loading: SearchLoading },
+      attention: { href: '/attention', Loading: AttentionLoading },
+      contacts: { href: '/contacts', Loading: ContactsLoading },
+      contact: { href: '/contacts', Loading: ContactLoading },
+      files: { href: '/files', Loading: FilesLoading },
+      assistant: { href: '/assistant', Loading: AssistantLoading },
+      meetings: { href: '/meetings', Loading: MeetingsLoading },
+      channels: { href: '/channels', Loading: ChannelsLoading },
+      message: { href: '/', Loading: MessageLoading },
+    };
+    const route = routes[page] ?? routes.timeline!;
+
+    return (
+      <ConsoleFrame
+        userEmail="preview@switchboard.local"
+        userId={PREVIEW_USER_ID}
+        activeHref={route.href}
+        channels={channels}
+      >
+        <route.Loading />
+      </ConsoleFrame>
+    );
+  }
 
   if (screen === 'channels') {
     return (

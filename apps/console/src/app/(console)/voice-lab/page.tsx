@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 
-import { AppShell } from '@/components/app-shell';
+import { PageFrame } from '@/components/page-frame';
 import { VoiceLab } from '@/components/voice-lab';
-import { fetchChannels } from '@/lib/channels';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: 'Voice lab · Switchboard' };
@@ -43,18 +42,13 @@ export default async function VoiceLabPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login?next=/voice-lab');
 
-  const channels = fetchChannels(supabase);
 
   return (
-    <AppShell
+    <PageFrame
       title="Voice lab"
       description="Record a clip, send it to Whisper, read the text and the timings. Development only."
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/voice-lab"
-      channels={channels}
     >
       <VoiceLab />
-    </AppShell>
+    </PageFrame>
   );
 }

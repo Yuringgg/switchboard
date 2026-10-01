@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
 import { FileLibrary, FilesEmpty } from '@/components/file-library';
-import { fetchChannels } from '@/lib/channels';
+import { PageFrame } from '@/components/page-frame';
 import { fetchLibrary } from '@/lib/files';
 import { createClient } from '@/lib/supabase/server';
 
@@ -28,17 +27,12 @@ export default async function FilesPage({
   if (!user) redirect('/login?next=/files');
 
   const { folder = 'all' } = await searchParams;
-  const channels = fetchChannels(supabase);
   const { items, error } = await fetchLibrary(supabase);
 
   return (
-    <AppShell
+    <PageFrame
       title="Files"
       description="Every document from your messages, filed for you."
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/files"
-      channels={channels}
     >
       {error ? (
         <Callout tone="error" role="alert">
@@ -49,6 +43,6 @@ export default async function FilesPage({
       ) : (
         <FileLibrary items={items} folderKey={folder} />
       )}
-    </AppShell>
+    </PageFrame>
   );
 }

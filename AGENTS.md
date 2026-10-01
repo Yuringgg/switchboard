@@ -403,6 +403,28 @@ three rendered candidates; see the jack-field note.
 `/preview?screen=assistant` now renders the orb, so it can be looked at
 without signing in.
 
+### Smooth navigation, 2026-10-02 — the frame is a layout now
+
+Full note: `correspondence/2026-10-02-smooth-navigation.md`, ADR-031. The
+signed-in routes live in `app/(console)/` (URLs unchanged); its layout renders
+`ConsoleFrame` (sidebar, dock, `Live`) once, and it survives navigation. Pages
+render only `PageFrame`. Every route has a `loading.tsx`.
+
+1. **CAUTION: a page inside `(console)` must render `PageFrame`, never
+   `AppShell`** — `AppShell` is the whole frame, kept only for `/preview`, and
+   inside the group it draws a second sidebar.
+2. **The nav reads the route itself** (`usePathname` → `navHrefFor` in
+   `lib/nav.ts`). The layout is not re-rendered by a navigation, so a prop
+   from the page could not reach it.
+3. **A new route needs a `loading.tsx`** with its page's title and a skeleton
+   the page's shape, or a click on it shows nothing until the server answers.
+   `/preview?screen=loading&page=<route>` shows them in the real frame.
+4. **The rail's slide computes offsets from `--rail-item-height` and
+   `--rail-gap`** (globals.css, "The glide"). Change the rail's spacing there.
+5. **Open: the pages run in `iad1`, the database is in Singapore.** Moving
+   them to `sin1` is one line in `apps/console/vercel.json`, recommended and
+   waiting on Yuri.
+
 ### Files: documents saved and filed with no download, 2026-09-29 — Ms. Maria's task 5
 
 Full note: `correspondence/2026-09-29-files.md`, ADR-030. A worker sweep saves
@@ -643,12 +665,14 @@ list where you are already at the top, and is counted behind a pill where you
 are not. Realtime moved out of Phase 3 to get here — `docs/04-ROADMAP.md`
 records that. Two things follow for anyone touching the console:
 
-- **The frame does not scroll; the message column does.** `AppShell` is
-  `h-dvh` + `overflow-hidden`, and exactly one element owns the scroll. Going
-  back to `min-h-dvh` puts the sidebar back on the ride.
-- **`channels` is fetched once per request and passed down as a promise.** It
-  used to be queried in the page *and* again inside `AppShell`, which cost a
+- **The frame does not scroll; the message column does.** `ConsoleFrame` is
+  `h-dvh` + `overflow-hidden` (it was `AppShell` until ADR-031), and exactly
+  one element — `PageFrame`'s `<main>` — owns the scroll. Going back to
+  `min-h-dvh` puts the sidebar back on the ride.
+- **`channels` is passed down as a promise, never awaited before the frame.**
+  It used to be queried in the page *and* again inside the frame, which cost a
   whole extra sequential round trip to Singapore for data already in hand.
+  Since ADR-031 the layout fetches the legend's copy once per full load.
 
 Attachments moved to Phase 3. No WhatsApp, no assistant.
 

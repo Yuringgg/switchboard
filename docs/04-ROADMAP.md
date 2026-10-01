@@ -1412,6 +1412,23 @@ downloads."* ADR-030, full note: `correspondence/2026-09-29-files.md`.
 - [ ] **Prove the meeting-transcript path end to end** — one real call, Yuri
       alone. Built in 7A, never seen working since the sweep shipped.
 
+## Smooth navigation, 2026-10-02
+
+Yuri asked for the console to feel smoother to move around, with 21st.dev as
+the reference. ADR-031, full note: `correspondence/2026-10-02-smooth-navigation.md`.
+
+- [x] The frame (sidebar, dock, live connection) moved into
+      `app/(console)/layout.tsx` and survives navigation.
+- [x] A `loading.tsx` per route: header and a page-shaped skeleton the instant
+      you click.
+- [x] The rail's pill slides to the clicked entry; pages fade in (180ms). CSS
+      only, off under reduced motion.
+- [ ] **Run the page functions in Singapore (`sin1`)** — Vercel runs them in
+      Washington, D.C. (`iad1`, measured from `x-vercel-id`) while Supabase is
+      in Singapore, so every database read crosses the Pacific. One line in
+      `apps/console/vercel.json`. **Waiting on Yuri's go-ahead** — it moves the
+      live deployment.
+
 ## Stretch — only after Phase 5 is solid
 
 | Item | Notes |

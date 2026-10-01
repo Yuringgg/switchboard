@@ -4,13 +4,13 @@ import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
-import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
 import { ContactBrief } from '@/components/contact-brief';
 import { ContactNote, type NoteResult } from '@/components/contact-note';
 import { FileRows } from '@/components/file-library';
 import { MergeContact } from '@/components/merge-contact';
 import { MessageRow } from '@/components/message-row';
+import { PageFrame } from '@/components/page-frame';
 import { fetchContactBrief } from '@/lib/brief';
 import { CHANNELS, CHANNEL_META, fetchChannels } from '@/lib/channels';
 import { fetchContactDetail, fetchContacts } from '@/lib/contacts';
@@ -178,13 +178,9 @@ export default async function ContactPage({
   }
 
   return (
-    <AppShell
+    <PageFrame
       title={contact?.displayName ?? 'Contact'}
       description="Every conversation with this person, across every channel."
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/contacts"
-      channels={channels}
     >
       <Link
         href="/contacts"
@@ -343,6 +339,6 @@ export default async function ContactPage({
           </div>
         )
       )}
-    </AppShell>
+    </PageFrame>
   );
 }

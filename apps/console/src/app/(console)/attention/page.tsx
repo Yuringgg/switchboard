@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
-import { AppShell } from '@/components/app-shell';
 import { ArchiveButton } from '@/components/attention-archive';
 import { AttentionBoard, AttentionEmpty } from '@/components/attention-board';
 import { Callout } from '@/components/callout';
+import { PageFrame } from '@/components/page-frame';
+import { BoardSkeleton } from '@/components/page-skeletons';
 import {
   fetchAttention,
   KIND_LABEL,
@@ -72,21 +73,17 @@ export default async function AttentionPage({
     : fetchAttention(supabase, { scope: 'archived' });
 
   return (
-    <AppShell
+    <PageFrame
       title={showArchived ? 'Archived' : 'Needs attention'}
       description={
         showArchived
           ? 'Cards you have taken off the board. Nothing here has been deleted.'
           : 'Meetings, commitments and requests found in your messages, as a board.'
       }
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/attention"
-      channels={channels}
-      // The only screen laid out across rather than down — see AppShell.
+      // The only screen laid out across rather than down — see PageFrame.
       width="wide"
     >
-      <Suspense fallback={<QueueSkeleton />}>
+      <Suspense fallback={<BoardSkeleton />}>
         <Queue
           attention={attention}
           channels={channels}
@@ -94,7 +91,7 @@ export default async function AttentionPage({
           showArchived={showArchived}
         />
       </Suspense>
-    </AppShell>
+    </PageFrame>
   );
 }
 
@@ -340,45 +337,6 @@ function ArchivedList({
           );
         })}
       </ul>
-    </div>
-  );
-}
-
-/**
- * Matches the shape of a loaded board so the page does not jump when it lands.
- *
- * ⚠ Three columns, not a stack of rows. It was the latter until the board
- * landed, and a skeleton whose geometry does not match what replaces it
- * produces exactly the visible jump the streaming boundary exists to avoid —
- * which is worse than no skeleton, because it reads as the page loading twice.
- */
-function QueueSkeleton() {
-  return (
-    <div className="grid gap-x-5 gap-y-8 md:grid-cols-3" aria-hidden>
-      {[0, 1, 2].map((column) => (
-        <div key={column}>
-          <div className="flex items-baseline gap-2 border-b border-border pb-2.5">
-            <span className="h-2.5 w-20 rounded bg-faint/60" />
-            <span className="ml-auto h-2.5 w-4 rounded bg-faint/40" />
-          </div>
-
-          <div className="mt-3 animate-pulse space-y-2.5">
-            {[0, 1].map((card) => (
-              <div
-                key={card}
-                className="rounded-lg border border-border bg-panel p-3.5"
-              >
-                <span className="block h-2.5 w-16 rounded bg-faint/60" />
-                <span className="mt-2.5 block h-3 w-3/4 rounded bg-faint/60" />
-                <span className="mt-2.5 block h-2.5 w-full rounded bg-faint/40" />
-                <span className="mt-1.5 block h-2.5 w-2/3 rounded bg-faint/40" />
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-
-      <span className="sr-only">Loading the board</span>
     </div>
   );
 }

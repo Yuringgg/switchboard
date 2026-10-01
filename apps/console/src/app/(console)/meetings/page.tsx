@@ -1,10 +1,9 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
 import { MeetingsPanel } from '@/components/meetings-panel';
-import { fetchChannels } from '@/lib/channels';
+import { PageFrame } from '@/components/page-frame';
 import { fetchBotSessions } from '@/lib/meetings/sessions';
 import { createClient } from '@/lib/supabase/server';
 
@@ -24,9 +23,9 @@ export const metadata: Metadata = { title: 'Meetings · Switchboard' };
  * the form. The consent checkbox is the gate that the DevTools friction used to
  * provide by accident, and it is the most important thing on this screen.
  *
- * ⚠ Nothing here is awaited before the shell renders except the session list,
- * which is small and indexed by owner. `channels` is passed down unawaited for
- * the same reason every other page does it — the frame does not depend on it.
+ * ⚠ Nothing here is awaited before the page renders except the session list,
+ * which is small and indexed by owner. The sidebar and its channel legend are
+ * the layout's (`app/(console)/layout.tsx`), not this page's.
  */
 export default async function MeetingsPage() {
   const supabase = await createClient();
@@ -36,17 +35,12 @@ export default async function MeetingsPage() {
 
   if (!user) redirect('/login?next=/meetings');
 
-  const channels = fetchChannels(supabase);
   const { sessions, error } = await fetchBotSessions(supabase);
 
   return (
-    <AppShell
+    <PageFrame
       title="Meetings"
       description="Send a notetaker into a call, and see what it did."
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/meetings"
-      channels={channels}
     >
       {error && (
         <Callout tone="error" role="alert" className="mb-5">
@@ -55,6 +49,6 @@ export default async function MeetingsPage() {
       )}
 
       <MeetingsPanel sessions={sessions} />
-    </AppShell>
+    </PageFrame>
   );
 }

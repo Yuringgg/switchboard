@@ -819,6 +819,44 @@
 
 /*
  * ─────────────────────────────────────────────────────────────────────────────
+ * MOVING BETWEEN PAGES (2026-10-02, ADR-031)
+ *
+ * `page-enter` is set on `PageFrame`'s content column: a 180ms fade and a 4px
+ * rise when the column mounts — when you arrive, and when a route's skeleton
+ * is replaced by the page. `router.refresh()` does not remount the column, so
+ * mail arriving never makes the page you are reading flicker.
+ *
+ * ⚠ `backwards`, not `both`. The rise is a `transform`, and an element with a
+ * transform becomes the containing block for `position: fixed` descendants —
+ * which would trap the date picker's popover (date-time-picker.tsx) inside
+ * the scroll column. `backwards` holds the start state only until the
+ * animation runs and leaves NO transform behind once it ends.
+ *
+ * `rule-in` draws the rail's underline from the left as the pill arrives.
+ *
+ * Both collapse to nothing under `prefers-reduced-motion` (the global rule at
+ * the end of this file).
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@utility page-enter {
+  animation: page-enter 180ms cubic-bezier(0.2, 0, 0, 1) backwards;
+}
+
+@keyframes rule-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
  * THE MOBILE DOCK — components/ui/modern-mobile-menu.tsx
  *
  * ⚠ These rules did not come with the component. The snippet it was copied from
@@ -1005,9 +1043,15 @@
    *   exactly as wide as its text.
    */
   .menu--vertical {
+    /* ⚠ The glide below computes each entry's offset from these two. Change
+       the rail's spacing HERE, never on the entries directly, or the
+       highlight lands between two entries. */
+    --rail-item-height: 2.25rem;
+    --rail-gap: 0.125rem;
+    position: relative;
     flex-direction: column;
     align-items: stretch;
-    gap: 0.125rem;
+    gap: var(--rail-gap);
     padding: 0 0.75rem;
     background: none;
     border-top: 0;
@@ -1018,8 +1062,51 @@
     justify-content: flex-start;
     gap: 0.625rem;
     width: 100%;
-    height: 2.25rem;
+    height: var(--rail-item-height);
     padding-inline: 0.625rem;
+  }
+
+  /*
+   * ── The glide (2026-10-02) ─────────────────────────────────────────────────
+   *
+   * In the rail the current page's pill is ONE element that slides to the
+   * entry you click, instead of a background that blinks off one entry and on
+   * at another. It moves on the click — `ConsoleNav`'s `pending` — so it is
+   * the first thing that answers, before the page's skeleton is even drawn.
+   * The pattern is the "sliding tabs" one common on 21st.dev; the code is
+   * this console's own, and CSS only, for the reason flowing-paths.tsx gives
+   * for dropping framer-motion.
+   *
+   * It only works because the rail now lives in the console's layout and
+   * survives navigation (ADR-031). While every page rendered its own rail, the
+   * pill was new on every page and had nowhere to slide from.
+   *
+   * The dock on a phone keeps its own treatment: its entries change width as
+   * the label opens, so a fixed-pitch slide would not land on them.
+   */
+  .menu__glide {
+    display: none;
+  }
+
+  .menu--vertical .menu__glide {
+    display: block;
+    position: absolute;
+    top: 0;
+    left: 0.75rem;
+    right: 0.75rem;
+    height: var(--rail-item-height);
+    border-radius: var(--radius-md);
+    background: var(--component-active-bg);
+    transform: translateY(
+      calc(var(--active-index, 0) * (var(--rail-item-height) + var(--rail-gap)))
+    );
+    transition: transform 0.28s cubic-bezier(0.2, 0, 0, 1);
+    pointer-events: none;
+  }
+
+  /* The glide is the pill now; the entry itself stays clear over it. */
+  .menu--vertical .menu__item.active {
+    background: transparent;
   }
 
   .menu--vertical .menu__item:not(.active):not(.inert):hover {
@@ -1054,6 +1141,9 @@
     border-radius: 1px;
     background: currentColor;
     opacity: 0.5;
+    /* Drawn from the left as the pill arrives, rather than appearing whole. */
+    transform-origin: left;
+    animation: rule-in 0.3s 0.08s cubic-bezier(0.2, 0, 0, 1) backwards;
   }
 
   /*

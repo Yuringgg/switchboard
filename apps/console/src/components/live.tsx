@@ -83,7 +83,7 @@ import { cn } from '@/lib/utils';
  * and waits; nothing is lost, because the next scroll to the top refreshes.
  */
 
-/** The element that scrolls. `AppShell` owns it; this module reads its offset. */
+/** The element that scrolls. `PageFrame` owns it; this module reads its offset. */
 export const SCROLLER_ID = 'console-scroll';
 
 /** How far from the top still counts as "watching the top". */

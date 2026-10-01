@@ -3,9 +3,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
-import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
 import { ChannelList, ChannelListSkeleton } from '@/components/channel-list';
+import { PageFrame } from '@/components/page-frame';
 import { fetchChannels, type ChannelRow } from '@/lib/channels';
 import { createClient } from '@/lib/supabase/server';
 
@@ -24,18 +24,14 @@ export default async function ChannelsPage({
   } = await supabase.auth.getUser();
   if (!user) redirect('/login?next=/channels');
 
-  // One query, shared with the shell's channel legend. Not awaited here — the
-  // frame does not depend on it, so it should not wait for it.
+  // The sidebar's legend has its own copy (the layout's). Not awaited here — the
+  // header does not depend on it, so it should not wait for it.
   const channels = fetchChannels(supabase);
 
   return (
-    <AppShell
+    <PageFrame
       title="Channels"
       description="Connect an account and its messages flow into the timeline."
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/channels"
-      channels={channels}
     >
       {connected && (
         <Callout tone="success" role="status" className="mb-5">
@@ -53,7 +49,7 @@ export default async function ChannelsPage({
       <Suspense fallback={<ChannelListSkeleton />}>
         <ChannelSection channels={channels} />
       </Suspense>
-    </AppShell>
+    </PageFrame>
   );
 }
 

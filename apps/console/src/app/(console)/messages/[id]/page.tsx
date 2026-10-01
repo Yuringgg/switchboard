@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
-import { AppShell } from '@/components/app-shell';
 import { MeetingProposal } from '@/components/meeting-proposal';
+import { PageFrame } from '@/components/page-frame';
 import { fetchMessageExtractions, KIND_LABEL } from '@/lib/attention';
 import { CHANNEL_META, fetchChannels } from '@/lib/channels';
 import { confirmMeeting, type ConfirmResult } from '@/lib/proposals';
@@ -141,13 +141,9 @@ export default async function MessagePage({
   const address = message?.sender?.external_id ?? null;
 
   return (
-    <AppShell
+    <PageFrame
       title="Message"
       description="One message, in full."
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/"
-      channels={channels}
     >
       <Link
         href="/"
@@ -285,7 +281,7 @@ export default async function MessagePage({
           </article>
         )
       )}
-    </AppShell>
+    </PageFrame>
   );
 }
 

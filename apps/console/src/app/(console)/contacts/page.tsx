@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
-import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
 import { ContactList, ContactsEmpty, ContactsSkeleton } from '@/components/contact-list';
+import { PageFrame } from '@/components/page-frame';
 import { fetchChannels, type ChannelRow } from '@/lib/channels';
 import { fetchContacts } from '@/lib/contacts';
 import { createClient } from '@/lib/supabase/server';
@@ -37,18 +37,14 @@ export default async function ContactsPage() {
   const contacts = fetchContacts(supabase);
 
   return (
-    <AppShell
+    <PageFrame
       title="Contacts"
       description="One person, however many handles they have."
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/contacts"
-      channels={channels}
     >
       <Suspense fallback={<ContactsSkeleton />}>
         <Contacts contacts={contacts} channels={channels} />
       </Suspense>
-    </AppShell>
+    </PageFrame>
   );
 }
 

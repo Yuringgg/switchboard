@@ -3,8 +3,8 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Suspense } from 'react';
 
-import { AppShell } from '@/components/app-shell';
 import { Callout } from '@/components/callout';
+import { PageFrame } from '@/components/page-frame';
 import {
   Timeline,
   TimelineEmpty,
@@ -92,13 +92,9 @@ export default async function TimelinePage({
     selectedTypes.length === 0 ? fetchTimeline(supabase) : null;
 
   return (
-    <AppShell
+    <PageFrame
       title="Timeline"
       description="Every message, every channel, in order."
-      userEmail={user.email ?? 'Signed in'}
-      userId={user.id}
-      activeHref="/"
-      channels={channels}
       /*
        * ⚠ Split view runs wide; merged view does not. They are different
        * shapes of page and the same measure cannot serve both.
@@ -107,7 +103,7 @@ export default async function TimelinePage({
        * is one column of prose. Split is laid out ACROSS — and at 56rem three
        * lines get about 250px each, measured, which is narrower than a subject
        * line. That is the identical complaint that put `wide` on the attention
-       * board; see the prop's note in app-shell.tsx. Two channels fitted 56rem
+       * board; see the prop's note in page-frame.tsx. Two channels fitted 56rem
        * by luck, and meetings made it three.
        */
       width={view === 'split' ? 'wide' : 'default'}
@@ -137,7 +133,7 @@ export default async function TimelinePage({
           view={view}
         />
       </Suspense>
-    </AppShell>
+    </PageFrame>
   );
 }
 

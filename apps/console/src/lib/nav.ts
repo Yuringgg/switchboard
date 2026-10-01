@@ -39,3 +39,18 @@ export const NAV_ITEMS: NavItem[] = [
   { label: 'Meetings', href: '/meetings', icon: Video, ready: true },
   { label: 'Channels', href: '/channels', icon: Plug, ready: true },
 ];
+
+/**
+ * Which nav entry a path belongs to.
+ *
+ * A message is read from the timeline and a contact from the contact list, so
+ * `/messages/…` lights Timeline and `/contacts/…` lights Contacts. Anything
+ * else is matched by its first segment. A path that is not in the nav at all
+ * (`/voice-lab`) lights Timeline, which is what the nav did before it read the
+ * path.
+ */
+export function navHrefFor(pathname: string): string {
+  if (pathname.startsWith('/messages/')) return '/';
+  const first = `/${pathname.split('/')[1] ?? ''}`;
+  return NAV_ITEMS.some((item) => item.href === first) ? first : '/';
+}
