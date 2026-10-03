@@ -44,7 +44,7 @@ export function ContactList({ contacts }: { contacts: ContactSummary[] }) {
           <li
             key={contact.id}
             style={{ '--i': index } as CSSProperties}
-            className="board-card min-w-0 rounded-xl bg-panel"
+            className="board-card card-enter min-w-0 rounded-xl bg-panel"
           >
             <Link
               href={`/contacts/${contact.id}`}

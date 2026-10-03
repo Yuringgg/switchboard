@@ -9,8 +9,17 @@ import {
   ListChecks,
   type LucideIcon,
 } from 'lucide-react';
+import { AnimatePresence, LayoutGroup, MotionConfig, motion, type Variants } from 'framer-motion';
 import Link from 'next/link';
-import { useMemo, useOptimistic, useState, useTransition, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useRef,
+  useState,
+  useTransition,
+  type CSSProperties,
+} from 'react';
 
 import { ArchiveButton, ClearDoneButton } from '@/components/attention-archive';
 import { MoveCard } from '@/components/attention-move';
@@ -42,12 +51,21 @@ import { cn } from '@/lib/utils';
  * On 2026-10-04 Yuri asked for the look of a 21st.dev "kanban board": status
  * icons on the columns, soft raised cards that lift on hover, coloured kind
  * tags, an avatar-and-date footer, and cards you can drag between columns.
- * The look is taken; the code is this console's own. ⚠ Its motion is CSS, not
- * the snippet's framer-motion: that library starts every card at opacity 0
- * and fades it in from JavaScript, so wherever animation frames are not
- * delivered (this project's browser pane, a headless render, a background
- * tab) the board would render EMPTY. Here the resting state is the visible
- * one, and the animation only ever plays on top of it.
+ * The look is taken; the code is this console's own.
+ *
+ * ── Motion ── CSS for arriving, framer-motion for MOVING ──────────────────────────────
+ *
+ * Yuri wants this console as smooth as it can be (2026-10-04), so the cards
+ * move like the snippet's: a moved card slides on a spring to its new column,
+ * the cards around it slide to close the gap, and an archived card fades out.
+ * That is framer-motion's `layout` / `layoutId`.
+ *
+ * ⚠ The one thing NOT taken from the snippet: it started every card at
+ * opacity 0 and faded it in from JavaScript, so wherever JavaScript animation
+ * does not run (a headless render, a background tab) the board was empty.
+ * Every motion element here is `initial={false}`, and the entrance is CSS
+ * (`.card-enter`) played over a visible resting state. If framer never runs,
+ * cards simply snap into place. `reducedMotion="user"` honours the system.
  *
  * ── ⚠ What did NOT change, and must not ──────────────────────────────────────
  *
@@ -102,7 +120,20 @@ export function AttentionBoard({
   const [landed, setLanded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /*
+   * Cards already drawn once. Only a card NEW to the board plays the CSS
+   * entrance; one that merely moved columns slides instead (`layoutId`) —
+   * fading it in again mid-slide would look like it had been replaced.
+   */
+  const seen = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const item of shown) seen.current.add(item.id);
+  });
+
   const columns = groupForBoard(shown, nowDate);
+  // A card that left a column but is still on the board MOVED; it must not
+  // fade out where it was. Passed to each exiting card through `custom`.
+  const onBoard = new Set(shown.map((item) => item.id));
 
   function drop(to: AttentionStatus) {
     const move = dragging;
@@ -137,6 +168,8 @@ export function AttentionBoard({
         a 375px screen hides two of its three columns behind an edge with nothing
         saying so — the exact failure the mobile dock was criticised for.
       */}
+      <MotionConfig reducedMotion="user">
+        <LayoutGroup>
       <div className="grid gap-x-5 gap-y-8 md:grid-cols-3">
         {columns.map((column) => {
           const Icon = STATUS_ICON[column.status];
@@ -204,7 +237,7 @@ export function AttentionBoard({
               >
                 <span aria-hidden className="drop-line" />
 
-                {column.items.length === 0 ? (
+                {column.items.length === 0 && (
                   <p className="rounded-xl border border-dashed border-border px-3 py-7 text-center text-note text-muted-foreground">
                     {isOver
                       ? `Drop to move it to ${column.label}`
@@ -212,13 +245,18 @@ export function AttentionBoard({
                         ? 'Nothing cleared yet.'
                         : 'Nothing in this column.'}
                   </p>
-                ) : (
-                  <ul className="flex flex-col gap-2.5">
+                )}
+
+                {/* Always rendered, even empty, so the LAST card leaving a
+                    column still gets its exit — an unmounted list has none. */}
+                <ul className="flex flex-col gap-2.5">
+                  <AnimatePresence initial={false} custom={onBoard}>
                     {column.items.map((item, index) => (
                       <Card
                         key={item.id}
                         item={item}
                         index={item.id === landed ? 0 : index}
+                        fresh={!seen.current.has(item.id)}
                         channelType={channelTypeById.get(item.message.channelId)}
                         now={nowDate}
                         dragging={dragging?.id === item.id}
@@ -229,13 +267,15 @@ export function AttentionBoard({
                         }}
                       />
                     ))}
-                  </ul>
-                )}
+                  </AnimatePresence>
+                </ul>
               </div>
             </section>
           );
         })}
       </div>
+        </LayoutGroup>
+      </MotionConfig>
     </>
   );
 }
@@ -265,9 +305,25 @@ const KIND_TAG: Record<AttentionKind, string> = {
   question: 'bg-fuchsia-500/12 text-fuchsia-700 dark:text-fuchsia-300',
 };
 
+/**
+ * How a card leaves a column. `custom` is the set of ids still on the board,
+ * from `AnimatePresence`: a card in it has MOVED and is already sliding in its
+ * new column, so it leaves the old one at once; a card not in it was archived
+ * and fades and shrinks out.
+ */
+function cardMotion(id: string): Variants {
+  return {
+    exit: (onBoard: Set<string> | undefined) =>
+      onBoard?.has(id)
+        ? { opacity: 0, transition: { duration: 0 } }
+        : { opacity: 0, scale: 0.96, transition: { duration: 0.18 } },
+  };
+}
+
 function Card({
   item,
   index,
+  fresh,
   channelType,
   now,
   dragging,
@@ -277,6 +333,8 @@ function Card({
   item: AttentionItem;
   /** Its place in the column, for the entrance stagger. */
   index: number;
+  /** First time on the board: play the CSS entrance. */
+  fresh: boolean;
   channelType: string | undefined;
   now: Date;
   dragging: boolean;
@@ -295,22 +353,42 @@ function Card({
   const forward = neighbourStatus(item.status, 1);
 
   return (
-    <li
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = 'move';
-        // Firefox starts no drag without data.
-        event.dataTransfer.setData('text/plain', item.title);
-        onDragStart();
-      }}
-      onDragEnd={onDragEnd}
-      style={{ '--i': index } as CSSProperties}
-      className={cn(
-        'board-card group/card min-w-0 cursor-grab overflow-hidden rounded-xl bg-panel p-3.5 active:cursor-grabbing',
-        done && 'is-done',
-        dragging && 'is-dragging',
-      )}
+    /*
+     * Two layers, because two systems move this card and must not share an
+     * element: framer-motion owns the OUTER one's transform (the slide), CSS
+     * the inner one's (hover lift, press, entrance). On one element framer's
+     * inline `transform` would cancel the hover.
+     *
+     * ⚠ The native drag handlers are on the inner `div` too: on a `motion`
+     * element, `onDragStart`/`onDragEnd` are claimed by framer's own
+     * pointer-drag gesture, and HTML drag-and-drop never reaches them.
+     */
+    <motion.li
+      layout
+      layoutId={item.id}
+      initial={false}
+      variants={cardMotion(item.id)}
+      exit="exit"
+      transition={{ layout: { type: 'spring', stiffness: 500, damping: 34 } }}
+      className="min-w-0"
     >
+      <div
+        draggable
+        onDragStart={(event) => {
+          event.dataTransfer.effectAllowed = 'move';
+          // Firefox starts no drag without data.
+          event.dataTransfer.setData('text/plain', item.title);
+          onDragStart();
+        }}
+        onDragEnd={onDragEnd}
+        style={{ '--i': index } as CSSProperties}
+        className={cn(
+          'board-card group/card min-w-0 cursor-grab overflow-hidden rounded-xl bg-panel p-3.5 active:cursor-grabbing',
+          fresh && 'card-enter',
+          done && 'is-done',
+          dragging && 'is-dragging',
+        )}
+      >
       <div className="flex flex-wrap items-center gap-1.5">
         <span
           className={cn(
@@ -425,7 +503,8 @@ function Card({
           forwardLabel={forward ? STATUS_LABEL[forward] : null}
         />
       </div>
-    </li>
+      </div>
+    </motion.li>
   );
 }
 

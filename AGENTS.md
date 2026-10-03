@@ -417,11 +417,18 @@ Full note: `correspondence/2026-10-04-kanban-style.md`. Yuri asked for a
 21st.dev kanban look: raised cards (ring + soft shadow, lift on hover), status
 icons, kind tags, and **drag and drop** between columns, optimistic.
 
-1. **CAUTION: no framer-motion for this.** Its cards start at opacity 0, so
-   the board renders empty wherever animation frames are not delivered. The
-   motion is CSS (`.board-card`, `card-in`, `count-pop`) and rests visible.
-2. **The arrows stay** beside drag-and-drop — keyboard, touch, screen reader.
-3. It reverses "a border OR a shadow, never both" (Ms. Maria's "looks
+1. **Yuri wants Switchboard as smooth as possible (2026-10-04)** — JS
+   animation (framer-motion) is welcome. The old "CSS only, no motion
+   library" stance of 2026-08-06/09 was an agent's precaution, never Yuri's
+   rule, and is lifted. **One guard stays: nothing may START invisible.** Use
+   `initial={false}` (or CSS `backwards` over a visible rest), so a headless
+   render or a background tab never shows a blank screen.
+2. The board: framer `layout`/`layoutId` slides moved cards on a spring and
+   fades archived ones out; CSS `.card-enter` plays only for cards new to the
+   screen. Outer `motion.li` owns the slide, inner `div` owns hover and the
+   native drag handlers (framer claims `onDragStart` on motion elements).
+3. **The arrows stay** beside drag-and-drop — keyboard, touch, screen reader.
+4. It reverses "a border OR a shadow, never both" (Ms. Maria's "looks
    generated" note). Revisit `.board-card` if that comes back.
 
 ### Smooth navigation, 2026-10-02 — the frame is a layout now

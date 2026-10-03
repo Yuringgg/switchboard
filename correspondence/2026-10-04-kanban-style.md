@@ -55,3 +55,22 @@ it is the block to revisit if the "looks like AI" note comes back.
   card dims, the target column lights, the card lands at once, and — the
   fixture id being refused by the server — it returns to its column with
   "Could not move that card. Try again." No real card was moved.
+
+## Follow-up, same day: the slide is back, and the motion rule is lifted
+
+Yuri asked for the snippet's sliding back, and asked whether he had ever
+restricted that kind of animation. **He had not.** "No JavaScript animation"
+came from agent sessions on 2026-08-06/09, after content gated behind
+framer-motion shipped blank in a browser that ran no animation frames. Yuri:
+*"i want switchboard smooth as possible"* — so it is lifted.
+
+- Moved cards slide on a spring (`layout` + `layoutId`, stiffness 500 /
+  damping 34); the cards around them close the gap; an archived card fades
+  and shrinks out (`AnimatePresence`). A moved card leaves its old column at
+  once — `custom` tells the exit which cards are still on the board.
+- ⚠ The guard that stays: every motion element is `initial={false}`. Nothing
+  starts invisible, so nothing can render blank.
+- The drop zone no longer scales: framer measures the cards inside it.
+- Measured in the browser: a dropped card travelled to Done with a spring
+  overshoot and settled, then slid back when the preview's fixture id was
+  refused. No card was ever at opacity 0.

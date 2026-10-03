@@ -1155,6 +1155,11 @@
       transform 0.2s cubic-bezier(0.2, 0, 0, 1),
       box-shadow 0.2s ease,
       opacity 0.2s ease;
+  }
+
+  /* The entrance, for a card new to the screen — not one that only moved
+     (that one slides; see attention-board.tsx). Staggered by `--i`. */
+  .card-enter {
     animation: card-in 0.32s cubic-bezier(0.2, 0, 0, 1) backwards;
     animation-delay: calc(min(var(--i, 0), 8) * 40ms);
   }
@@ -1200,14 +1205,14 @@
     position: relative;
     transition:
       background-color 0.2s ease,
-      box-shadow 0.2s ease,
-      transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+      box-shadow 0.2s ease;
   }
 
+  /* ⚠ No `scale` here: framer-motion measures the cards inside to slide
+     them, and a parent mid-scale skews every measurement. */
   .drop-zone.is-over {
     background: color-mix(in srgb, var(--ring) 8%, transparent);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ring) 40%, transparent);
-    transform: scale(1.01);
   }
 
   .drop-line {
