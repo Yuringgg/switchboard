@@ -224,6 +224,25 @@ function collectAttachments(payload: GmailPart | undefined): AttachmentRef[] {
   return attachments;
 }
 
+/**
+ * Gmail's own verdict that a message is not mail: Spam or Trash.
+ *
+ * ── ⚠ Why this exists (2026-10-04) ──────────────────────────────────────────
+ *
+ * The watch is INBOX-only, but `history.list` returns every message ADDED to
+ * the mailbox — and Spam is part of the mailbox. So everything Gmail filed as
+ * spam was ingested anyway: 100 of Yuri's 456 messages, mostly LinkedIn, and
+ * an OnlyFans notice Gmail had filed straight into Spam. They surfaced on the
+ * timeline, as contacts, on the board and in Uriel's answers — in a console
+ * other people are shown — when Gmail had already kept them out of the inbox.
+ *
+ * Spam and Trash only. Not "INBOX only": a message you send carries SENT and
+ * not INBOX, and outbound mail belongs on the timeline (lib/timeline.ts).
+ */
+export function isJunk(labelIds: readonly string[] | undefined): boolean {
+  return (labelIds ?? []).some((label) => label === 'SPAM' || label === 'TRASH');
+}
+
 export function normalizeGmailMessage(
   message: GmailMessage,
   /** The connected mailbox, used to decide direction. */

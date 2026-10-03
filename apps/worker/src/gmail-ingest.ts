@@ -15,7 +15,7 @@ import {
   listHistory,
   listRecentMessages,
 } from '@switchboard/adapter-gmail/history';
-import { normalizeGmailMessage } from '@switchboard/adapter-gmail/normalize';
+import { isJunk, normalizeGmailMessage } from '@switchboard/adapter-gmail/normalize';
 import { refreshAccessToken } from '@switchboard/adapter-gmail/watch';
 import { decryptSecret } from '@switchboard/core';
 import type { Database } from '@switchboard/db';
@@ -179,6 +179,18 @@ export async function ingestGmailEvent(
     }
 
     fetched += 1;
+
+    /*
+     * ⚠ Spam and Trash are not mail. `history.list` reports them as added to
+     * the mailbox like anything else, so they are dropped HERE — before a
+     * message row, a contact, a summary or a board card can be made of them.
+     * See `isJunk`. Message id only in the log, never a sender or subject.
+     */
+    if (isJunk(result.message.labelIds)) {
+      console.info(`[gmail] skipping message=${messageId}: Gmail filed it as spam or trash`);
+      skipped += 1;
+      continue;
+    }
 
     const normalized = normalizeGmailMessage(result.message, mailbox);
     if (!normalized.ok) {

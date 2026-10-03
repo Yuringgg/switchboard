@@ -140,6 +140,8 @@ export async function sweepFiles(
      where ch.type = 'gmail'
        and ch.status = 'active'
        and m.payload_raw::text like '%"attachmentId"%'
+       -- Never download what Gmail filed as spam or trash (isJunk).
+       and not (coalesce(m.payload_raw->'labelIds', '[]'::jsonb) ?| array['SPAM', 'TRASH'])
        and not exists (select 1 from message_attachment_runs r where r.message_id = m.id)
      order by m.sent_at desc
      limit ${batchSize + giveUp.size}

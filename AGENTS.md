@@ -403,6 +403,14 @@ three rendered candidates; see the jack-field note.
 `/preview?screen=assistant` now renders the orb, so it can be looked at
 without signing in.
 
+### Gmail Spam and Trash are not ingested, 2026-10-04
+
+Full note: `correspondence/2026-10-04-spam-ingest.md`. `history.list` reports
+Spam as mail added to the mailbox, so 100 of Yuri's 456 messages came from
+Spam (an OnlyFans notice among them, on a console others are shown).
+**CAUTION: `isJunk` (adapter-gmail normalize) gates ingest and the file
+sweep. Keep it SPAM/TRASH, not "INBOX only" — sent mail has no INBOX label.**
+
 ### Kanban style on Needs attention and Contacts, 2026-10-04
 
 Full note: `correspondence/2026-10-04-kanban-style.md`. Yuri asked for a

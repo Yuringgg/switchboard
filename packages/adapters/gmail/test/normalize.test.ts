@@ -3,7 +3,12 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { normalizeGmailMessage, parseAddressList, type GmailMessage } from '../src/normalize';
+import {
+  isJunk,
+  normalizeGmailMessage,
+  parseAddressList,
+  type GmailMessage,
+} from '../src/normalize';
 
 const FIXTURES = join(import.meta.dirname, '..', '..', '..', '..', 'fixtures', 'gmail');
 const MAILBOX = 'owner@example.com';
@@ -215,5 +220,20 @@ describe('parseAddressList', () => {
     expect(parseAddressList(undefined)).toEqual([]);
     expect(parseAddressList('')).toEqual([]);
     expect(parseAddressList('not an address')).toEqual([]);
+  });
+});
+
+describe('isJunk — what Gmail itself says is not mail', () => {
+  it('is true for spam and for trash', () => {
+    expect(isJunk(['UNREAD', 'CATEGORY_UPDATES', 'SPAM'])).toBe(true);
+    expect(isJunk(['TRASH'])).toBe(true);
+  });
+
+  it('keeps the inbox, sent mail, and a message with no labels at all', () => {
+    expect(isJunk(['INBOX', 'UNREAD', 'CATEGORY_PERSONAL'])).toBe(false);
+    // Outbound: SENT and no INBOX. An "inbox only" rule would wrongly drop it.
+    expect(isJunk(['SENT'])).toBe(false);
+    expect(isJunk(undefined)).toBe(false);
+    expect(isJunk([])).toBe(false);
   });
 });
