@@ -856,6 +856,30 @@
 }
 
 /*
+ * The attention board's cards (attention-board.tsx, 2026-10-04): `card-in` is
+ * the entrance — up 8px, out of a 4px blur — staggered down each column by the
+ * card's `--i`, and replayed by a card that is dropped into a new column
+ * (it remounts there). `count-pop` springs a column's count when it changes.
+ *
+ * ⚠ Both are `backwards`: the resting state is the visible one. Where no
+ * animation runs at all, the board is simply there.
+ */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+    filter: blur(4px);
+  }
+}
+
+@keyframes count-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/*
  * ─────────────────────────────────────────────────────────────────────────────
  * THE MOBILE DOCK — components/ui/modern-mobile-menu.tsx
  *
@@ -1107,6 +1131,114 @@
   /* The glide is the pill now; the entry itself stays clear over it. */
   .menu--vertical .menu__item.active {
     background: transparent;
+  }
+
+  /*
+   * ── The attention board (attention-board.tsx, 2026-10-04) ─────────────────
+   *
+   * Yuri asked for the look of a 21st.dev kanban board. Its card is a hairline
+   * ring with a soft shadow under it that deepens as the card lifts on hover,
+   * and that is what this is.
+   *
+   * ⚠ This reverses a rule the board carried since 2026-08-09 — "a border OR
+   * a shadow, never both" — written after Ms. Maria said the console looked
+   * generated. Yuri asked for this look on 2026-10-04; if it
+   * comes back as "looks like AI", this block is the one to revisit.
+   */
+  .board-card {
+    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 2px 6px rgb(0 0 0 / 0.04);
+    --card-lift: 0 4px 12px rgb(0 0 0 / 0.1), 0 2px 4px rgb(0 0 0 / 0.06);
+    box-shadow:
+      0 0 0 1px var(--border),
+      var(--card-shadow);
+    transition:
+      transform 0.2s cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 0.2s ease,
+      opacity 0.2s ease;
+    animation: card-in 0.32s cubic-bezier(0.2, 0, 0, 1) backwards;
+    animation-delay: calc(min(var(--i, 0), 8) * 40ms);
+  }
+
+  /* Black at 5% vanishes on a near-black panel; the dark scheme needs more. */
+  .dark .board-card {
+    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 8px rgb(0 0 0 / 0.25);
+    --card-lift: 0 6px 18px rgb(0 0 0 / 0.45), 0 2px 6px rgb(0 0 0 / 0.3);
+  }
+
+  .board-card:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 0 0 1px var(--border),
+      var(--card-lift);
+  }
+
+  .board-card:active {
+    transform: scale(0.985);
+  }
+
+  /* Done reads as finished — faded, and back to full strength the moment you
+     point at it or tab into it, so its quote is never hard to read on demand. */
+  .board-card.is-done {
+    opacity: 0.55;
+  }
+
+  .board-card.is-done:hover,
+  .board-card.is-done:focus-within {
+    opacity: 1;
+  }
+
+  /* The card left behind while its ghost is being dragged. */
+  .board-card.is-dragging {
+    opacity: 0.4;
+    transform: scale(0.98);
+  }
+
+  /* A column body while a card is held over it: a tint in the focus colour
+     (the console's one colour for "this is where you are acting"), a ring,
+     and a line that opens out from the middle at the top. */
+  .drop-zone {
+    position: relative;
+    transition:
+      background-color 0.2s ease,
+      box-shadow 0.2s ease,
+      transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .drop-zone.is-over {
+    background: color-mix(in srgb, var(--ring) 8%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ring) 40%, transparent);
+    transform: scale(1.01);
+  }
+
+  .drop-line {
+    position: absolute;
+    top: 0.125rem;
+    left: 20%;
+    width: 60%;
+    height: 3px;
+    border-radius: 99px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--ring) 80%, transparent),
+      transparent
+    );
+    opacity: 0;
+    transform: scaleX(0.3);
+    transition:
+      opacity 0.2s ease,
+      transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+    pointer-events: none;
+  }
+
+  .drop-zone.is-over .drop-line {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+
+  .count-pop {
+    display: inline-block;
+    animation: count-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
   }
 
   .menu--vertical .menu__item:not(.active):not(.inert):hover {

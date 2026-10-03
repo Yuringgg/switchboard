@@ -1,5 +1,6 @@
 import { Users } from 'lucide-react';
 import Link from 'next/link';
+import type { CSSProperties } from 'react';
 
 import { CHANNEL_META } from '@/lib/channels';
 import type { ContactSummary } from '@/lib/contacts';
@@ -30,69 +31,83 @@ export function ContactList({ contacts }: { contacts: ContactSummary[] }) {
         {contacts.length} contact{contacts.length === 1 ? '' : 's'}
       </p>
 
-      <ul className="border-t border-border">
-        {contacts.map((contact) => (
-          <li key={contact.id} className="border-b border-border">
+      {/*
+        Cards, in the attention board's style (2026-10-04, Yuri's request): a
+        ring and a soft shadow, a lift on hover, an entrance down the list.
+        `.board-card` in globals.css is shared by both screens.
+
+        Two across from a tablet up, so a long address book scans in half the
+        height; one on a phone.
+      */}
+      <ul className="grid gap-2.5 md:grid-cols-2">
+        {contacts.map((contact, index) => (
+          <li
+            key={contact.id}
+            style={{ '--i': index } as CSSProperties}
+            className="board-card min-w-0 rounded-xl bg-panel"
+          >
             <Link
               href={`/contacts/${contact.id}`}
               // ⚠ The detail page renders private message bodies and the reader
               // has not asked for them yet. Same rule as the assistant's
               // citation chips (ADR-018).
               prefetch={false}
-              className="focus-ring flex items-start gap-3 px-1 py-3 transition-colors hover:bg-accent"
+              className="focus-ring flex h-full items-start gap-3 rounded-xl p-3.5"
             >
               {/*
-                Monochrome, and a rounded SQUARE. This console spends colour on
-                exactly two meanings — which channel, and whether the board is
-                live — and a hue per contact would make all three read as
-                decoration. Square because a channel dot sits nearby, and two
-                round things adjacent read as one repeated element.
+                Monochrome: this console spends colour on which channel and
+                whether the board is live, and a hue per contact would make all
+                three read as decoration. Round, like the board's avatars, now
+                that the channels sit in tags below rather than as bare dots
+                beside it.
               */}
               <span
                 aria-hidden
-                className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md bg-accent font-mono text-label text-muted-foreground"
+                className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-label font-bold text-muted-foreground"
               >
                 {initials(contact.displayName, contact.identities[0]?.externalId ?? null)}
               </span>
 
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-row font-medium">
-                  {contact.displayName}
+                <span className="flex items-baseline gap-2">
+                  <span className="min-w-0 flex-1 truncate text-row font-semibold">
+                    {contact.displayName}
+                  </span>
+                  <span className="shrink-0 font-mono text-label text-muted-foreground tabular-nums">
+                    {contact.messageCount} msg{contact.messageCount === 1 ? '' : 's'}
+                    {contact.lastMessageAt && ` · ${formatDay(contact.lastMessageAt)}`}
+                  </span>
                 </span>
 
-                <span
-                  className={cn(LABEL, 'mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5')}
-                >
+                {contact.sameName && <SameName name={contact.displayName} {...contact.sameName} />}
+
+                {/*
+                  ⚠ One tag per handle — the plural is the feature (see above).
+                  The channel is NAMED, never carried by the dot alone: Gmail red
+                  against WhatsApp green is the red/green confusion pair. WCAG
+                  1.4.1.
+                */}
+                <span className="mt-2 flex flex-wrap gap-1.5">
                   {contact.identities.map((identity) => {
                     const meta =
                       CHANNEL_META[identity.channelType as keyof typeof CHANNEL_META];
                     return (
-                      <span key={identity.id} className="inline-flex items-center gap-1">
+                      <span
+                        key={identity.id}
+                        className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md bg-accent px-1.5 py-0.5 text-label text-muted-foreground"
+                      >
                         <span
-                          className={cn('size-1 rounded-full', meta?.dotClass ?? 'bg-faint')}
+                          className={cn('size-1.5 shrink-0 rounded-full', meta?.dotClass ?? 'bg-faint')}
                           aria-hidden
                         />
-                        {/* ⚠ The channel is NAMED, never carried by the dot
-                            alone. Gmail red against WhatsApp green is the
-                            red/green confusion pair, and "which line did this
-                            come in on" is the question this product exists to
-                            answer. WCAG 1.4.1. */}
-                        <span className="normal-case">
-                          {meta?.label ?? identity.channelType} · {identity.externalId}
+                        <span className="shrink-0 font-medium text-foreground/80">
+                          {meta?.label ?? identity.channelType}
                         </span>
+                        <span className="min-w-0 truncate font-mono">{identity.externalId}</span>
                       </span>
                     );
                   })}
                 </span>
-
-                {contact.sameName && <SameName name={contact.displayName} {...contact.sameName} />}
-              </span>
-
-              <span className={cn(LABEL, 'shrink-0 text-right')}>
-                {contact.messageCount} msg{contact.messageCount === 1 ? '' : 's'}
-                {contact.lastMessageAt && (
-                  <span className="block normal-case">{formatDay(contact.lastMessageAt)}</span>
-                )}
               </span>
             </Link>
           </li>
@@ -128,7 +143,10 @@ function SameName({
   return (
     // ⚠ The count stays at LABEL's muted colour, not `text-faint`: it carries
     // information, and at 10px faint text measured unreadable in dark mode.
-    <span className={cn(LABEL, 'mt-1 block truncate normal-case')}>
+    // ⚠ And it WRAPS. In a card two-across, a truncated line cut the clue to
+    // "Operatio…" — and the clue is the only thing on the card that tells this
+    // Maria from the other three.
+    <span className={cn(LABEL, 'mt-1 block normal-case text-pretty')}>
       1 of {count} named {name}
       <span aria-hidden className="text-faint">
         {' · '}
@@ -175,18 +193,28 @@ export function ContactsEmpty({ connected }: { connected: boolean }) {
   );
 }
 
+/** The same cards, two across, so the list lands where its outline was. */
 export function ContactsSkeleton() {
   return (
-    <div className="border-t border-border" aria-hidden>
-      {[0, 1, 2, 3].map((i) => (
-        <div key={i} className="flex items-center gap-3 border-b border-border py-3">
-          <div className="size-7 rounded-md bg-faint" />
-          <div className="flex-1">
-            <div className="h-3 w-40 rounded bg-faint" />
-            <div className="mt-1.5 h-2.5 w-56 rounded bg-faint" />
+    <div aria-hidden>
+      <span className="mb-3 block h-2.5 w-20 rounded bg-faint/50" />
+      <div className="grid animate-pulse gap-2.5 md:grid-cols-2">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className="flex items-start gap-3 rounded-xl bg-panel p-3.5 shadow-[0_0_0_1px_var(--border)]"
+          >
+            <div className="size-8 shrink-0 rounded-full bg-faint/60" />
+            <div className="min-w-0 flex-1">
+              <div className="flex gap-2">
+                <div className="h-3.5 w-32 rounded bg-faint/60" />
+                <div className="ml-auto h-2.5 w-16 rounded bg-faint/40" />
+              </div>
+              <div className="mt-3 h-5 w-48 rounded-md bg-faint/40" />
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

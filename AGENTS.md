@@ -403,6 +403,19 @@ three rendered candidates; see the jack-field note.
 `/preview?screen=assistant` now renders the orb, so it can be looked at
 without signing in.
 
+### Kanban style on Needs attention and Contacts, 2026-10-04
+
+Full note: `correspondence/2026-10-04-kanban-style.md`. Yuri asked for a
+21st.dev kanban look: raised cards (ring + soft shadow, lift on hover), status
+icons, kind tags, and **drag and drop** between columns, optimistic.
+
+1. **CAUTION: no framer-motion for this.** Its cards start at opacity 0, so
+   the board renders empty wherever animation frames are not delivered. The
+   motion is CSS (`.board-card`, `card-in`, `count-pop`) and rests visible.
+2. **The arrows stay** beside drag-and-drop — keyboard, touch, screen reader.
+3. It reverses "a border OR a shadow, never both" (Ms. Maria's "looks
+   generated" note). Revisit `.board-card` if that comes back.
+
 ### Smooth navigation, 2026-10-02 — the frame is a layout now
 
 Full note: `correspondence/2026-10-02-smooth-navigation.md`, ADR-031. The
