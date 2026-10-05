@@ -1530,6 +1530,37 @@
   }
 }
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE THEME REVEAL — lib/theme-transition.ts
+ *
+ * Switching theme photographs the page before and after; the circle animated
+ * on the top photograph is the reveal. These rules turn off the browser's own
+ * crossfade and decide which photograph is on top: going light, the NEW page
+ * grows over the old; going dark, the OLD light page sits on top and shrinks.
+ *
+ * ⚠ Scoped to `html[data-theme-reveal]`, which only exists while a theme
+ * switch is running, so any other view transition keeps the browser defaults.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+html[data-theme-reveal]::view-transition-group(root) {
+  animation: none;
+}
+
+html[data-theme-reveal]::view-transition-old(root),
+html[data-theme-reveal]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html[data-theme-reveal='dark']::view-transition-old(root) {
+  z-index: 2;
+}
+
+html[data-theme-reveal='dark']::view-transition-new(root) {
+  z-index: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -403,6 +403,16 @@ three rendered candidates; see the jack-field note.
 `/preview?screen=assistant` now renders the orb, so it can be looked at
 without signing in.
 
+### The theme switch reveals in a circle, 2026-10-06
+
+Full note: `correspondence/2026-10-06-theme-reveal.md`. Every theme control
+calls `switchTheme` (`lib/theme-transition.ts`): a View Transition whose new
+picture grows out of the pressed option (to light) or whose old picture
+shrinks into it (to dark). The store in `lib/theme.ts` is unchanged.
+**CAUTION: keep `flushSync` around `setTheme`** (or the highlight jumps after
+the circle) **and the `Promise.race` with `transition.finished`** (or one
+stalled animation disables the reveal for the rest of the visit).
+
 ### Gmail Spam and Trash are not ingested, 2026-10-04
 
 Full note: `correspondence/2026-10-04-spam-ingest.md`. `history.list` reports

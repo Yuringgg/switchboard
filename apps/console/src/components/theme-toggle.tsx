@@ -3,13 +3,8 @@
 import { Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
 import { useId, useSyncExternalStore } from 'react';
 
-import {
-  getServerTheme,
-  getTheme,
-  setTheme,
-  subscribeTheme,
-  type Theme,
-} from '@/lib/theme';
+import { getServerTheme, getTheme, subscribeTheme, type Theme } from '@/lib/theme';
+import { switchTheme } from '@/lib/theme-transition';
 import { cn } from '@/lib/utils';
 
 /**
@@ -87,7 +82,14 @@ export function ThemeToggle({
                 name={name}
                 value={value}
                 checked={active}
-                onChange={() => setTheme(value)}
+                onChange={(event) => {
+                  // The circle grows from (or closes into) the pressed option.
+                  const box = event.currentTarget.parentElement?.getBoundingClientRect();
+                  void switchTheme(
+                    value,
+                    box && { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+                  );
+                }}
                 className="sr-only"
               />
               <Icon className={large ? 'size-4' : 'size-3.5'} aria-hidden />
