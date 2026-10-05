@@ -42,6 +42,9 @@ the problem paragraph, then the product, without another word of copy.
 - **It can be stopped.** Pointing at a column pauses it, and a small pause
   button (a checkbox read by `:has()`, so no script) stops all of them —
   WCAG 2.2.2. Reduced motion shows it still.
+- **It rests off screen.** `content-visibility: auto` on `.marquee` lets the
+  browser skip drawing it, and stop its animations, while the visitor reads
+  the rest of the page. Safe because it always has a fixed height.
 - **Every message is invented.** Same rule as the board figure: no real mail on
   a public page. Names and companies are made up, phone numbers masked.
 

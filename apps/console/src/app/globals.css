@@ -1596,6 +1596,10 @@ html[data-theme-reveal='dark']::view-transition-new(root) {
      hard edge where cards appear from nowhere. */
   .marquee {
     mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+    /* Off screen, the browser skips drawing it and stops its animations —
+       otherwise four columns keep the GPU busy while the visitor reads the
+       rest of the page. Safe because every use gives it a fixed height. */
+    content-visibility: auto;
   }
 
   .marquee__track {
