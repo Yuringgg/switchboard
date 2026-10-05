@@ -1561,6 +1561,58 @@ html[data-theme-reveal='dark']::view-transition-new(root) {
   z-index: 1;
 }
 
+/*
+ * ─────────────────────────────────────────────────────────────────────────────
+ * THE MESSAGE MARQUEE — components/marketing/message-marquee.tsx
+ *
+ * Columns of invented mail, chats and meeting lines drifting up and down. Each
+ * column holds its cards TWICE and moves by exactly half its height, so the
+ * second copy lands where the first began and the loop has no seam. Each copy
+ * carries its own bottom padding equal to the gap, which is what makes "half"
+ * exact — a `gap` between the copies would leave a half-gap jump.
+ *
+ * ⚠ The resting frame is a full, legible column: the motion only ever moves
+ * cards that are already on screen. Under `prefers-reduced-motion` the global
+ * rule below runs it once in 0.01ms and it stops where it began.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
+@keyframes marquee-up {
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes marquee-down {
+  from {
+    transform: translateY(-50%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@layer components {
+  /* Fades the cards in at the top and out at the bottom, so a column has no
+     hard edge where cards appear from nowhere. */
+  .marquee {
+    mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  }
+
+  .marquee__track {
+    animation: marquee-up var(--marquee-duration, 48s) linear infinite;
+  }
+
+  .marquee__track[data-direction='down'] {
+    animation-name: marquee-down;
+  }
+
+  /* Point at a column to read it; the CSS-only pause control stops them all. */
+  .marquee__column:hover .marquee__track,
+  .marquee-wrap:has(.marquee__pause:checked) .marquee__track {
+    animation-play-state: paused;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

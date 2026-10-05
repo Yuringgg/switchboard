@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { Brand } from '@/components/brand';
+import { MessageMarquee } from '@/components/marketing/message-marquee';
 import { PatchField } from '@/components/marketing/patch-field';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Jackfield } from '@/components/ui/jackfield';
@@ -41,7 +42,9 @@ export const metadata: Metadata = {
  *
  * No scroll-triggered reveals, no counters, no client JavaScript beyond the
  * theme toggle that was already there. Everything is rendered and legible on
- * first paint. The one moving thing is the patch field, and it is a diagram.
+ * first paint. Two things move, both in CSS over a finished resting frame: the
+ * patch field, which is the diagram, and the wall of messages under the
+ * problem paragraph (2026-10-06, Yuri's pick of four), which is the problem.
  *
  * ⚠ This page scrolls the document, unlike every other screen in the product.
  * The console's "the frame does not scroll, the record does" rule is a fact
@@ -203,6 +206,22 @@ export default async function WelcomePage() {
             </span>{' '}
             — exists in none of them. You end up reconstructing it in your head,
             every morning, from scroll positions and memory.
+          </p>
+
+          {/*
+            The paragraph above, shown: a day of mail, chats and call lines
+            drifting past in four columns (two on a phone). The tag under some
+            cards is what Switchboard pulled onto the board from it, which turns
+            the problem into the product without another word of copy.
+          */}
+          <MessageMarquee
+            columns={4}
+            pausable
+            className="mt-12 h-[32rem] md:mt-16 md:h-[38rem]"
+          />
+          <p className={cn(LABEL, 'mt-5 max-w-[70ch] normal-case')}>
+            A day of invented messages from all three. Switchboard reads each one
+            as it lands, and the coloured tag is what it pulled onto your board.
           </p>
         </section>
 

@@ -403,6 +403,16 @@ three rendered candidates; see the jack-field note.
 `/preview?screen=assistant` now renders the orb, so it can be looked at
 without signing in.
 
+### The landing page has a wall of moving messages, 2026-10-06
+
+Full note: `correspondence/2026-10-06-message-wall.md`. Under the problem
+paragraph on `/welcome`, invented mail, chats and meeting lines drift in four
+columns (`components/marketing/message-marquee.tsx`), some tagged with what
+Switchboard pulled onto the board. Yuri chose this spot from four looks; the
+hero-side and sign-in versions were NOT taken — the sign-in panel keeps its
+lines. **CAUTION: CSS only, and nothing starts invisible** (no scroll fade-in);
+**every message must stay invented.**
+
 ### The theme switch reveals in a circle, 2026-10-06
 
 Full note: `correspondence/2026-10-06-theme-reveal.md`. Every theme control
