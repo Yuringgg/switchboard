@@ -660,8 +660,10 @@ Account `leiruychua@gmail.com`, PAYG. Dashboard → **Tools**.
 | `get_person_activity` | v2 | function |
 | `get_attention_items` | v2 | function |
 | `end_switchboard_call` | v1 | **End call** |
+| `get_files` | — | function — **added to the code 2026-10-06, waiting for Yuri to create it here** (`correspondence/2026-10-06-uriel-files.md`) |
 
-⚠ **Six tools in Vapi, five in `VOICE_TOOLS`.** `end_switchboard_call` is Vapi's
+⚠ **Until `get_files` is created: six tools in Vapi, six in `VOICE_TOOLS` — but
+not the same six.** After it: seven in Vapi, six in `VOICE_TOOLS`. `end_switchboard_call` is Vapi's
 own built-in end-call type. It never reaches our webhook and there is no handler
 for it, which is correct — do not "fix" the mismatch by adding one.
 

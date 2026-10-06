@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { isPlausibleCallId, CALL_SESSION_TTL_MS } from '../src/lib/voice/call-session';
 import {
   getAttentionItems,
+  getFiles,
   getPersonActivity,
   getRecentMessages,
   isVoiceTool,
   resolvePerson,
   searchMessagesForVoice,
+  spokenFileKind,
   VOICE_TOOLS,
 } from '../src/lib/voice/tools';
 
@@ -373,9 +375,12 @@ describe('empty is not the same as broken', () => {
 
 describe('counts are computed here, not by the model', () => {
   it('spells the count out in words', async () => {
+    // Ids, because the search merges its text and file-name queries by id — and
+    // the fake answers both with these same two rows, so this also checks a
+    // message found twice is counted once.
     const { client } = fakeClient([
-      { subject: 'One', body_text: 'a', sent_at: '2026-09-09T02:00:00Z', sender: null },
-      { subject: 'Two', body_text: 'b', sent_at: '2026-09-09T03:00:00Z', sender: null },
+      { id: 'm1', subject: 'One', body_text: 'a', sent_at: '2026-09-09T02:00:00Z', sender: null },
+      { id: 'm2', subject: 'Two', body_text: 'b', sent_at: '2026-09-09T03:00:00Z', sender: null },
     ]);
 
     const result = await searchMessagesForVoice(client, OWNER, 'thing');
@@ -387,13 +392,14 @@ describe('counts are computed here, not by the model', () => {
 });
 
 describe('the tool allowlist', () => {
-  it('matches the five tools the prompt declares', () => {
+  it('matches the six tools the prompt declares', () => {
     expect([...VOICE_TOOLS]).toEqual([
       'resolve_person',
       'get_attention_items',
       'get_recent_messages',
       'search_messages',
       'get_person_activity',
+      'get_files',
     ]);
   });
 
@@ -427,5 +433,156 @@ describe('CALL_SESSION_TTL_MS', () => {
   it('is bounded — a call id is a bearer token by another name', () => {
     expect(CALL_SESSION_TTL_MS).toBeGreaterThan(0);
     expect(CALL_SESSION_TTL_MS).toBeLessThanOrEqual(4 * 60 * 60 * 1000);
+  });
+});
+
+/*
+ * ── Files — Uriel could not see a single attachment (2026-10-06) ────────────
+ *
+ * The Files page showed Gmail's pictures and PDFs; every voice tool read
+ * `messages` and none read `attachments`, so an email with an invoice attached
+ * was read aloud as if it had none.
+ */
+
+/** Did the embedded files carry their own tenant filter? */
+function attachmentOwnerFilters(calls: { method: string; args: unknown[] }[]): unknown[] {
+  return calls
+    .filter((call) => call.method === 'eq' && call.args[0] === 'attachments.owner_id')
+    .map((call) => call.args[1]);
+}
+
+const INVOICE_ROW = {
+  id: 'm1',
+  display_name: 'Bea Santos',
+  subject: 'Invoice for August',
+  body_text: 'Attached is the invoice.',
+  sent_at: '2026-10-01T03:00:00Z',
+  direction: 'inbound',
+  sender: { display_name: 'Bea Santos', external_id: 'bea@example.com' },
+  channel: { type: 'gmail' },
+  attachments: [{ filename: 'INV-2207.pdf', mime_type: 'application/pdf' }],
+};
+
+describe('files on the messages Uriel reads', () => {
+  it('getRecentMessages names a message’s files, and filters them by owner', async () => {
+    const { client, calls } = fakeClient([INVOICE_ROW]);
+    const result = await getRecentMessages(client, OWNER);
+
+    expect(attachmentOwnerFilters(calls)).toContain(OWNER);
+    expect((result.messages as { files?: unknown }[])[0]?.files).toEqual([
+      { name: 'INV-2207.pdf', kind: 'a PDF' },
+    ]);
+  });
+
+  it('leaves `files` off a message that has none', async () => {
+    const { client } = fakeClient([{ ...INVOICE_ROW, attachments: [] }]);
+    const result = await getRecentMessages(client, OWNER);
+
+    expect((result.messages as object[])[0]).not.toHaveProperty('files');
+  });
+
+  it('getPersonActivity names files too, owner-filtered', async () => {
+    const { client, calls } = fakeClient([INVOICE_ROW]);
+    const result = await getPersonActivity(client, OWNER, PERSON);
+
+    expect(attachmentOwnerFilters(calls)).toContain(OWNER);
+    expect((result.messages as { files?: unknown }[])[0]?.files).toHaveLength(1);
+  });
+
+  it('search also matches a file’s NAME, with the owner filter on both', async () => {
+    const { client, calls } = fakeClient([]);
+    await searchMessagesForVoice(client, OWNER, 'invoice');
+
+    expect(
+      calls.some(
+        (call) =>
+          call.method === 'ilike' &&
+          call.args[0] === 'attachments.filename' &&
+          call.args[1] === '%invoice%',
+      ),
+    ).toBe(true);
+    // Two queries (text, file name): the owner filter on each, and on each one's files.
+    expect(ownerFilters(calls).filter((id) => id === OWNER)).toHaveLength(2);
+    expect(attachmentOwnerFilters(calls).filter((id) => id === OWNER)).toHaveLength(2);
+  });
+});
+
+describe('get_files', () => {
+  it('constrains owner_id on the messages and on their files', async () => {
+    const { client, calls } = fakeClient([]);
+    await getFiles(client, OWNER);
+
+    expect(ownerFilters(calls)).toContain(OWNER);
+    expect(attachmentOwnerFilters(calls)).toContain(OWNER);
+  });
+
+  it('lists files newest first, spoken, with the count worked out', async () => {
+    const { client } = fakeClient([INVOICE_ROW]);
+    const result = await getFiles(client, OWNER);
+
+    expect(result.summary).toBe('One file has been saved.');
+    expect(result.files).toEqual([
+      {
+        name: 'INV-2207.pdf',
+        kind: 'a PDF',
+        from: 'Bea Santos',
+        when: expect.any(String),
+        subject: 'Invoice for August',
+      },
+    ]);
+  });
+
+  it('says "you" for a file you sent', async () => {
+    const { client } = fakeClient([{ ...INVOICE_ROW, direction: 'outbound' }]);
+    const result = await getFiles(client, OWNER);
+
+    expect((result.files as { from: string }[])[0]?.from).toBe('you');
+  });
+
+  it('narrows to one person through owner-filtered lookups', async () => {
+    const { client, calls } = fakeClient([INVOICE_ROW]);
+    const result = await getFiles(client, OWNER, { personId: PERSON });
+
+    /*
+     * ⚠ Three reads — the contact, their identities, the messages — and every
+     * one carries the tenant filter. An unfiltered identity lookup would let a
+     * guessed person id pull another tenant's sender ids into the query.
+     */
+    expect(ownerFilters(calls).filter((id) => id === OWNER).length).toBeGreaterThanOrEqual(3);
+    expect(calls).toContainEqual({ method: 'in', args: ['sender_identity', ['m1']] });
+    expect(result.summary).toBe('Bea Santos sent one file.');
+  });
+
+  it('refuses a malformed person id before querying anything', async () => {
+    const { client, calls } = fakeClient([]);
+    const result = await getFiles(client, OWNER, { personId: 'not-a-uuid' });
+
+    expect(result.summary).toMatch(/^TOOL_ERROR/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('a failed read is TOOL_ERROR, never "no files"', async () => {
+    const { client } = fakeClient([], { error: { message: 'connection reset' } });
+    const result = await getFiles(client, OWNER, { query: 'invoice' });
+
+    expect(result.summary).toMatch(/^TOOL_ERROR/);
+  });
+
+  it('an empty library says so', async () => {
+    const { client } = fakeClient([]);
+    const result = await getFiles(client, OWNER);
+
+    expect(result.summary).toBe('No files have been saved yet.');
+  });
+});
+
+describe('spokenFileKind', () => {
+  it('says what a person calls it', () => {
+    expect(spokenFileKind('application/pdf', 'a.pdf')).toBe('a PDF');
+    expect(spokenFileKind('image/jpeg', 'IMG_2041.jpg')).toBe('a picture');
+    expect(spokenFileKind('application/octet-stream', 'brief.docx')).toBe('a Word document');
+    expect(spokenFileKind(null, 'rates.xlsx')).toBe('a spreadsheet');
+    expect(spokenFileKind(null, 'deck.pptx')).toBe('a slide deck');
+    expect(spokenFileKind(null, null)).toBe('a file');
   });
 });

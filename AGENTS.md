@@ -403,6 +403,17 @@ three rendered candidates; see the jack-field note.
 `/preview?screen=assistant` now renders the orb, so it can be looked at
 without signing in.
 
+### Uriel can see files, 2026-10-06
+
+Full note: `correspondence/2026-10-06-uriel-files.md`. No voice tool read
+`attachments`, so Uriel could not see a single Gmail picture or PDF. Now every
+message a tool returns carries `files: [{ name, kind }]`, `search_messages`
+also matches file names, and a sixth tool, `get_files`, lists files by person
+or by name. **CAUTION: every new read filters `owner_id` AND
+`attachments.owner_id` by hand (service role).** **CAUTION: `get_files` must
+be CREATED IN VAPI by Yuri** (steps in the note) — until then Uriel cannot
+call it. Names and kinds only; nothing reads a file's contents.
+
 ### The landing page has a wall of moving messages, 2026-10-06
 
 Full note: `correspondence/2026-10-06-message-wall.md`. Under the problem

@@ -6,6 +6,7 @@ import { toolArgsOf, toolNameOf, type VapiToolCall } from '@/lib/voice/payload';
 import { verifyVapiSignature } from '@/lib/voice/signature';
 import {
   getAttentionItems,
+  getFiles,
   getPersonActivity,
   getRecentMessages,
   isVoiceTool,
@@ -315,6 +316,12 @@ async function runTool(
 
       case 'get_person_activity':
         return await getPersonActivity(supabase, ownerId, asString(args.person_id));
+
+      case 'get_files':
+        return await getFiles(supabase, ownerId, {
+          personId: asString(args.person_id),
+          query: asString(args.query),
+        });
     }
   } catch (cause) {
     /*

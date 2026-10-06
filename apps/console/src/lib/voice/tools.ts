@@ -12,7 +12,7 @@ import {
 } from '../tell-apart';
 
 /**
- * The five tools the Vapi agent can call.
+ * The six tools the Vapi agent can call (`get_files` added 2026-10-06).
  *
  * ── ⚠⚠ EVERY QUERY IN THIS FILE FILTERS ON `owner_id` BY HAND ───────────────
  *
@@ -194,6 +194,65 @@ function speakable(text: string, max = 200): string {
   if (flat.length <= max) return flat;
   const cut = flat.slice(0, max);
   return `${cut.slice(0, cut.lastIndexOf(' '))}…`;
+}
+
+/** A uuid's shape. A malformed one makes PostgREST answer 400 naming the column. */
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/* ─── Files on a message ──────────────────────────────────────────────────── */
+
+/**
+ * The files attached to a message, as Uriel says them.
+ *
+ * ⚠ Yuri, 2026-10-06: Uriel could not see a single picture or PDF that the
+ * Files page showed. Every tool read `messages` and nothing read `attachments`,
+ * so an email with an invoice attached was read aloud as if it had none. Every
+ * message a tool returns now carries its files, and `get_files` asks for them
+ * directly.
+ *
+ * Embedded in each message query (`attachments(filename, mime_type)`) rather
+ * than a second round trip, with `attachments.owner_id` filtered by hand like
+ * every other read in this file.
+ *
+ * ⚠ Names and kinds only. Nothing reads what is INSIDE a file, and the prompt
+ * tells Uriel so — a PDF it describes from its name alone would be invented.
+ */
+const ATTACHMENTS = 'attachments(filename, mime_type)';
+
+type AttachmentRow = { filename: string | null; mime_type: string | null };
+
+/** "a PDF", "a picture" — what a person calls it, not a MIME type. */
+export function spokenFileKind(mimeType: string | null, filename: string | null): string {
+  const type = (mimeType ?? '').toLowerCase();
+  const extension = (filename ?? '').toLowerCase().split('.').pop() ?? '';
+
+  if (type === 'application/pdf' || extension === 'pdf') return 'a PDF';
+  if (type.startsWith('image/')) return 'a picture';
+  if (type.startsWith('video/')) return 'a video';
+  if (type.startsWith('audio/')) return 'an audio recording';
+  if (/word|msword/.test(type) || ['doc', 'docx'].includes(extension)) return 'a Word document';
+  if (/sheet|excel|csv/.test(type) || ['xls', 'xlsx', 'csv'].includes(extension)) {
+    return 'a spreadsheet';
+  }
+  if (/presentation|powerpoint/.test(type) || ['ppt', 'pptx'].includes(extension)) {
+    return 'a slide deck';
+  }
+  if (/zip|compressed/.test(type) || ['zip', 'rar', '7z'].includes(extension)) return 'a zip file';
+  return 'a file';
+}
+
+/**
+ * `{ files }` when the message has any, nothing when it has none — an empty
+ * list on every message is noise the model reads past the useful fields for.
+ */
+function withFiles(rows: AttachmentRow[] | null | undefined): {
+  files?: { name: string; kind: string }[];
+} {
+  const files = (rows ?? []).map((row) => ({
+    name: row.filename ?? 'unnamed file',
+    kind: spokenFileKind(row.mime_type, row.filename),
+  }));
+  return files.length > 0 ? { files } : {};
 }
 
 /* ─── resolve_person ──────────────────────────────────────────────────────── */
@@ -637,6 +696,9 @@ export async function searchMessagesForVoice(
   if (!needle) return { summary: 'No search term was given.', results: [] };
 
   const escaped = needle.replace(/[\\%_]/g, (char) => `\\${char}`);
+  const columns =
+    'id, subject, body_text, sent_at, ' +
+    'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id), ';
 
   /*
    * ⚠ Plain `ilike`, NOT the `search_messages` RPC the console uses.
@@ -646,39 +708,69 @@ export async function searchMessagesForVoice(
    * search every tenant's mail. An owner-filtered `ilike` is less clever and it
    * is correct; the ranked full-text path can come back the day the RPC learns
    * to take an explicit owner.
+   *
+   * Two queries, because PostgREST cannot OR a message's own columns with its
+   * files' columns: the words of the message, and the NAMES of its files — so
+   * "the invoice" finds an email whose only mention of it is `Invoice.pdf`.
    */
-  const { data, error } = await supabase
-    .from('messages')
-    .select(
-      'subject, body_text, sent_at, ' +
-        'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id)',
-    )
-    // ⚠ THE TENANT FILTER.
-    .eq('owner_id', ownerId)
-    .or(`subject.ilike.%${escaped}%,body_text.ilike.%${escaped}%`)
-    .order('sent_at', { ascending: false })
-    .limit(limit);
+  const [inText, inFileName] = await Promise.all([
+    supabase
+      .from('messages')
+      .select(columns + ATTACHMENTS)
+      // ⚠ THE TENANT FILTER — on the message and on its files.
+      .eq('owner_id', ownerId)
+      .eq('attachments.owner_id', ownerId)
+      .or(`subject.ilike.%${escaped}%,body_text.ilike.%${escaped}%`)
+      .order('sent_at', { ascending: false })
+      .limit(limit),
+    supabase
+      .from('messages')
+      // `!inner`: only messages with a file of that name.
+      .select(columns + 'attachments!inner(filename, mime_type)')
+      // ⚠ THE TENANT FILTER — on the message and on its files.
+      .eq('owner_id', ownerId)
+      .eq('attachments.owner_id', ownerId)
+      .ilike('attachments.filename', `%${escaped}%`)
+      .order('sent_at', { ascending: false })
+      .limit(limit),
+  ]);
 
-  if (error) {
+  if (inText.error || inFileName.error) {
     return { summary: 'TOOL_ERROR: could not search the messages.', results: [] };
   }
 
   type Row = {
+    id: string;
     subject: string | null;
     body_text: string;
     sent_at: string;
     sender: { display_name: string | null; external_id: string } | null;
+    attachments?: AttachmentRow[] | null;
   };
 
   // Through `unknown`: the embedded `sender` select makes PostgREST's generated
   // type an error union that does not overlap with the row shape, so a direct
   // cast is rejected.
-  const results = ((data ?? []) as unknown as Row[]).map((row) => ({
-    from: row.sender?.display_name ?? row.sender?.external_id ?? 'unknown sender',
-    subject: row.subject ?? null,
-    when: spokenWhen(row.sent_at),
-    excerpt: speakable(row.body_text),
-  }));
+  const byId = new Map<string, Row>();
+  // Text matches first: their file list is complete, where a file-name match
+  // only carries the files that matched.
+  for (const row of [
+    ...((inText.data ?? []) as unknown as Row[]),
+    ...((inFileName.data ?? []) as unknown as Row[]),
+  ]) {
+    if (!byId.has(row.id)) byId.set(row.id, row);
+  }
+
+  const results = [...byId.values()]
+    .sort((a, b) => b.sent_at.localeCompare(a.sent_at))
+    .slice(0, limit)
+    .map((row) => ({
+      from: row.sender?.display_name ?? row.sender?.external_id ?? 'unknown sender',
+      subject: row.subject ?? null,
+      when: spokenWhen(row.sent_at),
+      excerpt: speakable(row.body_text),
+      ...withFiles(row.attachments),
+    }));
 
   if (results.length === 0) {
     return { summary: `Nothing mentions ${needle}.`, results: [] };
@@ -702,7 +794,7 @@ export async function getPersonActivity(
   personId: string,
   { limit = 5 }: { limit?: number } = {},
 ): Promise<ToolResult> {
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(personId)) {
+  if (!UUID_SHAPE.test(personId)) {
     // A malformed uuid makes PostgREST answer 400 naming the column and type,
     // which is a worse thing to say aloud than "I don't know who that is".
     return { summary: 'TOOL_ERROR: that is not a person I can look up.', messages: [] };
@@ -726,9 +818,10 @@ export async function getPersonActivity(
   const { data, error } = await supabase
     .from('messages')
     .select(
-      'subject, body_text, sent_at, sender_identity!inner(contact_id)',
+      'subject, body_text, sent_at, sender_identity!inner(contact_id), ' + ATTACHMENTS,
     )
     .eq('owner_id', ownerId)
+    .eq('attachments.owner_id', ownerId)
     .eq('sender_identity.contact_id', personId)
     .order('sent_at', { ascending: false })
     .limit(limit);
@@ -737,7 +830,12 @@ export async function getPersonActivity(
     return { summary: `TOOL_ERROR: could not read messages from ${name}.`, messages: [] };
   }
 
-  type Row = { subject: string | null; body_text: string; sent_at: string };
+  type Row = {
+    subject: string | null;
+    body_text: string;
+    sent_at: string;
+    attachments?: AttachmentRow[] | null;
+  };
 
   // Through `unknown`: the `!inner` embed makes PostgREST's generated type an
   // error union that does not overlap with the row shape, so a direct cast is
@@ -746,6 +844,7 @@ export async function getPersonActivity(
     subject: row.subject ?? null,
     when: spokenWhen(row.sent_at),
     excerpt: speakable(row.body_text),
+    ...withFiles(row.attachments),
   }));
 
   if (messages.length === 0) {
@@ -829,10 +928,12 @@ export async function getRecentMessages(
       'subject, body_text, sent_at, ' +
         'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id), ' +
         // For `seenOn` below. Embedded rather than a second round trip.
-        'channel:channels(type)',
+        'channel:channels(type), ' +
+        ATTACHMENTS,
     )
-    // ⚠ THE TENANT FILTER.
+    // ⚠ THE TENANT FILTER — on the messages and on their files.
     .eq('owner_id', ownerId)
+    .eq('attachments.owner_id', ownerId)
     .order('sent_at', { ascending: false })
     .limit(limit);
 
@@ -850,6 +951,7 @@ export async function getRecentMessages(
     sent_at: string;
     sender: { display_name: string | null; external_id: string } | null;
     channel: { type: string } | null;
+    attachments?: AttachmentRow[] | null;
   };
 
   const messages = ((data ?? []) as unknown as Row[]).map((row) => ({
@@ -869,6 +971,7 @@ export async function getRecentMessages(
     seenOn: row.channel
       ? (CHANNEL_SPEECH[row.channel.type as ChannelType]?.label ?? null)
       : null,
+    ...withFiles(row.attachments),
   }));
 
   if (messages.length === 0) {
@@ -881,6 +984,147 @@ export async function getRecentMessages(
   return { summary: `The ${count(messages.length, unit)}, newest first.`, messages };
 }
 
+/* ─── get_files ───────────────────────────────────────────────────────────── */
+
+/** Past this many, a spoken list loses the caller; the rest is on the Files page. */
+const FILES_READ_MAX = 10;
+
+/**
+ * The files saved from mail — pictures, PDFs, documents — newest first.
+ *
+ * Added 2026-10-06 for "what did Bea send me?" and "my latest PDFs", which no
+ * tool could answer: the Files page had them and Uriel did not (see
+ * `withFiles` above).
+ *
+ * `personId` comes from `resolve_person`, as for `get_person_activity`, so a
+ * shared name is never silently picked. `query` matches a file's NAME or its
+ * email's subject.
+ *
+ * ⚠ Only Gmail attachments are saved (`apps/worker/src/file-sweep.ts`);
+ * WhatsApp media is not, and a meeting transcript is a message, found by
+ * search. ⚠ Names, kinds, who and when — never a file's contents.
+ *
+ * ── ⚠ Every query below filters on owner_id — see the top of this file ──────
+ */
+export async function getFiles(
+  supabase: SupabaseClient,
+  ownerId: string,
+  { personId, query, limit = 6 }: { personId?: string; query?: string; limit?: number } = {},
+): Promise<ToolResult> {
+  const person = personId?.trim() || null;
+  const needle = query?.trim() || null;
+
+  let name: string | null = null;
+  let senderIds: string[] | null = null;
+
+  if (person) {
+    if (!UUID_SHAPE.test(person)) {
+      return { summary: 'TOOL_ERROR: that is not a person I can look up.', files: [] };
+    }
+
+    const { data: contactRow } = await supabase
+      .from('contacts')
+      .select('display_name')
+      // ⚠ THE TENANT FILTER — what stops a guessed uuid resolving elsewhere.
+      .eq('owner_id', ownerId)
+      .eq('id', person)
+      .maybeSingle();
+    if (!contactRow) return { summary: 'No one by that id is in the messages.', files: [] };
+    name = (contactRow as { display_name: string }).display_name;
+
+    const { data: identityRows } = await supabase
+      .from('contact_identities')
+      .select('id')
+      // ⚠ THE TENANT FILTER.
+      .eq('owner_id', ownerId)
+      .eq('contact_id', person);
+    senderIds = ((identityRows ?? []) as { id: string }[]).map((row) => row.id);
+    if (senderIds.length === 0) {
+      return { summary: `No files from ${name}.`, person: name, files: [] };
+    }
+  }
+
+  const escaped = needle?.replace(/[\\%_]/g, (char) => `\\${char}`) ?? '';
+
+  // Messages that carry a file (`!inner`), newest first. Two when searching,
+  // because PostgREST cannot OR a file's name with its email's subject.
+  const read = (match: 'name' | 'subject' | null) => {
+    let builder = supabase
+      .from('messages')
+      .select(
+        'id, subject, sent_at, direction, ' +
+          'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id), ' +
+          'attachments!inner(filename, mime_type)',
+      )
+      // ⚠ THE TENANT FILTER — on the messages and on their files.
+      .eq('owner_id', ownerId)
+      .eq('attachments.owner_id', ownerId);
+    if (senderIds) builder = builder.in('sender_identity', senderIds);
+    if (match === 'name') builder = builder.ilike('attachments.filename', `%${escaped}%`);
+    if (match === 'subject') builder = builder.ilike('subject', `%${escaped}%`);
+    return builder.order('sent_at', { ascending: false }).limit(limit);
+  };
+
+  const responses = await Promise.all(needle ? [read('name'), read('subject')] : [read(null)]);
+  if (responses.some((response) => response.error)) {
+    return { summary: 'TOOL_ERROR: could not read the files.', files: [] };
+  }
+
+  type Row = {
+    id: string;
+    subject: string | null;
+    sent_at: string;
+    direction: 'inbound' | 'outbound';
+    sender: { display_name: string | null; external_id: string } | null;
+    attachments: AttachmentRow[] | null;
+  };
+
+  const byId = new Map<string, Row>();
+  for (const response of responses) {
+    for (const row of (response.data ?? []) as unknown as Row[]) {
+      if (!byId.has(row.id)) byId.set(row.id, row);
+    }
+  }
+
+  const files = [...byId.values()]
+    .sort((a, b) => b.sent_at.localeCompare(a.sent_at))
+    .flatMap((row) =>
+      (withFiles(row.attachments).files ?? []).map((file) => ({
+        ...file,
+        // "you" for a file you sent: `messages` records a sender, never a
+        // recipient, so who it went to is not known (same as the Files page).
+        from:
+          row.direction === 'outbound'
+            ? 'you'
+            : (row.sender?.display_name ?? row.sender?.external_id ?? 'unknown sender'),
+        when: spokenWhen(row.sent_at),
+        subject: row.subject ?? null,
+      })),
+    )
+    .slice(0, FILES_READ_MAX);
+
+  if (files.length === 0) {
+    const summary = name
+      ? `No files from ${name}.`
+      : needle
+        ? `No files match ${needle}.`
+        : 'No files have been saved yet.';
+    return { summary, ...(name ? { person: name } : {}), files: [] };
+  }
+
+  // The count is computed HERE so the agent never has to.
+  const order = files.length > 1 ? ', newest first' : '';
+  const summary = name
+    ? `${name} sent ${count(files.length, 'file')}${order}.`
+    : needle
+      ? `${count(files.length, 'file')} ${files.length === 1 ? 'matches' : 'match'} ${needle}.`
+      : files.length === 1
+        ? 'One file has been saved.'
+        : `The latest ${count(files.length, 'file')}, newest first.`;
+
+  return { summary, ...(name ? { person: name } : {}), files };
+}
+
 /** Exported for the route's dispatch table and for tests. */
 export const VOICE_TOOLS = [
   'resolve_person',
@@ -888,6 +1132,7 @@ export const VOICE_TOOLS = [
   'get_recent_messages',
   'search_messages',
   'get_person_activity',
+  'get_files',
 ] as const;
 
 export type VoiceToolName = (typeof VOICE_TOOLS)[number];
