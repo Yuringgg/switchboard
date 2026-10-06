@@ -44,6 +44,24 @@ tenant got "No files have been saved yet"; a name search ("pdf") matched three
 files; one sender's files and their activity both carried the file. 40 voice
 tests pass (13 new).
 
+## Follow-up: search matched the phrase, not the words
+
+Right after the paste, Yuri asked Uriel for *"any OpenAI's about a refund"* and
+heard "I don't have anything about that" — while the inbox held "Your OpenAI
+OpCo, LLC refund" and a credit-note PDF. Both searches were one `ilike` on the
+whole phrase, and "OpenAI refund" never appears side by side.
+
+Now `searchWords` keeps the words worth matching (letters and digits only, a
+filler list drops "can you reach the files folder and see if…"), and EACH must
+appear — one `or()` per word on subject/body, one `ilike` per word on file
+names. `get_files` also matches the email's words, because the credit note is
+`CreditNote-C9D3….pdf` and only its email says "refund". Summaries read back
+the words, never the caller's whole sentence.
+
+Checked live with the three phrasings Yuri could have used: every one returns
+the credit note PDF from `get_files`, and both refund emails plus the credit
+note from `search_messages`.
+
 ## ⚠ Yuri has to paste this into Vapi — the code alone changes nothing
 
 Vapi holds its own copy of the tools and prompt (`docs/03-RESOURCES.md` §4d).

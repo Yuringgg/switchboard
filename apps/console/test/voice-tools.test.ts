@@ -9,6 +9,7 @@ import {
   isVoiceTool,
   resolvePerson,
   searchMessagesForVoice,
+  searchWords,
   spokenFileKind,
   VOICE_TOOLS,
 } from '../src/lib/voice/tools';
@@ -573,6 +574,73 @@ describe('get_files', () => {
     const result = await getFiles(client, OWNER);
 
     expect(result.summary).toBe('No files have been saved yet.');
+  });
+});
+
+/*
+ * ── Each word, not the phrase (2026-10-06) ──────────────────────────────────
+ *
+ * Asked for "OpenAI's about a refund", Uriel said it had nothing — while the
+ * inbox held "Your OpenAI OpCo, LLC refund". The search was one ilike on the
+ * whole phrase, and those words never sit side by side.
+ */
+describe('searchWords', () => {
+  it('keeps the words a search is FOR', () => {
+    expect(searchWords('OpenAI refund')).toEqual(['openai', 'refund']);
+  });
+
+  it('drops the sentence around them, even a whole spoken question', () => {
+    expect(
+      searchWords(
+        "Can you now reach the files folder and see if there are any OpenAI's about a refund",
+      ),
+    ).toEqual(['openai', 'refund']);
+  });
+
+  it('leaves letters and digits only — nothing that is syntax in or()', () => {
+    expect(searchWords('INV-2207.pdf')).toEqual(['inv', '2207', 'pdf']);
+    expect(searchWords('a,b) or(owner_id.neq.x')).not.toContain(',');
+    for (const word of searchWords('100%_off (sale), now')) {
+      expect(word).toMatch(/^[\p{L}\p{N}]+$/u);
+    }
+  });
+
+  it('is empty when there is nothing to search for', () => {
+    expect(searchWords('any files')).toEqual([]);
+  });
+});
+
+describe('search matches each word', () => {
+  it('search_messages: one or() per word, and each word on the file name', async () => {
+    const { client, calls } = fakeClient([]);
+    await searchMessagesForVoice(client, OWNER, 'OpenAI refund');
+
+    const ors = calls.filter((call) => call.method === 'or').map((call) => call.args[0]);
+    expect(ors).toEqual([
+      'subject.ilike.%openai%,body_text.ilike.%openai%',
+      'subject.ilike.%refund%,body_text.ilike.%refund%',
+    ]);
+    const onNames = calls.filter(
+      (call) => call.method === 'ilike' && call.args[0] === 'attachments.filename',
+    );
+    expect(onNames.map((call) => call.args[1])).toEqual(['%openai%', '%refund%']);
+  });
+
+  it('get_files: matches the email’s words as well as the file’s name', async () => {
+    const { client, calls } = fakeClient([INVOICE_ROW]);
+    const result = await getFiles(client, OWNER, { query: 'OpenAI refund' });
+
+    // The credit note is "CreditNote-….pdf"; only its email says "refund".
+    expect(calls.filter((call) => call.method === 'or')).toHaveLength(2);
+    expect(result.summary).toBe('one file matches openai refund.');
+  });
+
+  it('get_files: a query of only filler lists the latest instead', async () => {
+    const { client, calls } = fakeClient([INVOICE_ROW]);
+    const result = await getFiles(client, OWNER, { query: 'any files' });
+
+    expect(calls.some((call) => call.method === 'or' || call.method === 'ilike')).toBe(false);
+    expect(result.summary).toBe('One file has been saved.');
   });
 });
 

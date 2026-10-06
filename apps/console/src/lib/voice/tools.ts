@@ -672,6 +672,39 @@ export async function getAttentionItems(
 
 /* ─── search_messages ─────────────────────────────────────────────────────── */
 
+/** Words a spoken search carries that no message is being searched FOR. */
+const SEARCH_FILLER = new Set([
+  'the', 'a', 'an', 'of', 'for', 'to', 'from', 'in', 'on', 'at', 'and', 'or',
+  'about', 'with', 'is', 'are', 'was', 'were', 'be', 'been', 'any', 'some', 'all',
+  'my', 'me', 'you', 'your', 'there', 'that', 'this', 'these', 'those', 'it', 'its',
+  'them', 'if', 'do', 'did', 'does', 'have', 'has', 'had', 'can', 'could', 'would',
+  'please', 'what', 'which', 'when', 'where', 'tell', 'get', 'got', 'reach', 'see',
+  'find', 'check', 'show', 'look', 'now', 'just', 'still', 'yet', 'also', 'sent',
+  'received', 'folder', 'file', 'files',
+  'email', 'emails', 'mail', 'message', 'messages',
+]);
+
+/**
+ * The words of a search worth matching, at most four. EACH must appear.
+ *
+ * ⚠ Not the phrase. Yuri, 2026-10-06, asked Uriel for "OpenAI's about a
+ * refund" and heard "I don't have anything about that" — while the inbox held
+ * "Your OpenAI OpCo, LLC refund" and a credit note PDF. The search was one
+ * `ilike '%OpenAI refund%'`, and those two words never sit side by side.
+ *
+ * ⚠ Letters and digits only, like `hintWords`: they go into a PostgREST
+ * `or()` filter, where a comma or a parenthesis is syntax, and with no `%` or
+ * `_` left there is nothing to escape. "INV-2207.pdf" becomes inv, 2207, pdf —
+ * all three still in the file's name.
+ */
+export function searchWords(query: string): string[] {
+  const words = query
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length >= 2 && !SEARCH_FILLER.has(word));
+  return [...new Set(words)].slice(0, 4);
+}
+
 /**
  * Find messages across the connected channels.
  *
@@ -693,9 +726,9 @@ export async function searchMessagesForVoice(
   { limit = 5 }: { limit?: number } = {},
 ): Promise<ToolResult> {
   const needle = query.trim();
-  if (!needle) return { summary: 'No search term was given.', results: [] };
+  const words = searchWords(needle);
+  if (words.length === 0) return { summary: 'No search term was given.', results: [] };
 
-  const escaped = needle.replace(/[\\%_]/g, (char) => `\\${char}`);
   const columns =
     'id, subject, body_text, sent_at, ' +
     'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id), ';
@@ -709,30 +742,37 @@ export async function searchMessagesForVoice(
    * is correct; the ranked full-text path can come back the day the RPC learns
    * to take an explicit owner.
    *
+   * EACH WORD must appear, anywhere (`searchWords`) — not the phrase.
+   *
    * Two queries, because PostgREST cannot OR a message's own columns with its
    * files' columns: the words of the message, and the NAMES of its files — so
    * "the invoice" finds an email whose only mention of it is `Invoice.pdf`.
    */
+  let inTextQuery = supabase
+    .from('messages')
+    .select(columns + ATTACHMENTS)
+    // ⚠ THE TENANT FILTER — on the message and on its files.
+    .eq('owner_id', ownerId)
+    .eq('attachments.owner_id', ownerId);
+  // One `or()` per word; PostgREST ANDs them.
+  for (const word of words) {
+    inTextQuery = inTextQuery.or(`subject.ilike.%${word}%,body_text.ilike.%${word}%`);
+  }
+
+  let inFileNameQuery = supabase
+    .from('messages')
+    // `!inner`: only messages with a file of that name.
+    .select(columns + 'attachments!inner(filename, mime_type)')
+    // ⚠ THE TENANT FILTER — on the message and on its files.
+    .eq('owner_id', ownerId)
+    .eq('attachments.owner_id', ownerId);
+  for (const word of words) {
+    inFileNameQuery = inFileNameQuery.ilike('attachments.filename', `%${word}%`);
+  }
+
   const [inText, inFileName] = await Promise.all([
-    supabase
-      .from('messages')
-      .select(columns + ATTACHMENTS)
-      // ⚠ THE TENANT FILTER — on the message and on its files.
-      .eq('owner_id', ownerId)
-      .eq('attachments.owner_id', ownerId)
-      .or(`subject.ilike.%${escaped}%,body_text.ilike.%${escaped}%`)
-      .order('sent_at', { ascending: false })
-      .limit(limit),
-    supabase
-      .from('messages')
-      // `!inner`: only messages with a file of that name.
-      .select(columns + 'attachments!inner(filename, mime_type)')
-      // ⚠ THE TENANT FILTER — on the message and on its files.
-      .eq('owner_id', ownerId)
-      .eq('attachments.owner_id', ownerId)
-      .ilike('attachments.filename', `%${escaped}%`)
-      .order('sent_at', { ascending: false })
-      .limit(limit),
+    inTextQuery.order('sent_at', { ascending: false }).limit(limit),
+    inFileNameQuery.order('sent_at', { ascending: false }).limit(limit),
   ]);
 
   if (inText.error || inFileName.error) {
@@ -772,11 +812,14 @@ export async function searchMessagesForVoice(
       ...withFiles(row.attachments),
     }));
 
+  // The words searched, not the sentence they came in: the model sometimes
+  // passes the caller's whole question, and reading it back sounds broken.
+  const searched = words.join(' ');
   if (results.length === 0) {
-    return { summary: `Nothing mentions ${needle}.`, results: [] };
+    return { summary: `Nothing mentions ${searched}.`, results: [] };
   }
 
-  return { summary: `${count(results.length, 'message')} mention ${needle}.`, results };
+  return { summary: `${count(results.length, 'message')} mention ${searched}.`, results };
 }
 
 /* ─── get_person_activity ─────────────────────────────────────────────────── */
@@ -1044,11 +1087,17 @@ export async function getFiles(
     }
   }
 
-  const escaped = needle?.replace(/[\\%_]/g, (char) => `\\${char}`) ?? '';
+  // Each word must appear (`searchWords`). Only filler — "any files?" — lists
+  // the latest, rather than refusing.
+  const words = needle ? searchWords(needle) : [];
 
-  // Messages that carry a file (`!inner`), newest first. Two when searching,
-  // because PostgREST cannot OR a file's name with its email's subject.
-  const read = (match: 'name' | 'subject' | null) => {
+  /*
+   * Messages that carry a file (`!inner`), newest first. Two when searching,
+   * because PostgREST cannot OR a file's name with its email's words — and the
+   * email's words matter: the OpenAI credit note is `CreditNote-C9D3….pdf`,
+   * and only the email around it says "refund".
+   */
+  const read = (match: 'name' | 'text' | null) => {
     let builder = supabase
       .from('messages')
       .select(
@@ -1060,12 +1109,18 @@ export async function getFiles(
       .eq('owner_id', ownerId)
       .eq('attachments.owner_id', ownerId);
     if (senderIds) builder = builder.in('sender_identity', senderIds);
-    if (match === 'name') builder = builder.ilike('attachments.filename', `%${escaped}%`);
-    if (match === 'subject') builder = builder.ilike('subject', `%${escaped}%`);
+    for (const word of match ? words : []) {
+      builder =
+        match === 'name'
+          ? builder.ilike('attachments.filename', `%${word}%`)
+          : builder.or(`subject.ilike.%${word}%,body_text.ilike.%${word}%`);
+    }
     return builder.order('sent_at', { ascending: false }).limit(limit);
   };
 
-  const responses = await Promise.all(needle ? [read('name'), read('subject')] : [read(null)]);
+  const responses = await Promise.all(
+    words.length > 0 ? [read('name'), read('text')] : [read(null)],
+  );
   if (responses.some((response) => response.error)) {
     return { summary: 'TOOL_ERROR: could not read the files.', files: [] };
   }
@@ -1103,21 +1158,28 @@ export async function getFiles(
     )
     .slice(0, FILES_READ_MAX);
 
+  // `words`, not `needle`: a query of only filler ("files") listed the latest,
+  // and must not then be reported as "No files match files" — and a whole
+  // spoken question read back as the search term sounds broken.
+  const searched = words.length > 0;
+  const terms = words.join(' ');
+  const from = name ? ` from ${name}` : '';
+
   if (files.length === 0) {
-    const summary = name
-      ? `No files from ${name}.`
-      : needle
-        ? `No files match ${needle}.`
+    const summary = searched
+      ? `No files${from} match ${terms}.`
+      : name
+        ? `No files from ${name}.`
         : 'No files have been saved yet.';
     return { summary, ...(name ? { person: name } : {}), files: [] };
   }
 
   // The count is computed HERE so the agent never has to.
   const order = files.length > 1 ? ', newest first' : '';
-  const summary = name
-    ? `${name} sent ${count(files.length, 'file')}${order}.`
-    : needle
-      ? `${count(files.length, 'file')} ${files.length === 1 ? 'matches' : 'match'} ${needle}.`
+  const summary = searched
+    ? `${count(files.length, 'file')}${from} ${files.length === 1 ? 'matches' : 'match'} ${terms}.`
+    : name
+      ? `${name} sent ${count(files.length, 'file')}${order}.`
       : files.length === 1
         ? 'One file has been saved.'
         : `The latest ${count(files.length, 'file')}, newest first.`;
