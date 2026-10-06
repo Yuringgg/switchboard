@@ -1,7 +1,21 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ChannelType } from '@switchboard/core';
 
-import { AFFILIATION_KIND, type BriefRow } from '../brief';
+import {
+  ATTENTION_KINDS,
+  KIND_LABEL,
+  STATUS_LABEL,
+  type AttentionKind,
+  type AttentionStatus,
+} from '../attention';
+import {
+  AFFILIATION_KIND,
+  RELATIONSHIP_LABEL,
+  nameTokens,
+  openItems,
+  rollUpAffiliations,
+  type BriefRow,
+} from '../brief';
 import {
   assembleClues,
   hintWords,
@@ -12,7 +26,9 @@ import {
 } from '../tell-apart';
 
 /**
- * The six tools the Vapi agent can call (`get_files` added 2026-10-06).
+ * The eight tools the Vapi agent can call (`get_files`, `read_message` and
+ * `get_overview` added 2026-10-06, when Yuri asked for Uriel to reach
+ * everything in Switchboard).
  *
  * ── ⚠⚠ EVERY QUERY IN THIS FILE FILTERS ON `owner_id` BY HAND ───────────────
  *
@@ -253,6 +269,28 @@ function withFiles(rows: AttachmentRow[] | null | undefined): {
     kind: spokenFileKind(row.mime_type, row.filename),
   }));
   return files.length > 0 ? { files } : {};
+}
+
+/* ─── The model's summary of a message ────────────────────────────────────── */
+
+/**
+ * The summary the console shows above a long message, embedded beside it.
+ *
+ * ⚠ Uriel used to read a long email as its first 200 characters — usually a
+ * greeting and a logo's alt text — while the screen showed a two-line summary
+ * of the whole thing. `aiSummary` carries that summary, so the gist of a
+ * newsletter or a long thread is what gets said.
+ *
+ * Aliased `gist` (a message has several kinds of extraction; only `summary`
+ * is wanted), and filtered by kind AND `owner_id` like every embed here.
+ */
+const AI_SUMMARY = 'gist:extractions!extractions_message_id_fkey(kind, payload)';
+
+type GistRow = { kind?: string; payload: { text?: string } | null };
+
+function withSummary(rows: GistRow[] | null | undefined): { aiSummary?: string } {
+  const text = (rows ?? []).find((row) => row.payload?.text)?.payload?.text;
+  return text ? { aiSummary: speakable(text, 400) } : {};
 }
 
 /* ─── resolve_person ──────────────────────────────────────────────────────── */
@@ -619,28 +657,47 @@ async function affiliationsForVoice(
 /**
  * What needs this person's attention.
  *
- * ⚠ Reads only cards still ON the board — not archived, not done. Somebody who
- * archived a card has said they are finished with it, and reading it back to
- * them down the phone would undo the one gesture the board exists to support.
+ * ⚠ By default reads only cards still ON the board — not archived, not done.
+ * Somebody who archived a card has said they are finished with it, and reading
+ * it back to them down the phone would undo the one gesture the board exists to
+ * support.
+ *
+ * `status: "done"` (2026-10-06) is the one way to hear finished work — "what
+ * did I finish this week?" — newest first, cleared cards included, since
+ * clearing the Done column is how finished work leaves the board.
+ *
+ * Each card says which column it is in, whether it is on the calendar, who it
+ * came from, and its `messageId` for `read_message` — what the board shows.
  */
 export async function getAttentionItems(
   supabase: SupabaseClient,
   ownerId: string,
-  { limit = 20 }: { limit?: number } = {},
+  { limit = 20, status }: { limit?: number; status?: string } = {},
 ): Promise<ToolResult> {
-  const { data, error } = await supabase
+  const done = status?.toLowerCase().trim() === 'done';
+
+  let query = supabase
     .from('extractions')
-    .select('kind, status, payload, message:messages!extractions_message_id_fkey(sent_at)')
+    .select(
+      'kind, status, payload, message_id, calendar_event_id, ' +
+        'message:messages!extractions_message_id_fkey(sent_at, ' +
+        'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id))',
+    )
     // ⚠ THE TENANT FILTER.
     .eq('owner_id', ownerId)
-    .in('kind', ['meeting', 'commitment', 'action_item', 'question'])
-    // ⚠ `is`, not `eq(..., null)` — PostgREST turns `eq` into `= null`, which
-    // matches nothing and would silently report an empty board. Same trap
-    // `fetchAttention` documents.
-    .is('archived_at', null)
-    .neq('status', 'done')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .in('kind', [...ATTENTION_KINDS]);
+
+  query = done
+    ? query.eq('status', 'done').order('status_changed_at', { ascending: false })
+    : query
+        // ⚠ `is`, not `eq(..., null)` — PostgREST turns `eq` into `= null`,
+        // which matches nothing and would silently report an empty board.
+        // Same trap `fetchAttention` documents.
+        .is('archived_at', null)
+        .neq('status', 'done')
+        .order('created_at', { ascending: false });
+
+  const { data, error } = await query.limit(limit);
 
   if (error) {
     return { summary: 'TOOL_ERROR: could not read the attention board.', items: [] };
@@ -648,24 +705,42 @@ export async function getAttentionItems(
 
   type Row = {
     kind: string;
+    status: AttentionStatus | null;
+    message_id: string;
+    calendar_event_id: string | null;
     payload: { title?: string; quote?: string; starts_at?: string | null; due_at?: string | null };
+    message: {
+      sender: { display_name: string | null; external_id: string } | null;
+    } | null;
   };
 
-  const items = ((data ?? []) as Row[]).map((row) => ({
-    kind: row.kind.replace(/_/g, ' '),
+  const items = ((data ?? []) as unknown as Row[]).map((row) => ({
+    kind: KIND_LABEL[row.kind as AttentionKind]?.toLowerCase() ?? row.kind.replace(/_/g, ' '),
     title: row.payload?.title ?? 'untitled',
     when: spokenWhen(row.payload?.starts_at ?? row.payload?.due_at ?? null),
     quote: speakable(row.payload?.quote ?? ''),
+    column: STATUS_LABEL[row.status ?? 'not_started'].toLowerCase(),
+    onCalendar: row.calendar_event_id !== null,
+    from:
+      row.message?.sender?.display_name ?? row.message?.sender?.external_id ?? 'unknown sender',
+    messageId: row.message_id,
   }));
 
   if (items.length === 0) {
-    return { summary: 'Nothing is on the attention board right now.', items: [] };
+    return {
+      summary: done
+        ? 'Nothing has been marked done yet.'
+        : 'Nothing is on the attention board right now.',
+      items: [],
+    };
   }
 
   return {
     // The count is computed HERE so the agent never has to. See the note at the
     // top of this file.
-    summary: `${count(items.length, 'item')} need attention.`,
+    summary: done
+      ? `${count(items.length, 'item')} marked done, newest first.`
+      : `${count(items.length, 'item')} need attention.`,
     items,
   };
 }
@@ -731,7 +806,9 @@ export async function searchMessagesForVoice(
 
   const columns =
     'id, subject, body_text, sent_at, ' +
-    'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id), ';
+    'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id), ' +
+    AI_SUMMARY +
+    ', ';
 
   /*
    * ⚠ Plain `ilike`, NOT the `search_messages` RPC the console uses.
@@ -751,9 +828,11 @@ export async function searchMessagesForVoice(
   let inTextQuery = supabase
     .from('messages')
     .select(columns + ATTACHMENTS)
-    // ⚠ THE TENANT FILTER — on the message and on its files.
+    // ⚠ THE TENANT FILTER — on the message, its files and its summary.
     .eq('owner_id', ownerId)
-    .eq('attachments.owner_id', ownerId);
+    .eq('attachments.owner_id', ownerId)
+    .eq('gist.owner_id', ownerId)
+    .eq('gist.kind', 'summary');
   // One `or()` per word; PostgREST ANDs them.
   for (const word of words) {
     inTextQuery = inTextQuery.or(`subject.ilike.%${word}%,body_text.ilike.%${word}%`);
@@ -763,9 +842,11 @@ export async function searchMessagesForVoice(
     .from('messages')
     // `!inner`: only messages with a file of that name.
     .select(columns + 'attachments!inner(filename, mime_type)')
-    // ⚠ THE TENANT FILTER — on the message and on its files.
+    // ⚠ THE TENANT FILTER — on the message, its files and its summary.
     .eq('owner_id', ownerId)
-    .eq('attachments.owner_id', ownerId);
+    .eq('attachments.owner_id', ownerId)
+    .eq('gist.owner_id', ownerId)
+    .eq('gist.kind', 'summary');
   for (const word of words) {
     inFileNameQuery = inFileNameQuery.ilike('attachments.filename', `%${word}%`);
   }
@@ -786,6 +867,7 @@ export async function searchMessagesForVoice(
     sent_at: string;
     sender: { display_name: string | null; external_id: string } | null;
     attachments?: AttachmentRow[] | null;
+    gist?: GistRow[] | null;
   };
 
   // Through `unknown`: the embedded `sender` select makes PostgREST's generated
@@ -805,9 +887,11 @@ export async function searchMessagesForVoice(
     .sort((a, b) => b.sent_at.localeCompare(a.sent_at))
     .slice(0, limit)
     .map((row) => ({
+      messageId: row.id,
       from: row.sender?.display_name ?? row.sender?.external_id ?? 'unknown sender',
       subject: row.subject ?? null,
       when: spokenWhen(row.sent_at),
+      ...withSummary(row.gist),
       excerpt: speakable(row.body_text),
       ...withFiles(row.attachments),
     }));
@@ -825,7 +909,139 @@ export async function searchMessagesForVoice(
 /* ─── get_person_activity ─────────────────────────────────────────────────── */
 
 /**
- * What one person has been in touch about.
+ * Who this person is and what is open with them — the contact page's brief.
+ *
+ * Added 2026-10-06 ("make Uriel reach everything in Switchboard"): the screen
+ * showed a person's company, role, relationship and open items, and Uriel
+ * could only read their last five messages.
+ *
+ * The roll-ups are the brief's own pure functions (`rollUpAffiliations`,
+ * `openItems`, `nameTokens` in `lib/brief.ts`), so Uriel and the screen name
+ * the same company and the same open items. Only the READS are this file's:
+ * `fetchContactBrief` relies on RLS, which is inert here — every query below
+ * filters `owner_id` by hand. Bounded tighter than the screen (100
+ * conversations, 100 messages), because a caller is waiting.
+ *
+ * ⚠ Extra, never essential: any failure returns nothing rather than failing
+ * the activity it is attached to.
+ */
+async function personBrief(
+  supabase: SupabaseClient,
+  ownerId: string,
+  personId: string,
+  name: string,
+): Promise<Record<string, unknown>> {
+  try {
+    const { data: identityRows } = await supabase
+      .from('contact_identities')
+      .select('id, display_name')
+      // ⚠ THE TENANT FILTER.
+      .eq('owner_id', ownerId)
+      .eq('contact_id', personId);
+    const identities = (identityRows ?? []) as { id: string; display_name: string | null }[];
+    if (identities.length === 0) return {};
+
+    // Their conversations, both directions — the brief's own resolution.
+    const { data: theirs } = await supabase
+      .from('messages')
+      .select('conversation_id')
+      // ⚠ THE TENANT FILTER.
+      .eq('owner_id', ownerId)
+      .in('sender_identity', identities.map((identity) => identity.id))
+      .not('conversation_id', 'is', null)
+      .limit(300);
+    const conversationIds = [
+      ...new Set(
+        ((theirs ?? []) as { conversation_id: string | null }[])
+          .map((row) => row.conversation_id)
+          .filter((id): id is string => !!id),
+      ),
+    ].slice(0, 100);
+    if (conversationIds.length === 0) return {};
+
+    const { data: messageRows } = await supabase
+      .from('messages')
+      .select('id, sent_at, channel_id')
+      // ⚠ THE TENANT FILTER.
+      .eq('owner_id', ownerId)
+      .in('conversation_id', conversationIds)
+      .order('sent_at', { ascending: false })
+      .limit(100);
+    const messageById = new Map(
+      ((messageRows ?? []) as { id: string; sent_at: string; channel_id: string }[]).map(
+        (row) => [row.id, row],
+      ),
+    );
+    if (messageById.size === 0) return {};
+
+    const { data: extractionRows } = await supabase
+      .from('extractions')
+      .select('id, kind, status, model, message_id, payload')
+      // ⚠ THE TENANT FILTER.
+      .eq('owner_id', ownerId)
+      .in('message_id', [...messageById.keys()])
+      .in('kind', [AFFILIATION_KIND, ...ATTENTION_KINDS])
+      .is('archived_at', null);
+
+    const rows: BriefRow[] = [];
+    for (const row of (extractionRows ?? []) as {
+      id: string;
+      kind: string;
+      status: AttentionStatus | null;
+      model: string;
+      message_id: string;
+      payload: BriefRow['payload'] | null;
+    }[]) {
+      const message = messageById.get(row.message_id);
+      if (!message) continue;
+      rows.push({
+        id: row.id,
+        kind: row.kind,
+        status: row.status,
+        model: row.model,
+        messageId: row.message_id,
+        sentAt: message.sent_at,
+        channelId: message.channel_id,
+        payload: row.payload ?? {},
+      });
+    }
+
+    const { facts } = rollUpAffiliations(
+      rows,
+      nameTokens([name, ...identities.map((identity) => identity.display_name)]),
+    );
+    const about = {
+      ...(facts.company ? { company: facts.company.value } : {}),
+      ...(facts.role ? { role: facts.role.value } : {}),
+      ...(facts.relationship
+        ? { relationship: RELATIONSHIP_LABEL[facts.relationship.value].toLowerCase() }
+        : {}),
+      ...(facts.decisionMaker ? { decisionMaker: facts.decisionMaker.value } : {}),
+    };
+
+    const open = openItems(rows)
+      .slice(0, 5)
+      .map((item) => ({
+        kind: KIND_LABEL[item.kind].toLowerCase(),
+        title: item.title,
+        when: spokenWhen(item.when),
+        column: STATUS_LABEL[item.status].toLowerCase(),
+        // Who owes it: "you" said you would, or they did.
+        owedBy: item.owedBy === 'me' ? 'you' : item.owedBy === 'them' ? name : null,
+      }));
+
+    return {
+      ...(Object.keys(about).length > 0 ? { about } : {}),
+      ...(open.length > 0 ? { openWithThem: open } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * What one person has been in touch about — and, since 2026-10-06, who they
+ * are and what is open with them (`personBrief`).
  *
  * Takes a `personId` from `resolve_person` rather than a name, on purpose: a
  * name is ambiguous and this is the tool that would otherwise silently pick the
@@ -858,45 +1074,61 @@ export async function getPersonActivity(
 
   const name = (contactRow as { display_name: string }).display_name;
 
-  const { data, error } = await supabase
-    .from('messages')
-    .select(
-      'subject, body_text, sent_at, sender_identity!inner(contact_id), ' + ATTACHMENTS,
-    )
-    .eq('owner_id', ownerId)
-    .eq('attachments.owner_id', ownerId)
-    .eq('sender_identity.contact_id', personId)
-    .order('sent_at', { ascending: false })
-    .limit(limit);
+  // In parallel: the brief is a chain of four reads, and it should not wait
+  // behind the messages it sits beside.
+  const [{ data, error }, brief] = await Promise.all([
+    supabase
+      .from('messages')
+      .select(
+        'id, subject, body_text, sent_at, sender_identity!inner(contact_id), ' +
+          ATTACHMENTS +
+          ', ' +
+          AI_SUMMARY,
+      )
+      // ⚠ THE TENANT FILTER — on the messages, their files and their summaries.
+      .eq('owner_id', ownerId)
+      .eq('attachments.owner_id', ownerId)
+      .eq('gist.owner_id', ownerId)
+      .eq('gist.kind', 'summary')
+      .eq('sender_identity.contact_id', personId)
+      .order('sent_at', { ascending: false })
+      .limit(limit),
+    personBrief(supabase, ownerId, personId, name),
+  ]);
 
   if (error) {
     return { summary: `TOOL_ERROR: could not read messages from ${name}.`, messages: [] };
   }
 
   type Row = {
+    id: string;
     subject: string | null;
     body_text: string;
     sent_at: string;
     attachments?: AttachmentRow[] | null;
+    gist?: GistRow[] | null;
   };
 
   // Through `unknown`: the `!inner` embed makes PostgREST's generated type an
   // error union that does not overlap with the row shape, so a direct cast is
   // rejected. Same shape the other fetchers use for embedded selects.
   const messages = ((data ?? []) as unknown as Row[]).map((row) => ({
+    messageId: row.id,
     subject: row.subject ?? null,
     when: spokenWhen(row.sent_at),
+    ...withSummary(row.gist),
     excerpt: speakable(row.body_text),
     ...withFiles(row.attachments),
   }));
 
   if (messages.length === 0) {
-    return { summary: `Nothing from ${name} yet.`, person: name, messages: [] };
+    return { summary: `Nothing from ${name} yet.`, person: name, ...brief, messages: [] };
   }
 
   return {
     summary: `${count(messages.length, 'message')} from ${name}.`,
     person: name,
+    ...brief,
     messages,
   };
 }
@@ -968,15 +1200,19 @@ export async function getRecentMessages(
   let query = supabase
     .from('messages')
     .select(
-      'subject, body_text, sent_at, ' +
+      'id, subject, body_text, sent_at, ' +
         'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id), ' +
         // For `seenOn` below. Embedded rather than a second round trip.
         'channel:channels(type), ' +
-        ATTACHMENTS,
+        ATTACHMENTS +
+        ', ' +
+        AI_SUMMARY,
     )
-    // ⚠ THE TENANT FILTER — on the messages and on their files.
+    // ⚠ THE TENANT FILTER — on the messages, their files and their summaries.
     .eq('owner_id', ownerId)
     .eq('attachments.owner_id', ownerId)
+    .eq('gist.owner_id', ownerId)
+    .eq('gist.kind', 'summary')
     .order('sent_at', { ascending: false })
     .limit(limit);
 
@@ -989,18 +1225,22 @@ export async function getRecentMessages(
   }
 
   type Row = {
+    id: string;
     subject: string | null;
     body_text: string;
     sent_at: string;
     sender: { display_name: string | null; external_id: string } | null;
     channel: { type: string } | null;
     attachments?: AttachmentRow[] | null;
+    gist?: GistRow[] | null;
   };
 
   const messages = ((data ?? []) as unknown as Row[]).map((row) => ({
+    messageId: row.id,
     from: row.sender?.display_name ?? row.sender?.external_id ?? 'unknown sender',
     subject: row.subject ?? null,
     when: spokenWhen(row.sent_at),
+    ...withSummary(row.gist),
     excerpt: speakable(row.body_text),
     /*
      * ⚠ Which line it came in on, spoken.
@@ -1154,6 +1394,8 @@ export async function getFiles(
             : (row.sender?.display_name ?? row.sender?.external_id ?? 'unknown sender'),
         when: spokenWhen(row.sent_at),
         subject: row.subject ?? null,
+        // The email it came on, for `read_message`.
+        messageId: row.id,
       })),
     )
     .slice(0, FILES_READ_MAX);
@@ -1187,6 +1429,231 @@ export async function getFiles(
   return { summary, ...(name ? { person: name } : {}), files };
 }
 
+/* ─── read_message ────────────────────────────────────────────────────────── */
+
+/** Past this, a message is cut; the summary carries the rest. */
+const READ_MAX_CHARS = 1500;
+
+/**
+ * One whole message: who, when, where, its summary, its text, its files, and
+ * what was pulled onto the board from it.
+ *
+ * Added 2026-10-06. Every other tool returns a 200-character excerpt, so
+ * "read me Bea's email" could only ever get its first line. `messageId` comes
+ * from any other tool's results — never from the caller, who cannot see one.
+ *
+ * ⚠ The text is capped at 1,500 characters (`truncated: true` says so), and a
+ * meeting transcript usually is. The prompt says to give the summary first and
+ * offer the rest, rather than reading a newsletter aloud for three minutes.
+ *
+ * ── ⚠ Both reads filter on owner_id — see the top of this file ──────────────
+ */
+export async function readMessage(
+  supabase: SupabaseClient,
+  ownerId: string,
+  messageId: string,
+): Promise<ToolResult> {
+  if (!UUID_SHAPE.test(messageId)) {
+    return { summary: 'TOOL_ERROR: that is not a message I can open.' };
+  }
+
+  const [{ data, error }, { data: extractionRows }] = await Promise.all([
+    supabase
+      .from('messages')
+      .select(
+        'id, subject, body_text, sent_at, direction, ' +
+          'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id), ' +
+          'channel:channels(type), ' +
+          ATTACHMENTS,
+      )
+      // ⚠ THE TENANT FILTER — what stops a guessed id opening another
+      // tenant's message.
+      .eq('owner_id', ownerId)
+      .eq('attachments.owner_id', ownerId)
+      .eq('id', messageId)
+      .maybeSingle(),
+    supabase
+      .from('extractions')
+      .select('kind, status, payload')
+      // ⚠ THE TENANT FILTER.
+      .eq('owner_id', ownerId)
+      .eq('message_id', messageId)
+      .in('kind', ['summary', ...ATTENTION_KINDS]),
+  ]);
+
+  if (error) return { summary: 'TOOL_ERROR: could not open that message.' };
+  if (!data) return { summary: 'That message is not in your Switchboard.' };
+
+  type Row = {
+    id: string;
+    subject: string | null;
+    body_text: string;
+    sent_at: string;
+    direction: 'inbound' | 'outbound';
+    sender: { display_name: string | null; external_id: string } | null;
+    channel: { type: string } | null;
+    attachments?: AttachmentRow[] | null;
+  };
+  const row = data as unknown as Row;
+
+  const extractions = (extractionRows ?? []) as {
+    kind: string;
+    status: AttentionStatus | null;
+    payload: { title?: string; text?: string; starts_at?: string | null; due_at?: string | null };
+  }[];
+
+  const from =
+    row.direction === 'outbound'
+      ? 'you'
+      : (row.sender?.display_name ?? row.sender?.external_id ?? 'unknown sender');
+  const channel = row.channel
+    ? (CHANNEL_SPEECH[row.channel.type as ChannelType]?.label ?? null)
+    : null;
+  const text = row.body_text.replace(/\s+/g, ' ').trim();
+  const onTheBoard = extractions
+    .filter((e) => e.kind !== 'summary' && e.payload?.title)
+    .map((e) => ({
+      kind: KIND_LABEL[e.kind as AttentionKind]?.toLowerCase() ?? e.kind,
+      title: e.payload.title!,
+      when: spokenWhen(e.payload.starts_at ?? e.payload.due_at ?? null),
+      column: STATUS_LABEL[e.status ?? 'not_started'].toLowerCase(),
+    }));
+
+  return {
+    summary: `From ${from}${channel ? ` on ${channel}` : ''}, ${spokenWhen(row.sent_at)}.`,
+    subject: row.subject ?? null,
+    ...withSummary(extractions.filter((e) => e.kind === 'summary') as GistRow[]),
+    text: speakable(text, READ_MAX_CHARS),
+    truncated: text.length > READ_MAX_CHARS,
+    ...withFiles(row.attachments),
+    ...(onTheBoard.length > 0 ? { onTheBoard } : {}),
+  };
+}
+
+/* ─── get_overview ────────────────────────────────────────────────────────── */
+
+/**
+ * Switchboard at a glance: which channels are connected, how much arrived
+ * today and this week, the board's columns, and how many files and contacts.
+ *
+ * Added 2026-10-06 for the questions no other tool could answer: "is my Gmail
+ * connected?", "how many emails today?", "how's everything looking?". The
+ * Channels page and the sidebar lamps had these; Uriel did not.
+ *
+ * ⚠ A channel in trouble is said in plain words ("needs reconnecting"), never
+ * its `last_error` — that text is technical, can be long, and is not something
+ * to read aloud.
+ *
+ * ── ⚠ Every read filters on owner_id — see the top of this file ─────────────
+ */
+export async function getOverview(
+  supabase: SupabaseClient,
+  ownerId: string,
+  now: Date = new Date(),
+): Promise<ToolResult> {
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [channels, recent, board, files, contacts] = await Promise.all([
+    supabase.from('channels').select('id, type, status').eq('owner_id', ownerId),
+    supabase
+      .from('messages')
+      .select('channel_id, sent_at')
+      // ⚠ THE TENANT FILTER.
+      .eq('owner_id', ownerId)
+      .gte('sent_at', weekAgo)
+      .limit(2000),
+    supabase
+      .from('extractions')
+      .select('status')
+      // ⚠ THE TENANT FILTER.
+      .eq('owner_id', ownerId)
+      .in('kind', [...ATTENTION_KINDS])
+      .is('archived_at', null)
+      .neq('status', 'done')
+      .limit(2000),
+    supabase
+      .from('attachments')
+      .select('id', { count: 'exact', head: true })
+      // ⚠ THE TENANT FILTER.
+      .eq('owner_id', ownerId),
+    supabase
+      .from('contacts')
+      .select('id', { count: 'exact', head: true })
+      // ⚠ THE TENANT FILTER.
+      .eq('owner_id', ownerId),
+  ]);
+
+  if (channels.error || recent.error || board.error) {
+    return { summary: 'TOOL_ERROR: could not read Switchboard just now.' };
+  }
+
+  const channelRows = (channels.data ?? []) as { id: string; type: string; status: string }[];
+  if (channelRows.length === 0) {
+    return { summary: 'No channels are connected yet.', channels: [] };
+  }
+
+  const typeOf = new Map(channelRows.map((row) => [row.id, row.type]));
+  const dayOf = (date: Date) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(date);
+  const today = dayOf(now);
+
+  // Per channel TYPE: two Gmail accounts are one line to a listener.
+  const tally = new Map<string, { today: number; week: number }>();
+  for (const row of (recent.data ?? []) as { channel_id: string; sent_at: string }[]) {
+    const type = typeOf.get(row.channel_id);
+    if (!type) continue;
+    const counts = tally.get(type) ?? { today: 0, week: 0 };
+    counts.week += 1;
+    if (dayOf(new Date(row.sent_at)) === today) counts.today += 1;
+    tally.set(type, counts);
+  }
+
+  const label = (type: string) => {
+    const spoken = CHANNEL_SPEECH[type as ChannelType]?.label ?? type;
+    return spoken === 'a meeting' ? 'Meetings' : spoken;
+  };
+
+  const channelList = channelRows.map((row) => ({
+    name: label(row.type),
+    state:
+      row.status === 'active'
+        ? 'connected'
+        : row.status === 'paused'
+          ? 'paused'
+          : 'needs reconnecting in Channels',
+  }));
+  const arrived = [...new Set(channelRows.map((row) => row.type))].map((type) => ({
+    channel: label(type),
+    today: tally.get(type)?.today ?? 0,
+    thisWeek: tally.get(type)?.week ?? 0,
+  }));
+
+  const statuses = ((board.data ?? []) as { status: AttentionStatus | null }[]).map(
+    (row) => row.status ?? 'not_started',
+  );
+  const notStarted = statuses.filter((status) => status === 'not_started').length;
+  const inProgress = statuses.filter((status) => status === 'in_progress').length;
+
+  const troubled = channelList.filter((channel) => channel.state !== 'connected');
+  const todayTotal = arrived.reduce((sum, line) => sum + line.today, 0);
+
+  return {
+    // Every number is worked out here — the agent never counts.
+    summary:
+      (troubled.length === 0
+        ? 'Every channel is connected. '
+        : `${troubled.map((c) => c.name).join(' and ')} ${troubled.length === 1 ? 'needs' : 'need'} attention. `) +
+      `${count(todayTotal, 'message')} arrived today, and ${count(notStarted + inProgress, 'item')} ` +
+      `${notStarted + inProgress === 1 ? 'is' : 'are'} open on the board.`,
+    channels: channelList,
+    arrived,
+    board: { notStarted, inProgress },
+    // A failed count costs the number, never the overview.
+    ...(typeof files.count === 'number' ? { filesSaved: files.count } : {}),
+    ...(typeof contacts.count === 'number' ? { contacts: contacts.count } : {}),
+  };
+}
+
 /** Exported for the route's dispatch table and for tests. */
 export const VOICE_TOOLS = [
   'resolve_person',
@@ -1195,6 +1662,8 @@ export const VOICE_TOOLS = [
   'search_messages',
   'get_person_activity',
   'get_files',
+  'read_message',
+  'get_overview',
 ] as const;
 
 export type VoiceToolName = (typeof VOICE_TOOLS)[number];

@@ -403,6 +403,17 @@ three rendered candidates; see the jack-field note.
 `/preview?screen=assistant` now renders the orb, so it can be looked at
 without signing in.
 
+### Uriel reaches the rest of Switchboard, 2026-10-06
+
+Full note: `correspondence/2026-10-06-uriel-everything.md`. Every message a
+voice tool returns carries `messageId` and the model's `aiSummary`; board items
+say their column, `onCalendar` and sender (and `status: "done"` reads finished
+work); `get_person_activity` adds the contact brief (`about`, `openWithThem`,
+via `lib/brief.ts`'s pure roll-ups); two new tools, `read_message` and
+`get_overview`. **CAUTION: `read_message`, `get_overview` and the `status`
+parameter must be CREATED IN VAPI by Yuri.** Still out of reach on purpose:
+file contents, any write, search by meaning (the RPC has no owner argument).
+
 ### Uriel can see files, 2026-10-06
 
 Full note: `correspondence/2026-10-06-uriel-files.md`. No voice tool read

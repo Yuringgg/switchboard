@@ -7,9 +7,11 @@ import { verifyVapiSignature } from '@/lib/voice/signature';
 import {
   getAttentionItems,
   getFiles,
+  getOverview,
   getPersonActivity,
   getRecentMessages,
   isVoiceTool,
+  readMessage,
   resolvePerson,
   searchMessagesForVoice,
   type ToolResult,
@@ -304,7 +306,7 @@ async function runTool(
         });
 
       case 'get_attention_items':
-        return await getAttentionItems(supabase, ownerId);
+        return await getAttentionItems(supabase, ownerId, { status: asString(args.status) });
 
       case 'get_recent_messages':
         return await getRecentMessages(supabase, ownerId, {
@@ -322,6 +324,12 @@ async function runTool(
           personId: asString(args.person_id),
           query: asString(args.query),
         });
+
+      case 'read_message':
+        return await readMessage(supabase, ownerId, asString(args.message_id));
+
+      case 'get_overview':
+        return await getOverview(supabase, ownerId);
     }
   } catch (cause) {
     /*

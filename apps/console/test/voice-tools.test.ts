@@ -4,9 +4,11 @@ import { isPlausibleCallId, CALL_SESSION_TTL_MS } from '../src/lib/voice/call-se
 import {
   getAttentionItems,
   getFiles,
+  getOverview,
   getPersonActivity,
   getRecentMessages,
   isVoiceTool,
+  readMessage,
   resolvePerson,
   searchMessagesForVoice,
   searchWords,
@@ -45,7 +47,20 @@ function fakeClient(rows: unknown[] = [], { error = null }: { error?: unknown } 
     return builder;
   };
 
-  for (const method of ['select', 'eq', 'in', 'is', 'neq', 'ilike', 'or', 'order', 'limit', 'update']) {
+  for (const method of [
+    'select',
+    'eq',
+    'in',
+    'is',
+    'neq',
+    'not',
+    'gte',
+    'ilike',
+    'or',
+    'order',
+    'limit',
+    'update',
+  ]) {
     builder[method] = record(method);
   }
 
@@ -393,7 +408,7 @@ describe('counts are computed here, not by the model', () => {
 });
 
 describe('the tool allowlist', () => {
-  it('matches the six tools the prompt declares', () => {
+  it('matches the eight tools the prompt declares', () => {
     expect([...VOICE_TOOLS]).toEqual([
       'resolve_person',
       'get_attention_items',
@@ -401,6 +416,8 @@ describe('the tool allowlist', () => {
       'search_messages',
       'get_person_activity',
       'get_files',
+      'read_message',
+      'get_overview',
     ]);
   });
 
@@ -529,6 +546,8 @@ describe('get_files', () => {
         from: 'Bea Santos',
         when: expect.any(String),
         subject: 'Invoice for August',
+        // The email it came on, so `read_message` can open it.
+        messageId: 'm1',
       },
     ]);
   });
@@ -641,6 +660,139 @@ describe('search matches each word', () => {
 
     expect(calls.some((call) => call.method === 'or' || call.method === 'ilike')).toBe(false);
     expect(result.summary).toBe('One file has been saved.');
+  });
+});
+
+/*
+ * ── Everything else on the screen (2026-10-06) ──────────────────────────────
+ *
+ * Yuri: "make uriel reach everything in switchboard". The board's columns and
+ * calendar marks, a person's brief, a whole message, the channels and counts —
+ * all on screen, none reachable by voice until now.
+ */
+const MESSAGE_ID = '33333333-3333-4333-8333-333333333333';
+
+describe('get_attention_items — columns, calendar, and finished work', () => {
+  it('says which column a card is in, whether it is on the calendar, and who sent it', async () => {
+    const { client } = fakeClient([
+      {
+        kind: 'meeting',
+        status: 'in_progress',
+        message_id: 'm1',
+        calendar_event_id: 'evt_1',
+        payload: { title: 'Project sync', quote: 'Friday at 3?' },
+        message: { sender: { display_name: 'Bea Santos', external_id: 'bea@example.com' } },
+      },
+    ]);
+    const result = await getAttentionItems(client, OWNER);
+
+    expect((result.items as object[])[0]).toMatchObject({
+      kind: 'meeting',
+      column: 'in progress',
+      onCalendar: true,
+      from: 'Bea Santos',
+      messageId: 'm1',
+    });
+  });
+
+  it('status "done" reads finished cards, cleared ones included', async () => {
+    const { client, calls } = fakeClient([]);
+    const result = await getAttentionItems(client, OWNER, { status: 'done' });
+
+    expect(calls).toContainEqual({ method: 'eq', args: ['status', 'done'] });
+    // Clearing the Done column archives cards; finished work must still count.
+    expect(calls.some((call) => call.method === 'is')).toBe(false);
+    expect(ownerFilters(calls)).toContain(OWNER);
+    expect(result.summary).toBe('Nothing has been marked done yet.');
+  });
+});
+
+describe('get_person_activity — the brief', () => {
+  it('carries what the contact page knows, through owner-filtered reads', async () => {
+    // The fake answers every read with this row, so it has to be legal as a
+    // contact, an identity, a message and an affiliation extraction at once.
+    const row = {
+      id: 'm1',
+      display_name: 'Bea Santos',
+      conversation_id: 'conv1',
+      message_id: 'm1',
+      sent_at: '2026-10-01T03:00:00Z',
+      channel_id: 'c1',
+      kind: 'affiliation',
+      status: 'not_started',
+      model: 'test-model',
+      subject: 'Quotation',
+      body_text: 'Hi',
+      payload: { title: 'Bea Santos works at Halcyon Interiors', quote: 'I’m with Halcyon', company: 'Halcyon Interiors' },
+    };
+    const { client, calls } = fakeClient([row]);
+    const result = await getPersonActivity(client, OWNER, PERSON);
+
+    expect(result.about).toEqual({ company: 'Halcyon Interiors' });
+    // Contact, messages, identities, conversations, their messages, extractions.
+    expect(ownerFilters(calls).filter((id) => id === OWNER).length).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe('read_message', () => {
+  it('refuses a malformed id before querying anything', async () => {
+    const { client, calls } = fakeClient([]);
+    const result = await readMessage(client, OWNER, 'not-an-id');
+
+    expect(result.summary).toMatch(/^TOOL_ERROR/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('constrains owner_id on the message and on its extractions', async () => {
+    const { client, calls } = fakeClient([]);
+    const result = await readMessage(client, OWNER, MESSAGE_ID);
+
+    // ⚠ Without it, a guessed id opens another tenant's message aloud.
+    expect(ownerFilters(calls).filter((id) => id === OWNER)).toHaveLength(2);
+    expect(result.summary).toBe('That message is not in your Switchboard.');
+  });
+
+  it('reads the whole text, capped, with its files', async () => {
+    const long = 'word '.repeat(600);
+    const { client } = fakeClient([{ ...INVOICE_ROW, id: MESSAGE_ID, body_text: long }]);
+    const result = await readMessage(client, OWNER, MESSAGE_ID);
+
+    expect(result.summary).toMatch(/^From Bea Santos on Gmail/);
+    expect(result.truncated).toBe(true);
+    expect((result.text as string).length).toBeLessThanOrEqual(1501);
+    expect(result.files).toEqual([{ name: 'INV-2207.pdf', kind: 'a PDF' }]);
+  });
+});
+
+describe('get_overview', () => {
+  const NOW = new Date('2026-10-06T04:00:00Z');
+
+  it('constrains owner_id on every read', async () => {
+    const { client, calls } = fakeClient([]);
+    await getOverview(client, OWNER, NOW);
+
+    // Channels, messages, board, files, contacts.
+    expect(ownerFilters(calls).filter((id) => id === OWNER)).toHaveLength(5);
+  });
+
+  it('says so when nothing is connected', async () => {
+    const { client } = fakeClient([]);
+    const result = await getOverview(client, OWNER, NOW);
+
+    expect(result.summary).toBe('No channels are connected yet.');
+  });
+
+  it('works the numbers out, and names a channel in trouble plainly', async () => {
+    const { client } = fakeClient([
+      { id: 'c1', type: 'gmail', status: 'error', channel_id: 'c1', sent_at: '2026-10-06T01:00:00Z' },
+    ]);
+    const result = await getOverview(client, OWNER, NOW);
+
+    expect(result.channels).toEqual([{ name: 'Gmail', state: 'needs reconnecting in Channels' }]);
+    expect(result.arrived).toEqual([{ channel: 'Gmail', today: 1, thisWeek: 1 }]);
+    expect(result.summary).toBe(
+      'Gmail needs attention. one message arrived today, and no items are open on the board.',
+    );
   });
 });
 
