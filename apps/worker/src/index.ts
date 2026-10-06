@@ -17,6 +17,7 @@ import { embedBatch } from './embed-messages';
 import { extractBatch } from './extract';
 import { catchUpExtractions } from './extract-catchup';
 import { sweepFiles } from './file-sweep';
+import { readFileTexts } from './file-text';
 import {
   AZURE_STORAGE_CONNECTION_STRING,
   AZURE_STORAGE_CONTAINER,
@@ -568,6 +569,14 @@ const FILE_SWEEP_MS = 2 * 60 * 1000;
 const FILE_SWEEP_BATCH = 10;
 const fileGiveUp = new Set<string>();
 
+/**
+ * Files READ per pass (`file-text.ts`). Small, because each is held in memory
+ * while it is read and the audio ones spend Groq Whisper requests — three a
+ * pass drains a backlog of seventeen in about twelve minutes.
+ */
+const FILE_TEXT_BATCH = 3;
+const fileTextGiveUp = new Set<string>();
+
 async function fileSweepLoop(): Promise<void> {
   const gmail = readGmailWatchConfig();
   if (!AZURE_STORAGE_CONNECTION_STRING || !gmail) {
@@ -616,6 +625,30 @@ async function fileSweepLoop(): Promise<void> {
     } catch (error) {
       // Must never take the worker down. Files are additive.
       console.error('[files] sweep errored:', error instanceof Error ? error.message : error);
+    }
+
+    /*
+     * Then read what the saved files SAY (`file-text.ts`): a PDF's text, a
+     * recording's transcript. Right after the sweep, so a file that just
+     * arrived is read in the same pass it was saved in — and the backlog
+     * drains a few files at a time. Wrapped on its own: a reader that throws
+     * must not cost the next sweep its turn.
+     */
+    try {
+      const read = await readFileTexts(db, container, {
+        groqApiKey: GROQ_API_KEY,
+        batchSize: FILE_TEXT_BATCH,
+        giveUp: fileTextGiveUp,
+      });
+      if (read.considered > 0) {
+        console.info(
+          `[file-text] read: considered=${read.considered} done=${read.done} ` +
+            `empty=${read.empty} too_large=${read.tooLarge} failed=${read.failed} ` +
+            `deferred=${read.deferred}`,
+        );
+      }
+    } catch (error) {
+      console.error('[file-text] read errored:', error instanceof Error ? error.message : error);
     }
   }
 }

@@ -11,6 +11,7 @@ import {
   getPersonActivity,
   getRecentMessages,
   isVoiceTool,
+  readFile,
   readMessage,
   resolvePerson,
   searchMessagesForVoice,
@@ -330,6 +331,9 @@ async function runTool(
 
       case 'get_overview':
         return await getOverview(supabase, ownerId);
+
+      case 'read_file':
+        return await readFile(supabase, ownerId, asString(args.file_id));
     }
   } catch (cause) {
     /*

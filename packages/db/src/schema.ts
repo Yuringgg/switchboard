@@ -198,6 +198,17 @@ export const attachments = pgTable(
     filename: text('filename'),
     mimeType: text('mime_type'),
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
+    /**
+     * What the file says (0020): a PDF's text layer or a recording's
+     * transcript, written by the worker's file reader (`file-text.ts`).
+     * Pictures are not read. `textStatus` null = not tried yet.
+     */
+    textContent: text('text_content'),
+    textPreview: text('text_preview'),
+    textKind: text('text_kind'),
+    textStatus: text('text_status'),
+    textModel: text('text_model'),
+    textReadAt: timestamp('text_read_at', { withTimezone: true }),
   },
   (t) => [
     index('attachments_message_idx').on(t.messageId),

@@ -1411,6 +1411,12 @@ downloads."* ADR-030, full note: `correspondence/2026-09-29-files.md`.
 - [ ] WhatsApp media (short-lived URLs; no traffic to test on).
 - [ ] **Prove the meeting-transcript path end to end** — one real call, Yuri
       alone. Built in 7A, never seen working since the sweep shipped.
+- [x] **What a file says, 2026-10-06 (ADR-032, migration 0020).** The worker
+      reads every saved PDF (`unpdf`) and transcribes every saved recording
+      (Groq Whisper), new files within ~2 minutes; the Files page shows a
+      preview and Uriel reads it with `read_file`. Note:
+      `correspondence/2026-10-06-file-text.md`.
+- [ ] Pictures and scanned PDFs — need a vision model; deferred by Yuri.
 
 ## Smooth navigation, 2026-10-02
 

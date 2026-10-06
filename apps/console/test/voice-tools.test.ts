@@ -8,6 +8,7 @@ import {
   getPersonActivity,
   getRecentMessages,
   isVoiceTool,
+  readFile,
   readMessage,
   resolvePerson,
   searchMessagesForVoice,
@@ -408,7 +409,7 @@ describe('counts are computed here, not by the model', () => {
 });
 
 describe('the tool allowlist', () => {
-  it('matches the eight tools the prompt declares', () => {
+  it('matches the nine tools the prompt declares', () => {
     expect([...VOICE_TOOLS]).toEqual([
       'resolve_person',
       'get_attention_items',
@@ -418,6 +419,7 @@ describe('the tool allowlist', () => {
       'get_files',
       'read_message',
       'get_overview',
+      'read_file',
     ]);
   });
 
@@ -650,7 +652,17 @@ describe('search matches each word', () => {
     const result = await getFiles(client, OWNER, { query: 'OpenAI refund' });
 
     // The credit note is "CreditNote-….pdf"; only its email says "refund".
-    expect(calls.filter((call) => call.method === 'or')).toHaveLength(2);
+    // Per word: the file's name or text (one `or` on attachments), and the
+    // email's subject or body (one on messages).
+    const ors = calls.filter((call) => call.method === 'or');
+    expect(ors).toHaveLength(4);
+    expect(ors).toContainEqual({
+      method: 'or',
+      args: [
+        'filename.ilike.%refund%,text_content.ilike.%refund%',
+        { referencedTable: 'attachments' },
+      ],
+    });
     expect(result.summary).toBe('one file matches openai refund.');
   });
 
@@ -793,6 +805,119 @@ describe('get_overview', () => {
     expect(result.summary).toBe(
       'Gmail needs attention. one message arrived today, and no items are open on the board.',
     );
+  });
+});
+
+/*
+ * ── Opening a file (2026-10-06) ─────────────────────────────────────────────
+ *
+ * "he cant open files though". The worker reads every saved PDF and recording
+ * (migration 0020); read_file hands Uriel what it read.
+ */
+describe('read_file', () => {
+  const FILE_ID = '44444444-4444-4444-8444-444444444444';
+  const fileRow = (overrides: Record<string, unknown> = {}) => ({
+    filename: 'CreditNote-C9D3B154-0027-CN-01.pdf',
+    mime_type: 'application/pdf',
+    text_status: 'done',
+    text_kind: 'pdf_text',
+    text_content: 'Credit Note · ₱1,100.00 refunded on August 21, 2026',
+    message: {
+      sent_at: '2026-08-21T03:00:00Z',
+      direction: 'inbound',
+      sender: { display_name: 'OpenAI OpCo, LLC', external_id: 'ar@openai.com' },
+    },
+    ...overrides,
+  });
+
+  it('refuses a malformed id before querying anything', async () => {
+    const { client, calls } = fakeClient([]);
+    const result = await readFile(client, OWNER, 'nope');
+
+    expect(result.summary).toMatch(/^TOOL_ERROR/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('constrains owner_id, and says so plainly when the file is not theirs', async () => {
+    const { client, calls } = fakeClient([]);
+    const result = await readFile(client, OWNER, FILE_ID);
+
+    // ⚠ Without it, a guessed id reads another tenant's file aloud.
+    expect(ownerFilters(calls)).toEqual([OWNER]);
+    expect(result.summary).toBe('That file is not in your Switchboard.');
+  });
+
+  it('reads what a PDF says, with who sent it', async () => {
+    const { client } = fakeClient([fileRow()]);
+    const result = await readFile(client, OWNER, FILE_ID);
+
+    expect(result).toMatchObject({
+      summary: 'What the PDF says.',
+      name: 'CreditNote-C9D3B154-0027-CN-01.pdf',
+      kind: 'a PDF',
+      from: 'OpenAI OpCo, LLC',
+      text: 'Credit Note · ₱1,100.00 refunded on August 21, 2026',
+      truncated: false,
+    });
+  });
+
+  it('reads a recording’s transcript', async () => {
+    const { client } = fakeClient([
+      fileRow({
+        filename: 'Voice note.m4a',
+        mime_type: 'audio/x-m4a',
+        text_kind: 'transcript',
+        text_content: 'Sige, call tayo after lunch.',
+      }),
+    ]);
+    const result = await readFile(client, OWNER, FILE_ID);
+
+    expect(result.summary).toBe('The recording, transcribed.');
+    expect(result.text).toBe('Sige, call tayo after lunch.');
+  });
+
+  it('says a file not read yet will be, rather than that it is empty', async () => {
+    const { client } = fakeClient([fileRow({ text_status: null, text_content: null })]);
+    const result = await readFile(client, OWNER, FILE_ID);
+
+    expect(result.summary).toBe('That file has not been read yet. Try again in a few minutes.');
+    expect(result).not.toHaveProperty('text');
+  });
+
+  it('says a scan has no text, and that a picture cannot be read', async () => {
+    const scan = await readFile(
+      fakeClient([fileRow({ text_status: 'empty', text_content: null })]).client,
+      OWNER,
+      FILE_ID,
+    );
+    expect(scan.summary).toMatch(/no text in that file/i);
+
+    const picture = await readFile(
+      fakeClient([fileRow({ filename: 'photo.jpg', mime_type: 'image/jpeg', text_status: null })]).client,
+      OWNER,
+      FILE_ID,
+    );
+    expect(picture.summary).toBe('Pictures cannot be read yet. It is on the Files page.');
+  });
+});
+
+describe('files say whether they can be read', () => {
+  it('carries a fileId, and readable only once the worker has its text', async () => {
+    const { client } = fakeClient([
+      {
+        ...INVOICE_ROW,
+        attachments: [
+          { id: 'f1', filename: 'INV-2207.pdf', mime_type: 'application/pdf', text_status: 'done' },
+          { id: 'f2', filename: 'photo.jpg', mime_type: 'image/jpeg', text_status: null },
+        ],
+      },
+    ]);
+    const result = await getRecentMessages(client, OWNER);
+
+    expect((result.messages as { files?: unknown }[])[0]?.files).toEqual([
+      { name: 'INV-2207.pdf', kind: 'a PDF', fileId: 'f1', readable: true },
+      { name: 'photo.jpg', kind: 'a picture', fileId: 'f2' },
+    ]);
   });
 });
 

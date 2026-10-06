@@ -20,7 +20,8 @@
     "@switchboard/core": "workspace:*",
     "@switchboard/db": "workspace:*",
     "drizzle-orm": "^0.45.2",
-    "postgres": "^3.4.9"
+    "postgres": "^3.4.9",
+    "unpdf": "1.8.1"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

@@ -26,9 +26,9 @@ import {
 } from '../tell-apart';
 
 /**
- * The eight tools the Vapi agent can call (`get_files`, `read_message` and
- * `get_overview` added 2026-10-06, when Yuri asked for Uriel to reach
- * everything in Switchboard).
+ * The nine tools the Vapi agent can call (`get_files`, `read_message`,
+ * `get_overview` and `read_file` added 2026-10-06, when Yuri asked for Uriel
+ * to reach everything in Switchboard, then to open files).
  *
  * ── ⚠⚠ EVERY QUERY IN THIS FILE FILTERS ON `owner_id` BY HAND ───────────────
  *
@@ -233,9 +233,14 @@ const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * ⚠ Names and kinds only. Nothing reads what is INSIDE a file, and the prompt
  * tells Uriel so — a PDF it describes from its name alone would be invented.
  */
-const ATTACHMENTS = 'attachments(filename, mime_type)';
+const ATTACHMENTS = 'attachments(id, filename, mime_type, text_status)';
 
-type AttachmentRow = { filename: string | null; mime_type: string | null };
+type AttachmentRow = {
+  id?: string;
+  filename: string | null;
+  mime_type: string | null;
+  text_status?: string | null;
+};
 
 /** "a PDF", "a picture" — what a person calls it, not a MIME type. */
 export function spokenFileKind(mimeType: string | null, filename: string | null): string {
@@ -262,11 +267,15 @@ export function spokenFileKind(mimeType: string | null, filename: string | null)
  * list on every message is noise the model reads past the useful fields for.
  */
 function withFiles(rows: AttachmentRow[] | null | undefined): {
-  files?: { name: string; kind: string }[];
+  files?: { name: string; kind: string; fileId?: string; readable?: true }[];
 } {
   const files = (rows ?? []).map((row) => ({
     name: row.filename ?? 'unnamed file',
     kind: spokenFileKind(row.mime_type, row.filename),
+    // For `read_file`. `readable` only when the worker has its text (0020),
+    // so the model is not tempted to open a picture.
+    ...(row.id ? { fileId: row.id } : {}),
+    ...(row.text_status === 'done' ? { readable: true as const } : {}),
   }));
   return files.length > 0 ? { files } : {};
 }
@@ -841,7 +850,7 @@ export async function searchMessagesForVoice(
   let inFileNameQuery = supabase
     .from('messages')
     // `!inner`: only messages with a file of that name.
-    .select(columns + 'attachments!inner(filename, mime_type)')
+    .select(columns + 'attachments!inner(id, filename, mime_type, text_status)')
     // ⚠ THE TENANT FILTER — on the message, its files and its summary.
     .eq('owner_id', ownerId)
     .eq('attachments.owner_id', ownerId)
@@ -903,7 +912,10 @@ export async function searchMessagesForVoice(
     return { summary: `Nothing mentions ${searched}.`, results: [] };
   }
 
-  return { summary: `${count(results.length, 'message')} mention ${searched}.`, results };
+  return {
+    summary: `${count(results.length, 'message')} ${results.length === 1 ? 'mentions' : 'mention'} ${searched}.`,
+    results,
+  };
 }
 
 /* ─── get_person_activity ─────────────────────────────────────────────────── */
@@ -1333,17 +1345,21 @@ export async function getFiles(
 
   /*
    * Messages that carry a file (`!inner`), newest first. Two when searching,
-   * because PostgREST cannot OR a file's name with its email's words — and the
+   * because PostgREST cannot OR a file's columns with its email's — and the
    * email's words matter: the OpenAI credit note is `CreditNote-C9D3….pdf`,
    * and only the email around it says "refund".
+   *
+   * The FILE side matches a word in the file's name OR in what the file says
+   * (`text_content`, 0020) — so "the quotation for three trucks" finds a PDF
+   * whose name and email say neither.
    */
-  const read = (match: 'name' | 'text' | null) => {
+  const read = (match: 'file' | 'email' | null) => {
     let builder = supabase
       .from('messages')
       .select(
         'id, subject, sent_at, direction, ' +
           'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id), ' +
-          'attachments!inner(filename, mime_type)',
+          'attachments!inner(id, filename, mime_type, text_status)',
       )
       // ⚠ THE TENANT FILTER — on the messages and on their files.
       .eq('owner_id', ownerId)
@@ -1351,15 +1367,17 @@ export async function getFiles(
     if (senderIds) builder = builder.in('sender_identity', senderIds);
     for (const word of match ? words : []) {
       builder =
-        match === 'name'
-          ? builder.ilike('attachments.filename', `%${word}%`)
+        match === 'file'
+          ? builder.or(`filename.ilike.%${word}%,text_content.ilike.%${word}%`, {
+              referencedTable: 'attachments',
+            })
           : builder.or(`subject.ilike.%${word}%,body_text.ilike.%${word}%`);
     }
     return builder.order('sent_at', { ascending: false }).limit(limit);
   };
 
   const responses = await Promise.all(
-    words.length > 0 ? [read('name'), read('text')] : [read(null)],
+    words.length > 0 ? [read('file'), read('email')] : [read(null)],
   );
   if (responses.some((response) => response.error)) {
     return { summary: 'TOOL_ERROR: could not read the files.', files: [] };
@@ -1654,6 +1672,101 @@ export async function getOverview(
   };
 }
 
+/* ─── read_file ───────────────────────────────────────────────────────────── */
+
+/**
+ * What a saved file SAYS — a PDF's text, a recording's transcript.
+ *
+ * Yuri, 2026-10-06: "he cant open files though". The worker now reads every
+ * saved PDF and recording, new ones within a couple of minutes of arriving
+ * (`apps/worker/src/file-text.ts`, migration 0020), and this hands the result
+ * to Uriel. `fileId` comes from a `files` entry in any other tool's results.
+ *
+ * Every state is said plainly rather than as an error: not read yet (a new
+ * file, or the backlog), nothing in it (a scan, silence), too large, a picture.
+ * ⚠ Pictures are NOT read — that needs a vision model, a separate decision.
+ *
+ * ── ⚠ The read filters on owner_id — see the top of this file ───────────────
+ */
+export async function readFile(
+  supabase: SupabaseClient,
+  ownerId: string,
+  fileId: string,
+): Promise<ToolResult> {
+  if (!UUID_SHAPE.test(fileId)) {
+    return { summary: 'TOOL_ERROR: that is not a file I can open.' };
+  }
+
+  const { data, error } = await supabase
+    .from('attachments')
+    .select(
+      'filename, mime_type, text_status, text_kind, text_content, ' +
+        'message:messages!inner(sent_at, direction, ' +
+        'sender:contact_identities!messages_sender_identity_fkey(display_name, external_id))',
+    )
+    // ⚠ THE TENANT FILTER — what stops a guessed id reading another tenant's
+    // file aloud.
+    .eq('owner_id', ownerId)
+    .eq('id', fileId)
+    .maybeSingle();
+
+  if (error) return { summary: 'TOOL_ERROR: could not open that file.' };
+  if (!data) return { summary: 'That file is not in your Switchboard.' };
+
+  type Row = {
+    filename: string | null;
+    mime_type: string | null;
+    text_status: 'done' | 'empty' | 'failed' | 'too_large' | null;
+    text_kind: 'pdf_text' | 'transcript' | null;
+    text_content: string | null;
+    message: {
+      sent_at: string;
+      direction: 'inbound' | 'outbound';
+      sender: { display_name: string | null; external_id: string } | null;
+    } | null;
+  };
+  const row = data as unknown as Row;
+
+  const name = row.filename ?? 'unnamed file';
+  const kind = spokenFileKind(row.mime_type, row.filename);
+  const from =
+    row.message?.direction === 'outbound'
+      ? 'you'
+      : (row.message?.sender?.display_name ?? row.message?.sender?.external_id ?? 'unknown sender');
+  const about = { name, kind, from, when: spokenWhen(row.message?.sent_at ?? null) };
+
+  if (row.text_status === 'done' && row.text_content) {
+    const text = row.text_content.replace(/\s+/g, ' ').trim();
+    return {
+      summary:
+        row.text_kind === 'transcript'
+          ? `The recording, transcribed.`
+          : `What the ${kind === 'a PDF' ? 'PDF' : 'file'} says.`,
+      ...about,
+      text: speakable(text, READ_MAX_CHARS),
+      truncated: text.length > READ_MAX_CHARS,
+    };
+  }
+
+  // Everything below is said, not an error: the file is there, its text is not.
+  const unread =
+    kind === 'a picture'
+      ? 'Pictures cannot be read yet. It is on the Files page.'
+      : row.text_status === 'empty'
+        ? row.text_kind === 'transcript'
+          ? 'There is no speech in that recording.'
+          : 'There is no text in that file. It may be a scan, which cannot be read yet.'
+        : row.text_status === 'too_large'
+          ? 'That file is too large to read. It is on the Files page.'
+          : row.text_status === 'failed'
+            ? 'That file could not be read. It is on the Files page.'
+            : kind === 'a PDF' || kind === 'an audio recording'
+              ? 'That file has not been read yet. Try again in a few minutes.'
+              : `${kind.charAt(0).toUpperCase()}${kind.slice(1)} cannot be read yet. It is on the Files page.`;
+
+  return { summary: unread, ...about };
+}
+
 /** Exported for the route's dispatch table and for tests. */
 export const VOICE_TOOLS = [
   'resolve_person',
@@ -1664,6 +1777,7 @@ export const VOICE_TOOLS = [
   'get_files',
   'read_message',
   'get_overview',
+  'read_file',
 ] as const;
 
 export type VoiceToolName = (typeof VOICE_TOOLS)[number];

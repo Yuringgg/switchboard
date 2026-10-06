@@ -31,6 +31,12 @@ export type Database = {
           mime_type: string | null;
           owner_id: string;
           size_bytes: number | null;
+          text_content: string | null;
+          text_kind: string | null;
+          text_model: string | null;
+          text_preview: string | null;
+          text_read_at: string | null;
+          text_status: string | null;
         };
         Insert: {
           blob_url: string;
@@ -40,6 +46,12 @@ export type Database = {
           mime_type?: string | null;
           owner_id: string;
           size_bytes?: number | null;
+          text_content?: string | null;
+          text_kind?: string | null;
+          text_model?: string | null;
+          text_preview?: string | null;
+          text_read_at?: string | null;
+          text_status?: string | null;
         };
         Update: {
           blob_url?: string;
@@ -49,6 +61,12 @@ export type Database = {
           mime_type?: string | null;
           owner_id?: string;
           size_bytes?: number | null;
+          text_content?: string | null;
+          text_kind?: string | null;
+          text_model?: string | null;
+          text_preview?: string | null;
+          text_read_at?: string | null;
+          text_status?: string | null;
         };
       };
       channels: {

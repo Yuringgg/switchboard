@@ -107,6 +107,15 @@ export interface TranscribeInput {
   audio: Blob;
   /** Filename sent to Groq. The extension is how it reads the format. */
   filename: string;
+  /**
+   * The language to pin, or `null` to let Whisper detect it.
+   *
+   * Defaults to `TRANSCRIPTION_LANGUAGE` — right for the voice lab's English
+   * questions. ⚠ A SAVED recording (a voice note attached to an email, read by
+   * the worker's file reader) passes `null`: it is whatever somebody said, often
+   * Taglish, and pinning English would transcribe Tagalog as English nonsense.
+   */
+  language?: string | null;
 }
 
 /**
@@ -117,7 +126,7 @@ export interface TranscribeInput {
  * same argument the worker's `/embed` endpoint makes.
  */
 export async function transcribeAudio(
-  { apiKey, audio, filename }: TranscribeInput,
+  { apiKey, audio, filename, language = TRANSCRIPTION_LANGUAGE }: TranscribeInput,
   { timeoutMs = 20_000 }: TranscribeOptions = {},
 ): Promise<TranscriptionResult> {
   if (audio.size === 0) {
@@ -136,7 +145,7 @@ export async function transcribeAudio(
   const form = new FormData();
   form.append('file', audio, filename);
   form.append('model', TRANSCRIPTION_MODEL);
-  form.append('language', TRANSCRIPTION_LANGUAGE);
+  if (language) form.append('language', language);
   /*
    * `text` rather than `json` or `verbose_json`.
    *

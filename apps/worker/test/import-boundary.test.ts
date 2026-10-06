@@ -107,4 +107,23 @@ describe('worker import boundary', () => {
         "Use `import type` for types and `await import('@azure/storage-blob')` for values.",
     ).toEqual([]);
   });
+
+  /*
+   * `unpdf` (2026-10-06) gets the same rule by choice: external in tsup,
+   * installed in the image, reached only by `await import('unpdf')` in
+   * `file-text.ts`, so a missing copy leaves PDFs unread instead of stopping
+   * the worker from starting.
+   */
+  it('never imports unpdf by value at the top of a file', () => {
+    const offenders = files
+      .filter((file) =>
+        /^import\s+(?!type\b)[^;]*from\s+['"]unpdf/m.test(readFileSync(file, 'utf8')),
+      )
+      .map((file) => relative(SRC, file));
+
+    expect(
+      offenders,
+      `These import unpdf by value: ${offenders.join(', ')}. Use \`await import('unpdf')\`.`,
+    ).toEqual([]);
+  });
 });

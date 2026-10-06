@@ -30,7 +30,7 @@ export default defineConfig({
    *
    * So the everything-else rule has to name its exceptions itself.
    */
-  noExternal: [/^(?!@huggingface\/transformers|onnxruntime-|@azure\/)/],
+  noExternal: [/^(?!@huggingface\/transformers|onnxruntime-|@azure\/|unpdf)/],
 
   /**
    * ⚠ The exceptions, and they are exceptions for a hard reason.
@@ -48,7 +48,7 @@ export default defineConfig({
    * missing them degrades to "no embeddings" instead of failing to boot. Mail
    * keeps flowing. See `src/embed.ts` and the startup handler in `src/index.ts`.
    */
-  external: ['@huggingface/transformers', /^onnxruntime/, /^@azure\//],
+  external: ['@huggingface/transformers', /^onnxruntime/, /^@azure\//, /^unpdf/],
 
   /*
    * ⚠ `@azure/*` joined this list on 2026-09-29, the hard way. The Azure SDK
@@ -57,6 +57,12 @@ export default defineConfig({
    * of \"net\" is not supported" at load, and revision 0000019 never started.
    * It is installed by npm in the runtime stage and imported dynamically in
    * `index.ts`, so a missing copy switches the file sweep off, not the worker.
+   *
+   * `unpdf` joined it on 2026-10-06, by choice rather than after a crash: it
+   * loads PDF.js's own build with a dynamic import of a file beside it, which
+   * a bundler can rewrite into something that only fails at runtime. Same
+   * treatment — installed in the image, imported dynamically in
+   * `file-text.ts`, so a missing copy leaves PDFs unread, nothing more.
    */
 
   // Trims the bundle but keeps a readable stack trace when the worker throws.

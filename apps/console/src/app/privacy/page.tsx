@@ -50,7 +50,7 @@ export default function PrivacyPage() {
       </header>
 
       <main className="mx-auto max-w-[68ch] px-5 py-12 md:py-16">
-        <p className={LABEL}>Effective 29 September 2026</p>
+        <p className={LABEL}>Effective 6 October 2026</p>
         <h1 className="mt-2 text-heading font-semibold text-balance">Privacy policy</h1>
         <p className="mt-4 text-row text-muted-foreground">
           Switchboard is an on-the-job-training project at iOzera, built by Yuri. It brings
@@ -64,7 +64,9 @@ export default function PrivacyPage() {
               <strong>Gmail</strong>, with read-only access (<code>gmail.readonly</code>). It
               reads the messages in your mailbox: sender, subject, date and text, and saves the
               files attached to them so they can be filed for you. Small images (logos,
-              signatures), calendar invites and files over 25 MB are left out.
+              signatures), calendar invites and files over 25 MB are left out. It also reads
+              what saved PDFs say and transcribes saved audio recordings, so you can search
+              them and the voice assistant can tell you what is in them. Pictures are not read.
             </li>
             <li>
               <strong>Google Calendar</strong> (<code>calendar.events</code>). It creates an event{' '}
@@ -84,7 +86,8 @@ export default function PrivacyPage() {
         <Section title="What it keeps, and where">
           <p>
             The messages above, their AI summaries, the meetings, tasks and details it picks out of
-            them, and notes you write on contacts. They are stored in a Postgres database hosted
+            them, the text of saved PDFs and transcripts of saved recordings, and notes you write
+            on contacts. They are stored in a Postgres database hosted
             by Supabase in Singapore. Each account can only ever read its own rows; the database
             enforces that for every table.
           </p>
@@ -108,8 +111,10 @@ export default function PrivacyPage() {
             <li>
               <strong>Groq</strong> runs the AI models. Message text is sent to it to write
               summaries, pick out meetings and tasks, and answer your questions about your
-              messages. (A backup setting can send questions to Google Gemini instead; it is not
-              the one in use.)
+              messages, and saved audio recordings are sent to it to be transcribed. (A backup
+              setting can send questions to Google Gemini instead; it is not the one in use.) A
+              saved PDF&rsquo;s text is read on Switchboard&rsquo;s own worker, not by an outside
+              service.
             </li>
             <li>
               <strong>Vapi</strong> runs the voice assistant. When you call it, your voice and the

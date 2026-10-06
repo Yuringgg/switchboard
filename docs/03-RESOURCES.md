@@ -673,8 +673,10 @@ full prompt from `correspondence/2026-09-10-vapi-agent-prompt.md` §2.
 A new tool defaults to "No authentication" and falls back to the account
 default; set it explicitly. `get_files` was first published without it.
 
-⚠ **Nine tools in Vapi, eight in `VOICE_TOOLS`** — the ninth is
-`end_switchboard_call`, below. `end_switchboard_call` is Vapi's
+| `read_file` | — | function — **in the code 2026-10-06 (night), waiting for Yuri to create it here** (`correspondence/2026-10-06-file-text.md`) |
+
+⚠ **Once `read_file` is created: ten tools in Vapi, nine in `VOICE_TOOLS`** —
+the tenth is `end_switchboard_call`, below. `end_switchboard_call` is Vapi's
 own built-in end-call type. It never reaches our webhook and there is no handler
 for it, which is correct — do not "fix" the mismatch by adding one.
 
@@ -723,6 +725,11 @@ but not published is the previous version still serving calls.
 | Word error rate | 12% |
 | Max upload | 25 MB free tier · 100 MB dev tier |
 | Formats | flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, **webm** |
+
+**Two users of this budget since 2026-10-06:** the voice lab (short clips,
+English pinned) and the worker's file reader (`file-text.ts`, every saved
+recording once, language detected — ADR-032). The reader stops its pass on a
+429 and retries later, so it cannot starve the other.
 
 CAUTION: **Turbo transcribes only.** Translation is on the non-turbo
 `whisper-large-v3`, at a different endpoint. That matters the day Tagalog output

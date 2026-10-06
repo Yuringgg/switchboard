@@ -1,4 +1,5 @@
 import {
+  ChevronRight,
   File,
   FileArchive,
   FileImage,
@@ -188,6 +189,31 @@ export function FileRows({ items }: { items: LibraryItem[] }) {
                   {item.subject?.trim() || 'the message'}
                 </Link>
               </span>
+              {/*
+                What the file says (2026-10-06): the start of a PDF's text or a
+                recording's transcript, read by the worker. Folded by default —
+                a list of files should still scan as a list of files — and a
+                native <details>, so it opens without any script.
+              */}
+              {item.textPreview && (
+                <details className="group/text mt-1.5">
+                  <summary
+                    className={cn(
+                      LABEL,
+                      'focus-ring inline-flex cursor-pointer list-none items-center gap-1 rounded normal-case hover:text-foreground [&::-webkit-details-marker]:hidden',
+                    )}
+                  >
+                    <ChevronRight
+                      className="size-3 transition-transform group-open/text:rotate-90"
+                      aria-hidden
+                    />
+                    {item.textKind === 'transcript' ? 'Transcript' : 'What it says'}
+                  </summary>
+                  <p className="mt-1.5 border-l-2 border-border pl-2.5 text-note text-muted-foreground text-pretty">
+                    {item.textPreview}
+                  </p>
+                </details>
+              )}
             </span>
             <span className={cn(LABEL, 'shrink-0 normal-case')}>{formatDay(item.sentAt)}</span>
           </li>

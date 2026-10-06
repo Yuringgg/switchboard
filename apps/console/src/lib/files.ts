@@ -39,6 +39,13 @@ export interface FileItem {
   contactId: string | null;
   contactName: string | null;
   organisation: string | null;
+  /**
+   * What the file says, when the worker has read it (0020): the start of a
+   * PDF's text or a recording's transcript. Null for pictures, for files not
+   * read yet, and for files with nothing in them.
+   */
+  textPreview: string | null;
+  textKind: 'pdf_text' | 'transcript' | null;
 }
 
 export interface TranscriptItem {
@@ -145,9 +152,11 @@ export async function fetchLibrary(
   { messageIds }: { messageIds?: string[] } = {},
 ): Promise<{ items: LibraryItem[]; error: string | null }> {
   try {
+    // The preview only — never `text_content`, which can be 100,000 characters
+    // per file and is for Uriel, one file at a time.
     let attachmentQuery = supabase
       .from('attachments')
-      .select('id, message_id, filename, mime_type, size_bytes')
+      .select('id, message_id, filename, mime_type, size_bytes, text_preview, text_kind')
       .limit(1000);
     if (messageIds) {
       if (messageIds.length === 0) return { items: [], error: null };
@@ -162,6 +171,8 @@ export async function fetchLibrary(
       filename: string | null;
       mime_type: string | null;
       size_bytes: number | null;
+      text_preview: string | null;
+      text_kind: 'pdf_text' | 'transcript' | null;
     }[];
 
     const ids = [...new Set(attachments.map((a) => a.message_id))];
@@ -195,6 +206,8 @@ export async function fetchLibrary(
           contactId: person?.contactId ?? null,
           contactName: person?.name ?? null,
           organisation: person?.organisation ?? null,
+          textPreview: a.text_preview ?? null,
+          textKind: a.text_kind ?? null,
         },
       ];
     });

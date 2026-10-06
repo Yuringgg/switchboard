@@ -655,6 +655,8 @@ function fileFixtures(): LibraryItem[] {
     daysAgo: number,
     from: { id: string; name: string; org: string | null } | null,
     subject: string,
+    // What the worker read from it (0020), when it is a PDF or a recording.
+    text: { kind: 'pdf_text' | 'transcript'; preview: string } | null = null,
   ): LibraryItem => ({
     kind: 'file',
     id,
@@ -668,6 +670,8 @@ function fileFixtures(): LibraryItem[] {
     contactId: from?.id ?? null,
     contactName: from?.name ?? null,
     organisation: from?.org ?? null,
+    textPreview: text?.preview ?? null,
+    textKind: text?.kind ?? null,
   });
   const maria = { id: 'c-maria', name: 'Maria Santos', org: 'Acme Logistics' };
   const jose = { id: 'c-jose', name: 'Jose Reyes', org: 'Acme Logistics' };
@@ -675,7 +679,16 @@ function fileFixtures(): LibraryItem[] {
   return [
     file('f1', 'October delivery schedule.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 48_200, 0, maria, 'Delivery schedule for October'),
     { kind: 'transcript', messageId: 'm-t1', title: 'Weekly sync with Acme', sentAt: day(1) },
-    file('f2', 'Signed quotation — Q4 rollout.pdf', 'application/pdf', 812_000, 1, jose, 'Signed quote attached'),
+    file('f7', 'Voice note.m4a', 'audio/x-m4a', 410_000, 0, maria, 'Re: delivery schedule', {
+      kind: 'transcript',
+      preview:
+        'Hi, quick one about the schedule. Pwede ba nating i-move yung Thursday delivery to Friday morning? The truck is booked for Thursday afternoon pa kasi. Thanks!',
+    }),
+    file('f2', 'Signed quotation — Q4 rollout.pdf', 'application/pdf', 812_000, 1, jose, 'Signed quote attached', {
+      kind: 'pdf_text',
+      preview:
+        'QUOTATION No. Q-2026-114 · Acme Logistics · Q4 rollout · 3 trucks × 12 weeks · Total ₱1,284,000.00, VAT inclusive · Valid until 31 October 2026 · Signed: Jose Reyes',
+    }),
     file('f3', 'Thesis consultation notes.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 96_400, 3, lea, 'Notes from Tuesday'),
     file('f4', 'Landing page draft.pdf', 'application/pdf', 2_400_000, 4, null, 'Draft for review'),
     file('f5', 'Warehouse photo.jpg', 'image/jpeg', 1_900_000, 6, maria, 'Site photo'),

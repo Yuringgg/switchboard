@@ -1811,6 +1811,49 @@ is this console's own, in its tokens).
 
 ---
 
+## ADR-032 — Saved PDFs and recordings are read once, and the text kept on the file
+
+**Date:** 2026-10-06 · **Status:** Accepted · *Migration 0020*
+
+**Context.** Uriel could name a saved file but not say what was in it, and
+Yuri asked for that — and for files arriving later to be covered. Of the 28
+saved files: 14 audio recordings, 11 pictures, 3 PDFs.
+
+**Decision.** The worker reads every saved PDF and audio file right after the
+file sweep (`file-text.ts`, same 2-minute loop), three per pass, and writes
+the result onto the `attachments` row: `text_content` (capped at 100,000
+characters), `text_preview` (~400, for the Files page), `text_kind`,
+`text_status` (null = not tried; done / empty / failed / too_large) and
+`text_model`. PDFs are read on the worker with `unpdf` (PDF.js); recordings are
+transcribed by Groq Whisper (`whisper-large-v3-turbo`, the voice lab's model)
+with the language **detected**, not pinned to English. Uriel reads it through a
+new tool, `read_file`; `get_files` also matches it.
+
+**Why on the file's row.** RLS already isolates `attachments` (0002), so the
+text inherits the tenant boundary, and the Files page and Uriel get it for free.
+A separate table would need its own policy and its own join.
+
+**Why read once, in the background.** A call cannot wait for a 12 MB recording
+to transcribe, and reading on demand would spend Groq requests every time a
+file is asked about. Read once, it costs one request per recording, ever.
+
+**Why `unpdf` on the worker, not a model.** A PDF's text layer is text; reading
+it needs no AI and sends the file nowhere. External to the tsup bundle and
+installed in the image, like the Azure SDK; a missing copy leaves PDFs unread
+and nothing else.
+
+**Consequences.** Recordings are now sent to Groq (the privacy page says so).
+Whisper's free tier is 2,000 requests and 28,800 audio-seconds a day
+(`docs/03-RESOURCES.md` §4d) — about eight hours of recordings. PDFs over 8 MB
+are not parsed (PDF.js holds the whole document; the worker has 1 GiB). A
+scanned PDF has no text layer and is recorded `empty`.
+
+**Not decided here:** reading **pictures** (and scanned PDFs). That needs a
+vision model — a provider, a quota and a cost to choose. Asked and deferred by
+Yuri, 2026-10-06.
+
+---
+
 ## Template for new ADRs
 
 ```markdown

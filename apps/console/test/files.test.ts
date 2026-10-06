@@ -30,6 +30,8 @@ function file(overrides: Partial<FileItem> & { id: string }): FileItem {
     contactId: null,
     contactName: null,
     organisation: null,
+    textPreview: null,
+    textKind: null,
     ...overrides,
   };
 }

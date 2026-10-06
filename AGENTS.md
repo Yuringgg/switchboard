@@ -403,6 +403,19 @@ three rendered candidates; see the jack-field note.
 `/preview?screen=assistant` now renders the orb, so it can be looked at
 without signing in.
 
+### Saved PDFs are read and recordings transcribed, 2026-10-06
+
+Full note: `correspondence/2026-10-06-file-text.md`, ADR-032, migration 0020.
+The worker reads every saved PDF (`unpdf`) and transcribes every saved
+recording (Groq Whisper, language detected) right after the file sweep, three
+per pass — so new files are read within ~2 minutes. The text lives on the
+`attachments` row (`text_content`, `text_preview`, `text_status`); the Files
+page shows a folded preview; Uriel reads it with `read_file`. **CAUTION:
+`unpdf` is external — `await import('unpdf')` only (import-boundary test).**
+**CAUTION: never select `text_content` in a list; it can be 100k characters.**
+Pictures are not read (vision model deferred). `read_file` must be created in
+Vapi by Yuri.
+
 ### Uriel reaches the rest of Switchboard, 2026-10-06
 
 Full note: `correspondence/2026-10-06-uriel-everything.md`. Every message a
