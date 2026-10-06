@@ -410,8 +410,8 @@ voice tool returns carries `messageId` and the model's `aiSummary`; board items
 say their column, `onCalendar` and sender (and `status: "done"` reads finished
 work); `get_person_activity` adds the contact brief (`about`, `openWithThem`,
 via `lib/brief.ts`'s pure roll-ups); two new tools, `read_message` and
-`get_overview`. **CAUTION: `read_message`, `get_overview` and the `status`
-parameter must be CREATED IN VAPI by Yuri.** Still out of reach on purpose:
+`get_overview`. All of it is created in Vapi and the full prompt pasted —
+**confirmed working by Yuri the same evening.** Still out of reach on purpose:
 file contents, any write, search by meaning (the RPC has no owner argument).
 
 ### Uriel can see files, 2026-10-06
@@ -421,9 +421,8 @@ Full note: `correspondence/2026-10-06-uriel-files.md`. No voice tool read
 message a tool returns carries `files: [{ name, kind }]`, `search_messages`
 also matches file names, and a sixth tool, `get_files`, lists files by person
 or by name. **CAUTION: every new read filters `owner_id` AND
-`attachments.owner_id` by hand (service role).** **CAUTION: `get_files` must
-be CREATED IN VAPI by Yuri** (steps in the note) — until then Uriel cannot
-call it. Names and kinds only; nothing reads a file's contents.
+`attachments.owner_id` by hand (service role).** Created in Vapi by Yuri,
+2026-10-06. Names and kinds only; nothing reads a file's contents.
 
 ### The landing page has a wall of moving messages, 2026-10-06
 
