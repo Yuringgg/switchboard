@@ -76,10 +76,10 @@ WORKDIR /app
 # exact layout, because this image cannot be built locally to check.
 RUN printf '{"name":"switchboard-worker-runtime","private":true,"type":"module"}\n' > package.json
 
-# `unpdf` reads a saved PDF's text (`file-text.ts`, 2026-10-06). External for
-# the same reason as the Azure SDK — see tsup.config.ts. Pinned to match
-# apps/worker/package.json.
-RUN npm install --omit=dev --no-audit --no-fund @huggingface/transformers@4.2.0 @azure/storage-blob@12.34.0 unpdf@1.8.1 \
+# `unpdf` reads a saved PDF's text and `tesseract.js` the text in a saved
+# picture (`file-text.ts`, 2026-10-06). External for the reasons in
+# tsup.config.ts. Pinned to match apps/worker/package.json.
+RUN npm install --omit=dev --no-audit --no-fund @huggingface/transformers@4.2.0 @azure/storage-blob@12.34.0 unpdf@1.8.1 tesseract.js@7.0.0 \
  && chown -R node:node /app
 
 # Never run as root.

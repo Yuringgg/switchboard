@@ -656,7 +656,7 @@ function fileFixtures(): LibraryItem[] {
     from: { id: string; name: string; org: string | null } | null,
     subject: string,
     // What the worker read from it (0020), when it is a PDF or a recording.
-    text: { kind: 'pdf_text' | 'transcript'; preview: string } | null = null,
+    text: { kind: 'pdf_text' | 'transcript' | 'image_text'; preview: string } | null = null,
   ): LibraryItem => ({
     kind: 'file',
     id,
@@ -691,7 +691,13 @@ function fileFixtures(): LibraryItem[] {
     }),
     file('f3', 'Thesis consultation notes.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 96_400, 3, lea, 'Notes from Tuesday'),
     file('f4', 'Landing page draft.pdf', 'application/pdf', 2_400_000, 4, null, 'Draft for review'),
+    // A photo with no readable text: no preview, exactly as the worker leaves it.
     file('f5', 'Warehouse photo.jpg', 'image/jpeg', 1_900_000, 6, maria, 'Site photo'),
+    file('f8', 'Deposit slip.jpg', 'image/jpeg', 340_000, 7, jose, 'Payment sent', {
+      kind: 'image_text',
+      preview:
+        'Deposit confirmed · PHP 128,400.00 · To ACME LOGISTICS INC · Ref no. 20261001-77421 · Oct 1, 2026 10:14 AM',
+    }),
     file('f6', 'Rate card 2026.pdf', 'application/pdf', 240_000, 9, jose, 'Rates'),
   ];
 }

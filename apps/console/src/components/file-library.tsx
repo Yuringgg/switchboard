@@ -207,7 +207,11 @@ export function FileRows({ items }: { items: LibraryItem[] }) {
                       className="size-3 transition-transform group-open/text:rotate-90"
                       aria-hidden
                     />
-                    {item.textKind === 'transcript' ? 'Transcript' : 'What it says'}
+                    {item.textKind === 'transcript'
+                      ? 'Transcript'
+                      : item.textKind === 'image_text'
+                        ? 'Text in the picture'
+                        : 'What it says'}
                   </summary>
                   <p className="mt-1.5 border-l-2 border-border pl-2.5 text-note text-muted-foreground text-pretty">
                     {item.textPreview}

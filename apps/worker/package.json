@@ -21,6 +21,7 @@
     "@switchboard/db": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.9",
+    "tesseract.js": "7.0.0",
     "unpdf": "1.8.1"
   },
   "devDependencies": {

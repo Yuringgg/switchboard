@@ -6,6 +6,7 @@ import {
   MAX_PDF_BYTES,
   MAX_TEXT_CHARS,
   PREVIEW_CHARS,
+  readableText,
   readFileTexts,
   readPlanFor,
   tidyText,
@@ -25,11 +26,43 @@ describe('readPlanFor', () => {
     expect(readPlanFor(null, 'memo.ogg')).toBe('audio');
   });
 
-  it('leaves pictures and everything else alone', () => {
-    // Pictures need a vision model — a separate decision.
-    expect(readPlanFor('image/png', 'scan.png')).toBeNull();
+  it('reads pictures tesseract can decode — for their text', () => {
+    expect(readPlanFor('image/png', 'image.png')).toBe('image');
+    expect(readPlanFor('image/jpeg', 'IMG_0303.jpeg')).toBe('image');
+    expect(readPlanFor(null, 'receipt.JPG')).toBe('image');
+  });
+
+  it('leaves GIFs, documents and the rest alone', () => {
+    expect(readPlanFor('image/gif', 'animation.gif')).toBeNull();
     expect(readPlanFor('application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'brief.docx')).toBeNull();
     expect(readPlanFor(null, null)).toBeNull();
+  });
+});
+
+describe('readableText — "only when it is readable"', () => {
+  it('keeps the confident lines of a receipt', () => {
+    expect(
+      readableText([
+        { text: 'Sent!', confidence: 92 },
+        { text: 'Total PHP 3,687.36', confidence: 91 },
+        { text: '| ~ ,', confidence: 31 },
+        { text: 'To West of ayala condominium corp', confidence: 89 },
+      ]),
+    ).toBe('Sent!\nTotal PHP 3,687.36\nTo West of ayala condominium corp');
+  });
+
+  it('finds nothing in a photo — a few stray low-confidence marks', () => {
+    expect(
+      readableText([
+        { text: 'Ill', confidence: 22 },
+        { text: '~ ea', confidence: 40 },
+        { text: 'a', confidence: 75 },
+      ]),
+    ).toBeNull();
+  });
+
+  it('needs several real words, not one confident logo', () => {
+    expect(readableText([{ text: 'BDO 50', confidence: 88 }])).toBeNull();
   });
 });
 
@@ -194,6 +227,70 @@ describe('readFileTexts', () => {
 
     expect(result).toMatchObject({ deferred: 1, done: 1 });
     expect(updates).toHaveLength(1);
+  });
+
+  it('reads a receipt picture, records a photo as empty, and closes the engine once', async () => {
+    const closed = { count: 0 };
+    const pictures: Record<string, { text: string; confidence: number }[]> = {
+      'owner/m/p1': [
+        { text: 'Sent!', confidence: 92 },
+        { text: 'Total PHP 5,710.00', confidence: 90 },
+        { text: 'Reference no. BN-20260731-29473040', confidence: 88 },
+      ],
+      'owner/m/p2': [{ text: 'Ill', confidence: 20 }],
+    };
+    let current = '';
+    const container = {
+      getBlockBlobClient: (name: string) => ({
+        downloadToBuffer: async () => {
+          current = name;
+          return Buffer.from('fake-image');
+        },
+      }),
+    } as unknown as ContainerClient;
+    const { db, updates } = stubDb([
+      file('p1', 'image/jpeg', 'IMG_0303.jpeg'),
+      file('p2', 'image/png', 'photo.png'),
+    ]);
+
+    const result = await readFileTexts(db, container, {
+      groqApiKey: '',
+      batchSize: 3,
+      startImageReader: async () => ({
+        readLines: async () => pictures[current]!,
+        close: async () => {
+          closed.count += 1;
+        },
+      }),
+    });
+
+    expect(result).toMatchObject({ done: 1, empty: 1 });
+    expect(updates[0]?.slice(0, 3)).toEqual([
+      'done',
+      'image_text',
+      'Sent!\nTotal PHP 5,710.00\nReference no. BN-20260731-29473040',
+    ]);
+    expect(updates[1]?.slice(0, 2)).toEqual(['empty', 'image_text']);
+    // ⚠ One engine for the pass, closed at its end — it holds ~150 MiB.
+    expect(closed.count).toBe(1);
+  });
+
+  it('never starts the OCR engine on a pass with no pictures', async () => {
+    let started = false;
+    const { db } = stubDb([file('f1', 'application/pdf', 'q.pdf')]);
+    const { container } = stubContainer();
+
+    await readFileTexts(db, container, {
+      groqApiKey: '',
+      batchSize: 3,
+      loadPdfReader: pdfReader('Quotation total'),
+      startImageReader: async () => {
+        started = true;
+        return null;
+      },
+    });
+
+    expect(started).toBe(false);
   });
 
   it('leaves PDFs for later when unpdf is missing from the image', async () => {

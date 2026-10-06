@@ -1848,9 +1848,18 @@ Whisper's free tier is 2,000 requests and 28,800 audio-seconds a day
 are not parsed (PDF.js holds the whole document; the worker has 1 GiB). A
 scanned PDF has no text layer and is recorded `empty`.
 
-**Not decided here:** reading **pictures** (and scanned PDFs). That needs a
-vision model — a provider, a quota and a cost to choose. Asked and deferred by
-Yuri, 2026-10-06.
+**Amended the same evening (migration 0021): the TEXT in pictures.** Yuri:
+*"only when it is readable"*. Pictures are OCR'd with `tesseract.js` on the
+worker — no outside service — and kept (`text_kind = image_text`) only when
+OCR finds at least four real words in lines it is ≥70% confident about; a photo
+without readable text is `empty`. OCR rather than a vision model because the
+ask was readable text, not a description, and OCR costs nothing and sends the
+picture nowhere. The engine (~150 MiB) runs only during a pass that has a
+picture, and is terminated at its end.
+
+**Not decided here:** describing what a photo SHOWS, and OCR for scanned PDFs
+(each page would have to be rendered to an image first). Both need more than
+this; neither was asked for.
 
 ---
 

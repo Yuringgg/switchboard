@@ -200,8 +200,9 @@ export const attachments = pgTable(
     sizeBytes: bigint('size_bytes', { mode: 'number' }),
     /**
      * What the file says (0020): a PDF's text layer or a recording's
-     * transcript, written by the worker's file reader (`file-text.ts`).
-     * Pictures are not read. `textStatus` null = not tried yet.
+     * transcript, written by the worker's file reader (`file-text.ts`) — and
+     * since 0021 the text OCR finds in a picture, kept only when readable.
+     * `textStatus` null = not tried yet.
      */
     textContent: text('text_content'),
     textPreview: text('text_preview'),

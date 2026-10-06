@@ -413,7 +413,10 @@ per pass — so new files are read within ~2 minutes. The text lives on the
 page shows a folded preview; Uriel reads it with `read_file`. **CAUTION:
 `unpdf` is external — `await import('unpdf')` only (import-boundary test).**
 **CAUTION: never select `text_content` in a list; it can be 100k characters.**
-Pictures are not read (vision model deferred). `read_file` must be created in
+Pictures give their TEXT only (0021, `tesseract.js` OCR, kept only when ≥4
+confident words — Yuri: "only when it is readable"); nothing describes a photo.
+**CAUTION: `tesseract.js` is external too, and its engine must be terminated
+after each pass** (~150 MiB on a 1 GiB worker). `read_file` must be created in
 Vapi by Yuri.
 
 ### Uriel reaches the rest of Switchboard, 2026-10-06

@@ -1684,7 +1684,9 @@ export async function getOverview(
  *
  * Every state is said plainly rather than as an error: not read yet (a new
  * file, or the backlog), nothing in it (a scan, silence), too large, a picture.
- * ⚠ Pictures are NOT read — that needs a vision model, a separate decision.
+ * ⚠ A picture gives only the TEXT in it, and only when OCR found it readable
+ * (0021: a receipt, a screenshot, a card). What a photo shows is never
+ * described — that needs a vision model, still not chosen.
  *
  * ── ⚠ The read filters on owner_id — see the top of this file ───────────────
  */
@@ -1717,7 +1719,7 @@ export async function readFile(
     filename: string | null;
     mime_type: string | null;
     text_status: 'done' | 'empty' | 'failed' | 'too_large' | null;
-    text_kind: 'pdf_text' | 'transcript' | null;
+    text_kind: 'pdf_text' | 'transcript' | 'image_text' | null;
     text_content: string | null;
     message: {
       sent_at: string;
@@ -1740,29 +1742,39 @@ export async function readFile(
     return {
       summary:
         row.text_kind === 'transcript'
-          ? `The recording, transcribed.`
-          : `What the ${kind === 'a PDF' ? 'PDF' : 'file'} says.`,
+          ? 'The recording, transcribed.'
+          : row.text_kind === 'image_text'
+            ? 'The text in the picture.'
+            : `What the ${kind === 'a PDF' ? 'PDF' : 'file'} says.`,
       ...about,
       text: speakable(text, READ_MAX_CHARS),
       truncated: text.length > READ_MAX_CHARS,
     };
   }
 
+  // What the worker reads at all (`readPlanFor` in apps/worker/src/file-text.ts):
+  // PDFs, recordings, and pictures tesseract can decode — not GIFs or HEIC.
+  const picture = kind === 'a picture';
+  const readsKind =
+    kind === 'a PDF' ||
+    kind === 'an audio recording' ||
+    (picture && !/gif|heic|heif|svg/i.test(`${row.mime_type ?? ''} ${row.filename ?? ''}`));
+
   // Everything below is said, not an error: the file is there, its text is not.
   const unread =
-    kind === 'a picture'
-      ? 'Pictures cannot be read yet. It is on the Files page.'
-      : row.text_status === 'empty'
-        ? row.text_kind === 'transcript'
-          ? 'There is no speech in that recording.'
+    row.text_status === 'empty'
+      ? row.text_kind === 'transcript'
+        ? 'There is no speech in that recording.'
+        : picture
+          ? 'There is no readable text in that picture. Only the text in a picture can be read, not what it shows. It is on the Files page.'
           : 'There is no text in that file. It may be a scan, which cannot be read yet.'
-        : row.text_status === 'too_large'
-          ? 'That file is too large to read. It is on the Files page.'
-          : row.text_status === 'failed'
-            ? 'That file could not be read. It is on the Files page.'
-            : kind === 'a PDF' || kind === 'an audio recording'
-              ? 'That file has not been read yet. Try again in a few minutes.'
-              : `${kind.charAt(0).toUpperCase()}${kind.slice(1)} cannot be read yet. It is on the Files page.`;
+      : row.text_status === 'too_large'
+        ? 'That file is too large to read. It is on the Files page.'
+        : row.text_status === 'failed'
+          ? 'That file could not be read. It is on the Files page.'
+          : readsKind
+            ? 'That file has not been read yet. Try again in a few minutes.'
+            : `${kind.charAt(0).toUpperCase()}${kind.slice(1)} cannot be read yet. It is on the Files page.`;
 
   return { summary: unread, ...about };
 }

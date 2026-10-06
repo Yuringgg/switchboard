@@ -884,20 +884,64 @@ describe('read_file', () => {
     expect(result).not.toHaveProperty('text');
   });
 
-  it('says a scan has no text, and that a picture cannot be read', async () => {
+  it('says a scan has no text', async () => {
     const scan = await readFile(
       fakeClient([fileRow({ text_status: 'empty', text_content: null })]).client,
       OWNER,
       FILE_ID,
     );
     expect(scan.summary).toMatch(/no text in that file/i);
+  });
 
-    const picture = await readFile(
+  /*
+   * Pictures (0021): only their text, only when readable — "only when it is
+   * readable" (Yuri). A receipt reads; a photo of a room says so plainly.
+   */
+  it('reads the text in a picture', async () => {
+    const { client } = fakeClient([
+      fileRow({
+        filename: 'IMG_0303.jpeg',
+        mime_type: 'image/jpeg',
+        text_kind: 'image_text',
+        text_content: 'Sent!\nTotal PHP 5,710.00\nReference no. BN-20260731-29473040',
+      }),
+    ]);
+    const result = await readFile(client, OWNER, FILE_ID);
+
+    expect(result.summary).toBe('The text in the picture.');
+    expect(result.text).toBe('Sent! Total PHP 5,710.00 Reference no. BN-20260731-29473040');
+  });
+
+  it('says a photo has no readable text — and never describes it', async () => {
+    const { client } = fakeClient([
+      fileRow({
+        filename: 'Warehouse photo.jpg',
+        mime_type: 'image/jpeg',
+        text_status: 'empty',
+        text_kind: 'image_text',
+        text_content: null,
+      }),
+    ]);
+    const result = await readFile(client, OWNER, FILE_ID);
+
+    expect(result.summary).toMatch(/^There is no readable text in that picture/);
+    expect(result.summary).toMatch(/not what it shows/);
+  });
+
+  it('says a picture not read yet will be, and that a GIF cannot be', async () => {
+    const pending = await readFile(
       fakeClient([fileRow({ filename: 'photo.jpg', mime_type: 'image/jpeg', text_status: null })]).client,
       OWNER,
       FILE_ID,
     );
-    expect(picture.summary).toBe('Pictures cannot be read yet. It is on the Files page.');
+    expect(pending.summary).toBe('That file has not been read yet. Try again in a few minutes.');
+
+    const gif = await readFile(
+      fakeClient([fileRow({ filename: 'party.gif', mime_type: 'image/gif', text_status: null })]).client,
+      OWNER,
+      FILE_ID,
+    );
+    expect(gif.summary).toBe('A picture cannot be read yet. It is on the Files page.');
   });
 });
 

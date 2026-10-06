@@ -45,7 +45,8 @@ export interface FileItem {
    * read yet, and for files with nothing in them.
    */
   textPreview: string | null;
-  textKind: 'pdf_text' | 'transcript' | null;
+  /** `image_text` (0021): the text OCR found in a picture — only when readable. */
+  textKind: 'pdf_text' | 'transcript' | 'image_text' | null;
 }
 
 export interface TranscriptItem {
@@ -172,7 +173,7 @@ export async function fetchLibrary(
       mime_type: string | null;
       size_bytes: number | null;
       text_preview: string | null;
-      text_kind: 'pdf_text' | 'transcript' | null;
+      text_kind: FileItem['textKind'];
     }[];
 
     const ids = [...new Set(attachments.map((a) => a.message_id))];

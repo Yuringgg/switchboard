@@ -23,3 +23,7 @@ allowBuilds:
   onnxruntime-node: true
   protobufjs: true
   sharp: false
+  # tesseract.js reads the text in saved pictures (apps/worker/src/file-text.ts,
+  # 2026-10-06). Its only install script is an Open Collective funding message;
+  # the engine is WebAssembly and needs no build step.
+  tesseract.js: false

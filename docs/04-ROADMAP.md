@@ -1416,7 +1416,11 @@ downloads."* ADR-030, full note: `correspondence/2026-09-29-files.md`.
       (Groq Whisper), new files within ~2 minutes; the Files page shows a
       preview and Uriel reads it with `read_file`. Note:
       `correspondence/2026-10-06-file-text.md`.
-- [ ] Pictures and scanned PDFs — need a vision model; deferred by Yuri.
+- [x] **The text in pictures** (migration 0021) — OCR with `tesseract.js` on
+      the worker, kept only when readable (≥4 confident words). Receipts,
+      screenshots, cards. ADR-032 amended.
+- [ ] Describing what a photo shows (needs a vision model), and OCR for
+      scanned PDFs — not asked for.
 
 ## Smooth navigation, 2026-10-02
 

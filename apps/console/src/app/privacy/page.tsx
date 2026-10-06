@@ -65,8 +65,10 @@ export default function PrivacyPage() {
               reads the messages in your mailbox: sender, subject, date and text, and saves the
               files attached to them so they can be filed for you. Small images (logos,
               signatures), calendar invites and files over 25 MB are left out. It also reads
-              what saved PDFs say and transcribes saved audio recordings, so you can search
-              them and the voice assistant can tell you what is in them. Pictures are not read.
+              what saved PDFs say, transcribes saved audio recordings, and reads the text in
+              saved pictures such as receipts and screenshots, so you can search them and the
+              voice assistant can tell you what is in them. It does not describe what a photo
+              shows.
             </li>
             <li>
               <strong>Google Calendar</strong> (<code>calendar.events</code>). It creates an event{' '}
@@ -86,8 +88,8 @@ export default function PrivacyPage() {
         <Section title="What it keeps, and where">
           <p>
             The messages above, their AI summaries, the meetings, tasks and details it picks out of
-            them, the text of saved PDFs and transcripts of saved recordings, and notes you write
-            on contacts. They are stored in a Postgres database hosted
+            them, the text of saved PDFs and pictures and transcripts of saved recordings, and
+            notes you write on contacts. They are stored in a Postgres database hosted
             by Supabase in Singapore. Each account can only ever read its own rows; the database
             enforces that for every table.
           </p>
@@ -112,9 +114,9 @@ export default function PrivacyPage() {
               <strong>Groq</strong> runs the AI models. Message text is sent to it to write
               summaries, pick out meetings and tasks, and answer your questions about your
               messages, and saved audio recordings are sent to it to be transcribed. (A backup
-              setting can send questions to Google Gemini instead; it is not the one in use.) A
-              saved PDF&rsquo;s text is read on Switchboard&rsquo;s own worker, not by an outside
-              service.
+              setting can send questions to Google Gemini instead; it is not the one in use.) The
+              text in a saved PDF or picture is read on Switchboard&rsquo;s own worker, not by an
+              outside service.
             </li>
             <li>
               <strong>Vapi</strong> runs the voice assistant. When you call it, your voice and the

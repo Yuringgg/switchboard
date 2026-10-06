@@ -114,16 +114,19 @@ describe('worker import boundary', () => {
    * `file-text.ts`, so a missing copy leaves PDFs unread instead of stopping
    * the worker from starting.
    */
-  it('never imports unpdf by value at the top of a file', () => {
+  it('never imports unpdf or tesseract.js by value at the top of a file', () => {
     const offenders = files
       .filter((file) =>
-        /^import\s+(?!type\b)[^;]*from\s+['"]unpdf/m.test(readFileSync(file, 'utf8')),
+        /^import\s+(?!type\b)[^;]*from\s+['"](unpdf|tesseract\.js)/m.test(
+          readFileSync(file, 'utf8'),
+        ),
       )
       .map((file) => relative(SRC, file));
 
     expect(
       offenders,
-      `These import unpdf by value: ${offenders.join(', ')}. Use \`await import('unpdf')\`.`,
+      `These import unpdf or tesseract.js by value: ${offenders.join(', ')}. ` +
+        "Use `await import('unpdf')` / `await import('tesseract.js')`.",
     ).toEqual([]);
   });
 });

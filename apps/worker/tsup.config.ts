@@ -30,7 +30,7 @@ export default defineConfig({
    *
    * So the everything-else rule has to name its exceptions itself.
    */
-  noExternal: [/^(?!@huggingface\/transformers|onnxruntime-|@azure\/|unpdf)/],
+  noExternal: [/^(?!@huggingface\/transformers|onnxruntime-|@azure\/|unpdf|tesseract\.js)/],
 
   /**
    * ⚠ The exceptions, and they are exceptions for a hard reason.
@@ -48,7 +48,7 @@ export default defineConfig({
    * missing them degrades to "no embeddings" instead of failing to boot. Mail
    * keeps flowing. See `src/embed.ts` and the startup handler in `src/index.ts`.
    */
-  external: ['@huggingface/transformers', /^onnxruntime/, /^@azure\//, /^unpdf/],
+  external: ['@huggingface/transformers', /^onnxruntime/, /^@azure\//, /^unpdf/, /^tesseract\.js/],
 
   /*
    * ⚠ `@azure/*` joined this list on 2026-09-29, the hard way. The Azure SDK
@@ -63,6 +63,10 @@ export default defineConfig({
    * a bundler can rewrite into something that only fails at runtime. Same
    * treatment — installed in the image, imported dynamically in
    * `file-text.ts`, so a missing copy leaves PDFs unread, nothing more.
+   *
+   * `tesseract.js` (pictures, the same evening) for a harder reason: it runs
+   * its engine in a `worker_threads` worker loaded from a FILE PATH inside its
+   * own package, plus a WebAssembly core. Bundled, that path points nowhere.
    */
 
   // Trims the bundle but keeps a readable stack trace when the worker throws.
